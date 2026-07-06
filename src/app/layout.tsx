@@ -1,1 +1,12 @@
-import type { Metadata } from 'next'\nimport './globals.css'\n\nexport const metadata: Metadata = {\n  title: 'TCG Poke Market - Buy & Sell Pokémon Cards',\n  description: 'The ultimate marketplace for Pokémon Trading Card Game singles and sealed products.',\n}\n\nexport default function RootLayout({\n  children,\n}: {\n  children: React.ReactNode\n}) {\n  return (\n    <html lang=\"en\">\n      <body>\n        <header className=\"navbar\">\n          <div className=\"navbar-container\">\n            <h1><a href=\"/\">TCG Poke Market</a></h1>\n            <nav>\n              <a href=\"/listings\">Browse</a>\n              <a href=\"/sell\">Sell</a>\n              <a href=\"/auth/signin\">Sign In</a>\n            </nav>\n          </div>\n        </header>\n        {children}\n      </body>\n    </html>\n  )\n}\n
+import type { Metadata } from 'next'
+import './globals.css'
+import Navbar from '@/components/Navbar'
+
+export const metadata: Metadata = {
+ title: 'TCG Poke Market - Buy & Sell Pokémon Cards',
+ description: 'A Pokémon trading card marketplace for collectors, sellers, singles, and sealed products.',
+}
+
+export default function RootLayout({children}:{children:React.ReactNode}){
+ return <html lang="en"><body><Navbar/>{children}</body></html>
+}
