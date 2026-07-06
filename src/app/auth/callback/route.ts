@@ -1,1 +1,15 @@
-import { createClient } from '@/lib/supabase/server'\nimport { NextResponse } from 'next/server'\n\nexport async function GET(request: Request) {\n  const { searchParams } = new URL(request.url)\n  const code = searchParams.get('code')\n  const next = searchParams.get('next') || '/dashboard'\n\n  if (code) {\n    const supabase = await createClient()\n    await supabase.auth.exchangeCodeForSession(code)\n  }\n\n  return NextResponse.redirect(new URL(next, request.url))\n}\n
+import { createClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url)
+  const code = searchParams.get('code')
+  const next = searchParams.get('next') || '/dashboard'
+
+  if (code) {
+    const supabase = await createClient()
+    await supabase.auth.exchangeCodeForSession(code)
+  }
+
+  return NextResponse.redirect(new URL(next, request.url))
+}
