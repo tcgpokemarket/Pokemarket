@@ -1,1 +1,93 @@
-'use client'\n\nimport { useState } from 'react'\nimport { createClient } from '@/lib/supabase/client'\n\nexport default function Home() {\n  const [email, setEmail] = useState('')\n  const [loading, setLoading] = useState(false)\n  const [message, setMessage] = useState('')\n\n  const handleSubmit = async (e: React.FormEvent) => {\n    e.preventDefault()\n    setLoading(true)\n    setMessage('')\n\n    try {\n      const supabase = createClient()\n      const { error } = await supabase.from('leads').insert([\n        { email, status: 'new' },\n      ])\n\n      if (error) throw error\n\n      setMessage('✓ Thanks for your interest! We\\'ll be in touch soon.')\n      setEmail('')\n    } catch (error) {\n      setMessage(\n        'Error: ' +\n          (error instanceof Error ? error.message : 'Failed to subscribe')\n      )\n    } finally {\n      setLoading(false)\n    }\n  }\n\n  return (\n    <main>\n      <div className=\"hero\">\n        <h2>🎮 Welcome to TCG Poke Market</h2>\n        <p>The ultimate destination for Pokémon TCG cards</p>\n        <p style={{ fontSize: '1rem', color: '#666' }}>\n          We're building the future of Pokémon card trading. Join us!\n        </p>\n      </div>\n\n      <div className=\"container\">\n        <div\n          style={{\n            maxWidth: '500px',\n            margin: '0 auto',\n            background: 'white',\n            padding: '2rem',\n            borderRadius: '8px',\n            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',\n          }}\n        >\n          <h3 style={{ marginBottom: '1rem', textAlign: 'center' }}>\n            Get Early Access\n          </h3>\n          <form onSubmit={handleSubmit}>\n            <div className=\"form-group\">\n              <label htmlFor=\"email\">Email Address</label>\n              <input\n                id=\"email\"\n                type=\"email\"\n                placeholder=\"you@example.com\"\n                value={email}\n                onChange={(e) => setEmail(e.target.value)}\n                required\n                disabled={loading}\n              />\n            </div>\n            <button type=\"submit\" disabled={loading}>\n              {loading ? 'Subscribing...' : 'Join Our Waitlist'}\n            </button>\n          </form>\n          {message && (\n            <p\n              style={{\n                marginTop: '1rem',\n                textAlign: 'center',\n                color: message.startsWith('✓') ? '#3c3' : '#c33',\n              }}\n            >\n              {message}\n            </p>\n          )}\n        </div>\n      </div>\n    </main>\n  )\n}\n
+'use client'
+
+import { useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
+
+export default function Home() {
+  const [email, setEmail] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setMessage('')
+
+    try {
+      const supabase = createClient()
+      const { error } = await (supabase.from('leads') as any).insert({
+        email,
+        status: 'new'
+      })
+
+      if (error) throw error
+
+      setMessage('✓ Thanks for your interest! We will be in touch soon.')
+      setEmail('')
+    } catch (error) {
+      setMessage(
+        'Error: ' +
+          (error instanceof Error ? error.message : 'Failed to subscribe')
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <main>
+      <div className="hero">
+        <h2>🎮 Welcome to TCG Poke Market</h2>
+        <p>The ultimate destination for Pokémon TCG cards</p>
+        <p style={{ fontSize: '1rem', color: '#666' }}>
+          We are building the future of Pokémon card trading. Join us!
+        </p>
+      </div>
+
+      <div className="container">
+        <div
+          style={{
+            maxWidth: '500px',
+            margin: '0 auto',
+            background: 'white',
+            padding: '2rem',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+          }}
+        >
+          <h3 style={{ marginBottom: '1rem', textAlign: 'center' }}>
+            Get Early Access
+          </h3>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label htmlFor="email">Email Address</label>
+              <input
+                id="email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                disabled={loading}
+              />
+            </div>
+            <button type="submit" disabled={loading}>
+              {loading ? 'Subscribing...' : 'Join Our Waitlist'}
+            </button>
+          </form>
+          {message && (
+            <p
+              style={{
+                marginTop: '1rem',
+                textAlign: 'center',
+                color: message.startsWith('✓') ? '#3c3' : '#c33',
+              }}
+            >
+              {message}
+            </p>
+          )}
+        </div>
+      </div>
+    </main>
+  )
+}
