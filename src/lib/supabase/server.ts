@@ -19,8 +19,7 @@ export const createClient = async () => {
               cookieStore.set(name, value, options)
             )
           } catch {
-            // setAll was called from a Server Component.
-            // This can be ignored if middleware refreshes user sessions.
+            // setAll was called from a Server Component
           }
         },
       },

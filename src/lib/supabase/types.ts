@@ -26,7 +26,6 @@ export type Database = {
         }
         Update: {
           id?: string
-          created_at?: string
           updated_at?: string
           email?: string
           username?: string | null
@@ -71,9 +70,7 @@ export type Database = {
         }
         Update: {
           id?: string
-          created_at?: string
           updated_at?: string
-          seller_id?: string
           title?: string
           description?: string | null
           price?: number
@@ -101,7 +98,6 @@ export type Database = {
         }
         Update: {
           id?: string
-          created_at?: string
           email?: string
           status?: 'new' | 'contacted' | 'converted'
         }
