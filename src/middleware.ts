@@ -1,5 +1,4 @@
 import { NextResponse, type NextRequest } from 'next/server'
-import { createServerClient } from '@supabase/ssr'
 import { applySecurityHeaders } from './headers'
 import { recordAuditEvent, recordSecurityEvent } from './lib/audit-log'
 
@@ -54,42 +53,13 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(buildThrottleResponse(request))
   }
 
-  let response = NextResponse.next({ request })
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          response = NextResponse.next({ request })
-          cookiesToSet.forEach(({ name, value, options }) => {
-            response.cookies.set({
-              name,
-              value,
-              ...options,
-              httpOnly: true,
-              secure: true,
-              sameSite: 'lax',
-              path: '/',
-            })
-          })
-        },
-      },
-    }
-  )
+  const response = NextResponse.next({ request })
 
-  const { data: { user } } = await supabase.auth.getUser()
-  const isAdmin = Boolean(user?.email && adminEmails.includes(user.email.toLowerCase()))
-
-  if (shouldThrottle(pathname) && user) {
+  if (shouldThrottle(pathname)) {
     clearFailures(clientKey)
   }
 
-  if (isProtected && !user) {
+  if (isProtected) {
     if (shouldThrottle(pathname)) noteFailure(clientKey)
     recordAuditEvent({
       event_type: 'api.denied',
@@ -112,31 +82,6 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth'
     url.searchParams.set('redirectTo', request.nextUrl.pathname)
-    return applySecurityHeaders(NextResponse.redirect(url))
-  }
-
-  if (isAdminPath && !isAdmin) {
-    recordAuditEvent({
-      event_type: 'api.denied',
-      actor_id: user?.id ?? null,
-      action: 'admin_route_redirect',
-      resource_type: 'route',
-      resource_id: pathname,
-      previous_value: null,
-      new_value: null,
-      ip_address: clientKey,
-      user_agent: request.headers.get('user-agent'),
-    })
-    recordSecurityEvent({
-      event_type: 'auth.admin_block',
-      severity: 'high',
-      actor_id: user?.id ?? null,
-      ip_address: clientKey,
-      user_agent: request.headers.get('user-agent'),
-      details: { pathname },
-    })
-    const url = request.nextUrl.clone()
-    url.pathname = '/dashboard'
     return applySecurityHeaders(NextResponse.redirect(url))
   }
 
