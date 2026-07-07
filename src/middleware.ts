@@ -1,3 +1,4 @@
+import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { applySecurityHeaders } from './headers'
 import { recordAuditEvent, recordSecurityEvent } from './lib/audit-log'
@@ -24,9 +25,7 @@ function noteFailure(key: string) {
   const current = authAttempts.get(key) ?? { count: 0, lockedUntil: 0, lastSeen: Date.now() }
   current.count += 1
   current.lastSeen = Date.now()
-  if (current.count >= 8) {
-    current.lockedUntil = Date.now() + 10 * 60 * 1000
-  }
+  if (current.count >= 8) current.lockedUntil = Date.now() + 10 * 60 * 1000
   authAttempts.set(key, current)
 }
 
@@ -38,7 +37,7 @@ function shouldThrottle(pathname: string) {
   return pathname.startsWith('/auth') || pathname.startsWith('/api/')
 }
 
-function buildThrottleResponse(request: NextRequest) {
+function buildThrottleResponse() {
   return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 }
 
@@ -46,21 +45,44 @@ export async function middleware(request: NextRequest) {
   const clientKey = getClientKey(request)
   const pathname = request.nextUrl.pathname
   const adminEmails = getAdminEmails()
+
   const isProtected = ['/sell', '/dashboard', '/admin', '/api/admin'].some((p) => pathname.startsWith(p))
-  const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/api/admin')
 
   if (shouldThrottle(pathname) && isLockedOut(clientKey)) {
-    return applySecurityHeaders(buildThrottleResponse(request))
+    return applySecurityHeaders(buildThrottleResponse())
   }
 
-  const response = NextResponse.next({ request })
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
+  })
 
-  if (shouldThrottle(pathname)) {
-    clearFailures(clientKey)
-  }
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            request.cookies.set(name, value)
+            response.cookies.set(name, value, options)
+          })
+        },
+      },
+    }
+  )
 
-  if (isProtected) {
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (shouldThrottle(pathname)) clearFailures(clientKey)
+
+  if (isProtected && !user) {
     if (shouldThrottle(pathname)) noteFailure(clientKey)
+
     recordAuditEvent({
       event_type: 'api.denied',
       actor_id: null,
@@ -72,6 +94,7 @@ export async function middleware(request: NextRequest) {
       ip_address: clientKey,
       user_agent: request.headers.get('user-agent'),
     })
+
     recordSecurityEvent({
       event_type: 'auth.redirect',
       severity: 'medium',
@@ -79,9 +102,11 @@ export async function middleware(request: NextRequest) {
       user_agent: request.headers.get('user-agent'),
       details: { pathname },
     })
+
     const url = request.nextUrl.clone()
-    url.pathname = '/auth'
+    url.pathname = '/auth/signin'
     url.searchParams.set('redirectTo', request.nextUrl.pathname)
+
     return applySecurityHeaders(NextResponse.redirect(url))
   }
 
