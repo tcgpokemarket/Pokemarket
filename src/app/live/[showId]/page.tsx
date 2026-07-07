@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getLiveShowDetails } from "@/lib/live-shows-client";
+import { getLiveShowDetails } from "@/lib/live-shows";
 import LiveShowClient from "./show-client";
 
 export const dynamic = "force-dynamic";

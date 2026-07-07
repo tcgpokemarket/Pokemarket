@@ -29,12 +29,24 @@ export default async function LivePage({ searchParams }: { searchParams?: Promis
   const priceMin = Number(typeof params.priceMin === "string" ? params.priceMin : 0);
   const priceMax = Number(typeof params.priceMax === "string" ? params.priceMax : Number.MAX_SAFE_INTEGER);
 
-  const [activeShows, featuredShows, upcomingShows] = await Promise.all([
-    listActiveLiveShows(),
-    listFeaturedLiveShows(),
-    listUpcomingLiveShows(),
-  ]);
+  let activeShows: LiveShowDirectoryItem[] = [];
+  let featuredShows: LiveShowDirectoryItem[] = [];
+  let upcomingShows: LiveShowDirectoryItem[] = [];
+
+  try {
+    [activeShows, featuredShows, upcomingShows] = await Promise.all([
+      listActiveLiveShows(),
+      listFeaturedLiveShows(),
+      listUpcomingLiveShows(),
+    ]);
+  } catch {
+    activeShows = [];
+    featuredShows = [];
+    upcomingShows = [];
+  }
+
   const shows = [...activeShows, ...featuredShows, ...upcomingShows];
+
   const filtered = shows.filter((show) => {
     const band = getPriceBand(show);
     const matchesSeller = !seller || show.seller_id === seller;
