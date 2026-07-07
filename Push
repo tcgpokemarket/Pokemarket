@@ -1,0 +1,4 @@
+cd /home/user/agent-runtime/websites
+git add package.json package-lock.json
+git commit -m "Pin Supabase dependency version"
+git push -u origin main
