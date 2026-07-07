@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe } from "@/lib/stripe";
+import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildSellerFeeConfig, calculateFeeBreakdown } from "@/lib/seller-fees";
@@ -78,6 +78,11 @@ export async function POST(req: Request) {
   });
 
   const totalAmount = feeBreakdown.totalDue;
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey) {
+    return NextResponse.json({ error: "Stripe is not configured" }, { status: 500 });
+  }
+  const stripe = new Stripe(stripeSecretKey, { apiVersion: "2026-06-24.dahlia" });
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",
     customer_email: user.email ?? undefined,
