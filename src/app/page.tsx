@@ -389,6 +389,50 @@ export default function Home() {
         </section>
 
         <section className="px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-6xl rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-red-500/10 via-yellow-400/10 to-blue-500/10 p-6 sm:p-8 lg:p-10">
+            <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+              <div>
+                <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Live auctions</div>
+                <h2 className="text-3xl font-black sm:text-4xl">Bid in real time on rotating collector drops</h2>
+                <p className="mt-4 max-w-2xl text-base leading-relaxed text-gray-300 sm:text-lg">
+                  Jump into live auctions for rare finds, competitive bidding, and fast-moving listings that create urgency for buyers ready to act.
+                </p>
+
+                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                  <a
+                    href="/live"
+                    className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-6 py-3.5 font-bold text-black transition-colors hover:bg-yellow-300"
+                  >
+                    Enter Live Auctions
+                  </a>
+                  <a
+                    href="/live"
+                    className="inline-flex items-center justify-center rounded-xl border border-white/20 px-6 py-3.5 font-semibold text-white transition-colors hover:bg-white/5"
+                  >
+                    View Auction Room
+                  </a>
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[
+                  { label: "Current bid", value: "$84.00", note: "Charizard ex auction" },
+                  { label: "Time left", value: "08:12", note: "Live room countdown" },
+                  { label: "Bidders watching", value: "128", note: "Collectors in the room" },
+                  { label: "Fresh drops", value: "12", note: "New auction items today" },
+                ].map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/10 bg-[#13131f]/80 p-5">
+                    <div className="text-xs font-semibold uppercase tracking-widest text-gray-400">{item.label}</div>
+                    <div className="mt-2 text-2xl font-black text-yellow-400">{item.value}</div>
+                    <div className="mt-2 text-sm text-gray-300">{item.note}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 py-20 sm:px-6">
           <div className="mx-auto max-w-6xl">
             <div className="mb-14 text-center">
               <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Shop by category</div>
