@@ -213,7 +213,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const activeListings = listings.filter((l) => l.status === "active").length;
   const totalRevenue = completedSales.reduce((sum, o) => sum + (o.total_amount ?? 0), 0);
   const ordersToVerified = Math.max(0, 100 - (wallet?.completed_orders_count ?? sellerSummary.lifetimeSales));
-  const payoutTier = wallet?.completed_orders_count && wallet.completed_orders_count >= 100 ? "Verified Seller (Instant Eligible)" : "New Seller (Daily Payout Only)";
+  const payoutTier = wallet?.completed_orders_count && wallet.completed_orders_count >= 100 ? "Verified Seller (Instant Eligible)" : "Standard Payout";
   const nextPayout = wallet?.next_payout_at ? new Date(wallet.next_payout_at).toLocaleDateString() : "Daily at 12:00 AM PST";
   const availableBalance = wallet?.available_balance ?? 0;
   const pendingBalance = wallet?.pending_balance ?? sellerSummary.upcomingPayouts;

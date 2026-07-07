@@ -23,7 +23,7 @@ export type LegalDoc = {
 };
 
 const COMMON_NOTICE =
-  "This template is for product implementation and should be reviewed by qualified counsel before launch in each jurisdiction where the marketplace operates.";
+  "This template is for product implementation and should be reviewed by qualified counsel for each jurisdiction where the marketplace operates.";
 
 export const LEGAL_DOCS: Record<LegalDocumentSlug, LegalDoc> = {
   terms: {
@@ -38,7 +38,7 @@ export const LEGAL_DOCS: Record<LegalDocumentSlug, LegalDoc> = {
       { title: "Live auctions and bidding", body: ["Bids may be binding when submitted and may not be withdrawn except where required by law or platform policy.", "The platform may set increment rules, bidder limits, and moderation controls."] },
       { title: "Purchases, cancellations, disputes", body: ["Orders, cancellations, refunds, chargebacks, and disputes are handled under the marketplace rules, seller agreement, and payment policies.", "The platform may hold funds in escrow during processing and review periods."] },
       { title: "Prohibited activities", body: ["No fraud, bots, fake accounts, manipulation, harassment, counterfeit listings, or abuse of platform systems.", "Any attempted circumvention of fees, payouts, moderation, or compliance controls is prohibited."] },
-      { title: "Liability and arbitration", body: ["To the fullest extent allowed by law, liability is limited and class action waiver/arbitration provisions may apply where enforceable.", "Add jurisdiction-specific consumer protections and carve-outs before launch."] },
+      { title: "Liability and arbitration", body: ["To the fullest extent allowed by law, liability is limited and class action waiver/arbitration provisions may apply where enforceable.", "Add jurisdiction-specific consumer protections and carve-outs as required for each jurisdiction."] },
       { title: "Acceptance tracking", body: ["Users must affirmatively accept the current version of these Terms before using protected features.", "The platform should record the accepted version, timestamp, and user metadata for audit purposes."] },
     ],
   },

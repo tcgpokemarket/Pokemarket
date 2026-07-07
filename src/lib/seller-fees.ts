@@ -172,7 +172,7 @@ export function getActiveMarketplaceFeePercent(args: {
   }
 
   if (args.lifetimeSales < freeSalesLimit) {
-    return { feePercent: 0, tierName: "New Seller", freeSalesLimit };
+    return { feePercent: 0, tierName: "Starter Tier", freeSalesLimit };
   }
 
   const activeTier = [...config.powerSellerTiers]

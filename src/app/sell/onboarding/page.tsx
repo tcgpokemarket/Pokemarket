@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Seller Onboarding for Pokémon Card Sellers",
-  description: "New seller onboarding guide for TCG Poke Market’s Pokémon card marketplace.",
+  description: "Seller onboarding guide for TCG Poke Market’s Pokémon card marketplace.",
   keywords: ["sell Pokémon cards", "seller onboarding", "Pokémon card listing guide", "Pokémon seller tips"],
 };
 
@@ -32,7 +32,7 @@ const jsonLd = {
   "@context": "https://schema.org",
   "@type": "HowTo",
   name: "Seller Onboarding for Pokémon Card Sellers",
-  description: "Steps to create accurate Pokémon card listings and start selling on TCG Poke Market.",
+  description: "Steps to create accurate Pokémon card listings and manage selling on TCG Poke Market.",
 };
 
 const SECTIONS = [
@@ -197,7 +197,7 @@ const SECTIONS = [
       "Seller help articles",
       "Marketplace policy pages",
       "Support tickets or live chat, if available",
-      "Community resources for new sellers",
+      "Community resources for sellers",
     ],
   },
 ];
@@ -209,10 +209,10 @@ export default function SellerOnboardingPage() {
       <div className="min-h-screen bg-[#0f0f1a] text-white">
         <div className="mx-auto max-w-5xl px-4 py-24">
         <div className="mb-8">
-          <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">New Seller Onboarding Prompt</div>
-          <h1 className="text-4xl font-black sm:text-5xl">Welcome to TcgPoké Market!</h1>
+          <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Seller onboarding</div>
+          <h1 className="text-4xl font-black sm:text-5xl">Open your seller storefront</h1>
           <p className="mt-4 max-w-3xl text-lg text-gray-300">
-            This onboarding guide helps new sellers set up their account, create accurate listings, and start selling collectibles with confidence.
+            This guide walks sellers through account setup, listing quality standards, and day-to-day selling operations.
           </p>
         </div>
 
@@ -252,9 +252,9 @@ export default function SellerOnboardingPage() {
         </div>
 
         <section className="mt-8 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-6">
-          <h2 className="text-2xl font-black">Ready to Sell?</h2>
+          <h2 className="text-2xl font-black">Seller tools are ready</h2>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-gray-300">
-            You’re now ready to launch your store on TcgPoké Market. Create accurate listings, ship with care, and deliver a great buying experience from day one.
+            Create accurate listings, keep your storefront current, and manage shipping, orders, and payouts from your dashboard.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <a href="/sell" className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black transition-colors hover:bg-yellow-300">

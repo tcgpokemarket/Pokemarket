@@ -193,7 +193,7 @@ export default function SellPage() {
                 </div>
                 {priceGuideError && <p className="mt-2 text-xs text-red-400">{priceGuideError}</p>}
               </div>
-              <a href="/sell/onboarding" className="inline-block text-sm font-semibold text-yellow-400 hover:underline">New seller onboarding guide →</a>
+              <a href="/sell/onboarding" className="inline-block text-sm font-semibold text-yellow-400 hover:underline">Seller onboarding guide →</a>
             </div>
           </div>
 

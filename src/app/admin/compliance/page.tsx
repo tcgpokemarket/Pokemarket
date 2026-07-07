@@ -37,7 +37,7 @@ export default function CompliancePage() {
           </div>
 
           <div className="mt-8 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-6 text-sm text-gray-200">
-            Attorney review required before launch for jurisdiction-specific consumer law, privacy requirements, sweepstakes rules, arbitration language, and age-gating rules.
+            Legal review is required for jurisdiction-specific consumer law, privacy requirements, sweepstakes rules, arbitration language, and age-gating rules.
           </div>
         </div>
       </div>

@@ -61,7 +61,7 @@ const FEATURED_CATEGORIES = [
     icon: "🤝",
     title: "Sell Your Collection",
     desc: "List cards and sealed products for collectors who want a clean, fast selling flow.",
-    cta: "Start Selling",
+    cta: "Open Storefront",
     href: "/sell",
   },
   {
@@ -398,7 +398,7 @@ export default function Home() {
                   ))}
                 </div>
                 <div className="mt-6 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4 text-sm text-gray-200">
-                  Secure payment messaging, clear shipping expectations, and visible seller standards help the marketplace feel legitimate and ready for launch.
+                  Secure checkout, clear shipping expectations, and visible seller standards help buyers shop with confidence.
                 </div>
               </div>
             </div>
@@ -410,7 +410,7 @@ export default function Home() {
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Live auctions</div>
-                <h2 className="text-3xl font-black sm:text-4xl">Bid in real time on rotating collector drops</h2>
+                <h2 className="text-3xl font-black sm:text-4xl">Browse live auctions from active sellers</h2>
               </div>
               <div className="hidden rounded-full border border-red-400/30 bg-red-400/10 px-4 py-2 text-sm font-bold text-red-300 sm:inline-flex">
                 Live now
@@ -420,7 +420,7 @@ export default function Home() {
             <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
               <div>
                 <p className="max-w-2xl text-base leading-relaxed text-gray-300 sm:text-lg">
-                  Jump into live auctions for rare finds, competitive bidding, and fast-moving listings that create urgency for buyers ready to act.
+                  Watch live shows, review current bids, and follow ongoing auctions across multiple sellers in one place.
                 </p>
 
                 <div className="mt-8 grid gap-4 sm:grid-cols-2">
@@ -510,7 +510,7 @@ export default function Home() {
               <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Shop by category</div>
               <h2 className="text-3xl font-black sm:text-4xl">Everything Pokémon TCG in one place</h2>
               <p className="mx-auto mt-3 max-w-2xl text-gray-400">
-                Give visitors a clean path to the right product type so they can shop faster and convert sooner.
+                Browse live shows, marketplace listings, and trusted sellers by category.
               </p>
             </div>
 
@@ -608,7 +608,7 @@ export default function Home() {
                   href="/sell"
                   className="inline-block rounded-xl bg-yellow-400 px-7 py-3.5 font-bold text-black transition-colors hover:bg-yellow-300"
                 >
-                  Start Selling
+                  Open Storefront
                 </a>
               </div>
             </div>
@@ -670,9 +670,9 @@ export default function Home() {
         <section className="border-t border-white/10 bg-gradient-to-b from-yellow-400/10 to-transparent px-4 py-20 sm:px-6">
           <div className="mx-auto max-w-2xl text-center">
             <div className="mb-4 text-5xl">⚡</div>
-            <h2 className="text-3xl font-black sm:text-4xl">Stay ahead of new drops</h2>
+            <h2 className="text-3xl font-black sm:text-4xl">Get marketplace updates</h2>
             <p className="mb-8 mt-4 text-lg text-gray-300">
-              Get early access to listings, price updates, and seller opportunities.
+              Receive listing updates, pricing changes, and seller announcements.
             </p>
 
             {submitted ? (
@@ -695,7 +695,7 @@ export default function Home() {
                   type="submit"
                   className="rounded-xl bg-yellow-400 px-6 py-3.5 font-bold text-black transition-colors hover:bg-yellow-300"
                 >
-                  Join Now
+                  Subscribe
                 </button>
               </form>
             )}

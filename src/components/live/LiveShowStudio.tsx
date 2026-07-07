@@ -179,7 +179,7 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
     );
 
     saveLiveShow(show);
-    setMessage("Live show saved and ready to launch.");
+    setMessage("Live show saved.");
   };
 
   return (
