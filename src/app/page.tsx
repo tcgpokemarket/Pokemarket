@@ -220,8 +220,8 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] text-white">
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0f0f1a]/90 backdrop-blur-sm">
+    <div className="min-h-screen bg-[#08111f] text-white">
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-yellow-400/15 bg-[#08111f]/90 backdrop-blur-sm">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <a href="/" className="flex items-center gap-2 text-xl font-black tracking-tight">
             <span className="text-2xl">⚡</span>
@@ -290,10 +290,15 @@ export default function Home() {
 
       <main>
         <section className="relative overflow-hidden px-4 pb-20 pt-32 sm:px-6">
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute left-1/2 top-16 h-[420px] w-[820px] -translate-x-1/2 rounded-full bg-yellow-400/10 blur-3xl" />
-            <div className="absolute left-1/4 top-36 h-64 w-64 rounded-full bg-purple-600/10 blur-3xl" />
-            <div className="absolute right-1/4 top-36 h-64 w-64 rounded-full bg-blue-600/10 blur-3xl" />
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute left-1/2 top-0 h-[520px] w-[980px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.18),_rgba(255,255,255,0)_65%)] blur-3xl" />
+            <div className="absolute left-1/2 top-20 h-[460px] w-[460px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle_at_center,_rgba(255,203,5,0.24),_rgba(255,203,5,0)_70%)] blur-3xl" />
+            <div className="absolute -left-20 top-40 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,_rgba(239,68,68,0.25),_rgba(239,68,68,0)_70%)] blur-3xl" />
+            <div className="absolute right-[-60px] top-44 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,_rgba(59,130,246,0.2),_rgba(59,130,246,0)_70%)] blur-3xl" />
+            <div className="absolute left-1/2 top-24 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full border border-white/10 opacity-25" />
+            <div className="absolute left-1/2 top-24 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full border border-yellow-400/20 opacity-50" />
+            <div className="absolute left-1/2 top-40 h-24 w-24 -translate-x-1/2 rounded-full border-[18px] border-white/10" />
+            <div className="absolute left-1/2 top-[calc(10rem+4.25rem)] h-3 w-[28rem] -translate-x-1/2 bg-white/10" />
           </div>
 
           <div className="relative z-10 mx-auto max-w-5xl text-center">
@@ -337,7 +342,7 @@ export default function Home() {
           </div>
         </section>
 
-        <section className="border-y border-white/10 bg-white/5 px-4 py-8 sm:px-6">
+        <section className="border-y border-yellow-400/15 bg-gradient-to-r from-red-500/10 via-yellow-400/10 to-blue-500/10 px-4 py-8 sm:px-6">
           <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-4">
             {TRUST_POINTS.map((point) => (
               <div key={point} className="rounded-2xl border border-white/10 bg-[#13131f] px-5 py-4 text-sm text-gray-300">
