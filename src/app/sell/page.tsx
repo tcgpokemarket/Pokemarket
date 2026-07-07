@@ -14,8 +14,8 @@ const CATEGORIES = [
 const GRADE_COMPANIES = ["", "PSA", "BGS", "CGC"];
 
 export default function SellPage() {
-  const supabase = createClient();
   const router = useRouter();
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
@@ -47,11 +47,13 @@ export default function SellPage() {
   ] as const;
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    const client = createClient();
+    setSupabase(client);
+    client.auth.getUser().then(({ data: { user } }) => {
       if (!user) router.push("/auth?redirectTo=/sell");
       else setUserId(user.id);
     });
-  }, [router, supabase]);
+  }, [router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -74,7 +76,7 @@ export default function SellPage() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || !userId) return;
+    if (!files || !userId || !supabase) return;
     setUploading(true);
 
     const urls: string[] = [];
@@ -93,7 +95,7 @@ export default function SellPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId) return;
+    if (!userId || !supabase) return;
     setLoading(true);
     setMessage(null);
 

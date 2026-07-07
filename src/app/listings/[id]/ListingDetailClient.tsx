@@ -27,7 +27,7 @@ const CONDITION_COLORS: Record<string, string> = {
 
 export default function ListingDetailClient({ id, initialListing }: { id: string; initialListing: ListingWithSeller | null }) {
   const router = useRouter();
-  const supabase = createClient();
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
 
   const [listing, setListing] = useState<ListingWithSeller | null>(initialListing);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,9 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const [shippingChoiceApplied, setShippingChoiceApplied] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+    const client = createClient();
+    setSupabase(client);
+    client.auth.getUser().then(({ data: { user } }) => setUser(user));
 
     if (initialListing) {
       setLoading(false);
@@ -58,7 +60,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       .then((data) => setShippingRates(data))
       .catch(() => setShippingRates(null))
       .finally(() => setShippingLoading(false));
-  }, [id, initialListing, supabase]);
+  }, [id, initialListing]);
 
   useEffect(() => {
     if (!shippingRates?.rates?.length) return;
@@ -77,6 +79,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
 
   const handleBuy = async () => {
     if (!user) { router.push(`/auth?redirectTo=/listings/${id}`); return; }
+    if (!supabase) return;
     setBuying(true);
     const res = await fetch("/api/stripe/checkout", {
       method: "POST",

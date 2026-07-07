@@ -34,9 +34,8 @@ function formatGroupTitle(items: DashboardOrder[]) {
   return `${count} order${count === 1 ? "" : "s"} · $${total.toFixed(2)}`;
 }
 
-
 export default function DashboardClient({ orderSuccess }: { orderSuccess: boolean }) {
-  const supabase = createClient();
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>("overview");
@@ -49,19 +48,22 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [brainCopied, setBrainCopied] = useState(false);
 
   useEffect(() => {
+    const client = createClient();
+    setSupabase(client);
+
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await client.auth.getUser();
       if (!user) {
         router.push("/auth?redirectTo=/dashboard");
         return;
       }
 
       const [{ data: profileData }, { data: walletData }, { data: listingData }, { data: purchaseData }, { data: salesData }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user.id).single(),
-        supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
-        supabase.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
+        client.from("profiles").select("*").eq("id", user.id).single(),
+        client.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
+        client.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
+        client.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
+        client.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
       ]);
 
       setProfile(profileData);
@@ -77,9 +79,10 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     if (orderSuccess) {
       setTimeout(() => router.replace("/dashboard"), 100);
     }
-  }, [orderSuccess, router, supabase]);
+  }, [orderSuccess, router]);
 
   const handleSignOut = async () => {
+    if (!supabase) return;
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       recordAuditEvent({
@@ -113,36 +116,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     setListings((l) => l.filter((x) => x.id !== id));
   };
 
-  const handleOrderAction = async () => {
-    return;
-  };
-
-  const STATUS_COLORS: Record<string, string> = {
-    active: "text-green-400 bg-green-400/10 border-green-400/30",
-    draft: "text-gray-400 bg-gray-400/10 border-gray-400/30",
-    sold: "text-blue-400 bg-blue-400/10 border-blue-400/30",
-    removed: "text-red-400 bg-red-400/10 border-red-400/30",
-    paid: "text-green-400 bg-green-400/10 border-green-400/30",
-    shipped: "text-blue-400 bg-blue-400/10 border-blue-400/30",
-    delivered: "text-emerald-400 bg-emerald-400/10 border-emerald-400/30",
-    pending: "text-yellow-400 bg-yellow-400/10 border-yellow-400/30",
-    escrow: "text-orange-400 bg-orange-400/10 border-orange-400/30",
-    cancelled: "text-red-400 bg-red-400/10 border-red-400/30",
-    completed: "text-green-400 bg-green-400/10 border-green-400/30",
-  };
-
   const completedSales = useMemo(() => sales.filter((o) => ["paid", "shipped", "delivered", "completed"].includes(o.status)), [sales]);
   const feeConfig = useMemo(() => buildSellerFeeConfig({}), []);
   const sellerSummary = useMemo(() => summarizeSellerEarnings({ orders: completedSales, config: feeConfig }), [completedSales, feeConfig]);
   const freeSalesUsed = sellerSummary.freeSalesUsed;
   const freeSalesRemaining = sellerSummary.freeSalesRemaining;
-  const upcomingFeeExample = calculateFeeBreakdown({
-    itemSubtotal: 100,
-    shipping: 0,
-    salesTax: 0,
-    orders: completedSales,
-    config: feeConfig,
-  });
+  const upcomingFeeExample = calculateFeeBreakdown({ itemSubtotal: 100, shipping: 0, salesTax: 0, orders: completedSales, config: feeConfig });
   const liveSnapshot = createLiveShowSnapshot(getLiveShow());
   const liveInsights = calculateLiveShowInsights(liveSnapshot);
   const shippingPerformance = useMemo(() => {
@@ -461,7 +440,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                       <p className="truncate text-sm font-semibold">{l.card_name}</p>
                       <p className="text-xs text-gray-400">{l.set_name} · {l.condition}</p>
                     </div>
-                    <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize ${STATUS_COLORS[l.status] ?? ""}`}>{l.status}</span>
+                    <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{l.status}</span>
                     <span className="font-black text-white">${l.price.toFixed(2)}</span>
                     <div className="flex gap-2">
                       <a href={`/listings/${l.id}`} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:text-white">View</a>
@@ -491,7 +470,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                       <p className="text-xs text-gray-400">{new Date(o.created_at).toLocaleDateString()}</p>
                       {o.tracking_number && <p className="mt-1 text-xs text-blue-400">Tracking: {o.tracking_number}</p>}
                     </div>
-                    <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize ${STATUS_COLORS[o.status] ?? ""}`}>{o.status}</span>
+                    <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{o.status}</span>
                     <span className="font-black">${o.total_amount.toFixed(2)}</span>
                   </div>
                 ))}
@@ -526,8 +505,8 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                         </div>
                         <div className="text-right">
                           <div className="flex flex-wrap justify-end gap-2">
-                            <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize ${STATUS_COLORS[first.status] ?? ""}`}>{first.status}</span>
-                            <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize ${STATUS_COLORS[first.payout_status ?? "pending"] ?? ""}`}>payout {first.payout_status ?? "pending"}</span>
+                            <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{first.status}</span>
+                            <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>payout {first.payout_status ?? "pending"}</span>
                           </div>
                           <div className="mt-2 font-black text-green-400">+${total.toFixed(2)}</div>
                         </div>
@@ -563,4 +542,3 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     </div>
   );
 }
-

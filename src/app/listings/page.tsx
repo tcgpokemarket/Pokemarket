@@ -5,17 +5,18 @@ import ListingCard from "@/components/listings/ListingCard";
 import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
 
-const supabase = createClient();
-
 export default function ListingsPage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [condition, setCondition] = useState("all");
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
 
   useEffect(() => {
-    supabase
+    const client = createClient();
+    setSupabase(client);
+    client
       .from("listings")
       .select("*, profiles:seller_id(username, seller_rating)")
       .eq("status", "active")
