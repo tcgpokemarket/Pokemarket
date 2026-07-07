@@ -12,10 +12,10 @@ type ListingWithSeller = Listing & {
   profiles?: Pick<Profile, "id" | "username" | "seller_rating" | "total_sales" | "avatar_url"> | null;
 };
 
-export const dynamic = "force-static";
-export const dynamicParams = false;
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
 
-const STATIC_LISTING_PARAMS = [{ id: "sample" }];
+const STATIC_LISTING_PARAMS: Array<{ id: string }> = [];
 
 type StaticListing = Pick<Listing, "id">;
 

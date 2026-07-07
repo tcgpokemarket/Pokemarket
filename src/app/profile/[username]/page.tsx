@@ -8,11 +8,11 @@ type ProfileWithListings = Profile & {
   listings?: Listing[];
 };
 
-export const dynamic = "force-static";
-export const dynamicParams = false;
+export const dynamic = "force-dynamic";
+export const dynamicParams = true;
 
 export function generateStaticParams(): Array<{ username: string }> {
-  return [{ username: "sample" }];
+  return [];
 }
 
 export default async function PublicProfilePage({ params }: { params: Promise<{ username: string }> }) {
