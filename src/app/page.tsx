@@ -7,6 +7,7 @@ const NAV_LINKS = [
   { label: "Sealed", href: "/listings?category=sealed" },
   { label: "Graded", href: "/listings?category=graded" },
   { label: "Sell With Us", href: "/sell" },
+  { label: "Live Auctions", href: "/live" },
   { label: "My Library", href: "/collection" },
   { label: "About", href: "/about" },
   { label: "Help", href: "/help" },
@@ -48,7 +49,7 @@ const FEATURED_CATEGORIES = [
     title: "Live Auctions",
     desc: "Bid on rotating drops and rare finds before they disappear from the market.",
     cta: "See Auctions",
-    href: "/listings",
+    href: "/live",
   },
   {
     icon: "🛡️",
@@ -131,6 +132,7 @@ const SELLER_BENEFITS = [
 const FOOTER_LINKS = [
   { label: "Browse Listings", href: "/listings" },
   { label: "Sell With Us", href: "/sell" },
+  { label: "Live Auctions", href: "/live" },
   { label: "My Library", href: "/collection" },
   { label: "About", href: "/about" },
   { label: "Help", href: "/help" },
