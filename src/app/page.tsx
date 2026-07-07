@@ -11,7 +11,6 @@ const NAV_LINKS = [
   { label: "My Library", href: "/collection" },
   { label: "About", href: "/about" },
   { label: "Help", href: "/help" },
-  { label: "Policies", href: "/policies" },
   { label: "FAQ", href: "#faq" },
 ];
 
@@ -137,6 +136,24 @@ const FOOTER_LINKS = [
   { label: "About", href: "/about" },
   { label: "Help", href: "/help" },
   { label: "Policies", href: "/policies" },
+  { label: "Terms", href: "/terms" },
+  { label: "Privacy", href: "/privacy" },
+  { label: "Seller Agreement", href: "/seller-agreement" },
+  { label: "Marketplace Rules", href: "/marketplace-rules" },
+  { label: "Giveaway Rules", href: "/giveaway-rules" },
+  { label: "Refund Policy", href: "/refund-policy" },
+  { label: "Shipping Policy", href: "/shipping-policy" },
+  { label: "DMCA", href: "/dmca" },
+  { label: "Compliance Dashboard", href: "/admin/compliance" },
+  { label: "Terms", href: "/terms" },
+  { label: "Privacy", href: "/privacy" },
+  { label: "Seller Agreement", href: "/seller-agreement" },
+  { label: "Marketplace Rules", href: "/marketplace-rules" },
+  { label: "Giveaway Rules", href: "/giveaway-rules" },
+  { label: "Refund Policy", href: "/refund-policy" },
+  { label: "Shipping Policy", href: "/shipping-policy" },
+  { label: "DMCA", href: "/dmca" },
+  { label: "Compliance Dashboard", href: "/admin/compliance" },
 ];
 
 const CONTACT_DETAILS = [

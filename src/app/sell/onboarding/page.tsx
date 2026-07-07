@@ -6,6 +6,28 @@ export const metadata: Metadata = {
   keywords: ["sell Pokémon cards", "seller onboarding", "Pokémon card listing guide", "Pokémon seller tips"],
 };
 
+const legalChecklist = [
+  "Terms of Service",
+  "Privacy Policy",
+  "Seller Agreement",
+  "Marketplace Rules",
+  "Giveaway Rules",
+  "Refund Policy",
+  "Shipping Policy",
+  "DMCA Policy",
+];
+
+const legalLinks = [
+  { label: "Terms of Service", href: "/terms" },
+  { label: "Privacy Policy", href: "/privacy" },
+  { label: "Seller Agreement", href: "/seller-agreement" },
+  { label: "Marketplace Rules", href: "/marketplace-rules" },
+  { label: "Giveaway Rules", href: "/giveaway-rules" },
+  { label: "Refund Policy", href: "/refund-policy" },
+  { label: "Shipping Policy", href: "/shipping-policy" },
+  { label: "DMCA Policy", href: "/dmca" },
+];
+
 const jsonLd = {
   "@context": "https://schema.org",
   "@type": "HowTo",
@@ -192,6 +214,25 @@ export default function SellerOnboardingPage() {
           <p className="mt-4 max-w-3xl text-lg text-gray-300">
             This onboarding guide helps new sellers set up their account, create accurate listings, and start selling collectibles with confidence.
           </p>
+        </div>
+
+        <div className="rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-6">
+          <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Required legal review</div>
+          <p className="text-sm leading-relaxed text-gray-300">
+            Before selling, review and accept the current marketplace legal documents. The platform records acceptance dates, versions, and audit metadata for compliance.
+          </p>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {legalLinks.map((link) => (
+              <a key={link.href} href={link.href} className="rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 text-sm text-gray-300 hover:border-yellow-400/40 hover:text-yellow-400">
+                {link.label}
+              </a>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {legalChecklist.map((item) => (
+              <div key={item} className="rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 text-sm text-gray-300">{item}</div>
+            ))}
+          </div>
         </div>
 
         <div className="space-y-6">

@@ -51,51 +51,90 @@ export default function AuthClient() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <a href="/" className="inline-flex items-center gap-2 font-black text-2xl mb-6">
-            <span className="text-3xl">⚡</span>
-            <span className="text-white">TCG</span>
-            <span className="text-yellow-400">Poke</span>
-            <span className="text-white">Market</span>
-          </a>
-          <h1 className="text-2xl font-black text-white mt-4">
-            {mode === "login" ? "Welcome back" : "Create your account"}
+    <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
+      <div className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div className="space-y-6">
+          <div className="inline-flex rounded-full border border-yellow-400/20 bg-yellow-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-yellow-400">
+            Account access
+          </div>
+          <h1 className="max-w-2xl text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
+            {mode === "login" ? "Welcome back to TcgPoké Market." : "Create your TcgPoké Market account."}
           </h1>
-          <p className="text-gray-400 text-sm mt-2">
-            {mode === "login" ? "Sign in to buy, sell, and track your collection." : "Join the Pokémon TCG marketplace."}
+          <p className="max-w-2xl text-lg leading-relaxed text-gray-300">
+            {mode === "login"
+              ? "Sign in to buy, sell, and track your collection in one branded dashboard."
+              : "Join the collector marketplace and start buying or selling with confidence."}
           </p>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[
+              "Branded marketplace experience",
+              "Access to seller tools",
+              "Live auction and order tracking",
+              "Fast path back to your dashboard",
+            ].map((item) => (
+              <div key={item} className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
+                {item}
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
-          <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur">
+          <div className="mb-6 flex items-center justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-widest text-yellow-400">Authentication</p>
+              <h2 className="mt-2 text-2xl font-black">{mode === "login" ? "Sign in" : "Create account"}</h2>
+            </div>
+            <a href="/" className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 px-3 py-2 text-sm font-semibold text-yellow-400">
+              Home
+            </a>
+          </div>
+
+          <div className="mb-5 flex rounded-2xl border border-white/10 bg-black/20 p-1 text-sm font-semibold">
+            <button
+              type="button"
+              onClick={() => { setMode("login"); setMessage(null); }}
+              className={`flex-1 rounded-xl px-4 py-2 transition-colors ${mode === "login" ? "bg-yellow-400 text-black" : "text-gray-400 hover:text-white"}`}
+            >
+              Sign in
+            </button>
+            <button
+              type="button"
+              onClick={() => { setMode("signup"); setMessage(null); }}
+              className={`flex-1 rounded-xl px-4 py-2 transition-colors ${mode === "signup" ? "bg-yellow-400 text-black" : "text-gray-400 hover:text-white"}`}
+            >
+              Create account
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "signup" && (
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Full Name</label>
+                <label className="mb-2 block text-sm font-medium text-gray-200">Full name</label>
                 <input
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   required
                   placeholder="Ash Ketchum"
-                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
+                  className="w-full rounded-2xl border border-white/10 bg-[#11111c] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                 />
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Email</label>
+              <label className="mb-2 block text-sm font-medium text-gray-200">Email</label>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="ash@pokemon.com"
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
+                className="w-full rounded-2xl border border-white/10 bg-[#11111c] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Password</label>
+              <label className="mb-2 block text-sm font-medium text-gray-200">Password</label>
               <input
                 type="password"
                 value={password}
@@ -103,12 +142,12 @@ export default function AuthClient() {
                 required
                 minLength={8}
                 placeholder="••••••••"
-                className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
+                className="w-full rounded-2xl border border-white/10 bg-[#11111c] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
               />
             </div>
 
             {message && (
-              <div className={`rounded-xl px-4 py-3 text-sm ${message.type === "error" ? "bg-red-500/10 border border-red-500/30 text-red-400" : "bg-green-500/10 border border-green-500/30 text-green-400"}`}>
+              <div className={`rounded-2xl border px-4 py-3 text-sm ${message.type === "error" ? "border-red-500/30 bg-red-500/10 text-red-300" : "border-green-500/30 bg-green-500/10 text-green-300"}`}>
                 {message.text}
               </div>
             )}
@@ -116,19 +155,19 @@ export default function AuthClient() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full bg-yellow-400 text-black font-bold py-3.5 rounded-xl hover:bg-yellow-300 transition-all disabled:opacity-50"
+              className="w-full rounded-2xl bg-gradient-to-r from-[#e22400] to-[#ffab01] px-4 py-3 font-bold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {loading ? "Loading..." : mode === "login" ? "Sign In" : "Create Account"}
+              {loading ? "Loading..." : mode === "login" ? "Sign in" : "Create account"}
             </button>
           </form>
 
-          <p className="text-center text-sm text-gray-400 mt-6">
-            {mode === "login" ? "Don't have an account?" : "Already have an account?"} {" "}
+          <p className="mt-5 text-center text-sm text-gray-400">
+            {mode === "login" ? "Need an account? " : "Already have one? "}
             <button
               onClick={() => { setMode(mode === "login" ? "signup" : "login"); setMessage(null); }}
-              className="text-yellow-400 font-semibold hover:underline"
+              className="font-semibold text-yellow-400 hover:text-yellow-300"
             >
-              {mode === "login" ? "Sign up" : "Sign in"}
+              {mode === "login" ? "Create one" : "Sign in"}
             </button>
           </p>
         </div>

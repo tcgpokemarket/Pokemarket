@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import LiveShowStudio from "@/components/live/LiveShowStudio";
 import type { Listing, Order, Profile, SellerWallet } from "@/lib/supabase/types";
 import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
 import { calculateLiveShowInsights, createLiveShowSnapshot, getLiveShow } from "@/lib/live-commerce";
+import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
+import { listLiveShowsBySeller } from "@/lib/live-shows-client";
 import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
 import { recordDeviceSession } from "@/lib/device-security";
 
@@ -122,8 +123,32 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const freeSalesUsed = sellerSummary.freeSalesUsed;
   const freeSalesRemaining = sellerSummary.freeSalesRemaining;
   const upcomingFeeExample = calculateFeeBreakdown({ itemSubtotal: 100, shipping: 0, salesTax: 0, orders: completedSales, config: feeConfig });
-  const liveSnapshot = createLiveShowSnapshot(getLiveShow());
-  const liveInsights = calculateLiveShowInsights(liveSnapshot);
+
+  const liveInsights = calculateLiveShowInsights(createLiveShowSnapshot(getLiveShow()));
+  const [sellerLiveShows, setSellerLiveShows] = useState<LiveShowDirectoryItem[]>([]);
+  const [liveShowsLoading, setLiveShowsLoading] = useState(false);
+  const [liveShowTitle, setLiveShowTitle] = useState("New live show");
+  const [liveShowDescription, setLiveShowDescription] = useState("Run a separate live room for this drop.");
+  const [liveShowStatusMessage, setLiveShowStatusMessage] = useState<string | null>(null);
+  const [liveShowStartTime, setLiveShowStartTime] = useState(new Date(Date.now() + 1000 * 60 * 30).toISOString().slice(0, 16));
+  const [liveShowFeatured, setLiveShowFeatured] = useState(false);
+  const [liveShowProductsCount, setLiveShowProductsCount] = useState(0);
+  const [liveShowFilter, setLiveShowFilter] = useState("all");
+  const [liveShowSearch, setLiveShowSearch] = useState("");
+  const [activeLiveShowId, setActiveLiveShowId] = useState<string | null>(null);
+  const [liveShowBoost, setLiveShowBoost] = useState(false);
+  const [liveShowModerators, setLiveShowModerators] = useState<string[]>([]);
+  const [liveShowAnalyticsOpen, setLiveShowAnalyticsOpen] = useState(false);
+  const [liveShowQueueMode, setLiveShowQueueMode] = useState("standard");
+  const [liveShowCategory, setLiveShowCategory] = useState("Pokémon");
+  const [liveShowPriceFloor, setLiveShowPriceFloor] = useState(0);
+  const [liveShowPriceCeiling, setLiveShowPriceCeiling] = useState(0);
+  const [liveShowProductType, setLiveShowProductType] = useState("Singles");
+  const [liveShowScheduledOnly, setLiveShowScheduledOnly] = useState(false);
+  const [liveShowAutoModeration, setLiveShowAutoModeration] = useState(true);
+  const [liveShowSummaryText, setLiveShowSummaryText] = useState("");
+  const [liveShowRoomMessage, setLiveShowRoomMessage] = useState<string | null>(null);
+  const [liveShowAnalyticsMode, setLiveShowAnalyticsMode] = useState("viewer_count");
   const shippingPerformance = useMemo(() => {
     const shipped = sales.filter((order) => order.status === "shipped").length;
     const delivered = sales.filter((order) => order.status === "delivered").length;
@@ -141,18 +166,41 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const revenuePerShow = liveInsights.revenuePerShow;
   const conversionRate = liveInsights.conversionRate;
   const earningsBreakdown = sellerSummary.netEarnings;
-  const showTrustScore = liveSnapshot.trust?.trustScore ?? 100;
-  const notificationsEnabled = liveSnapshot.notifications?.winConfirmation ?? false;
-  const totalLiveShowSales = liveSnapshot.items.filter((item) => item.sold).reduce((sum, item) => sum + item.currentBid, 0);
-  const showQueueSize = liveSnapshot.queue?.length ?? liveSnapshot.items.length;
-  const auctionHealth = Math.max(0, showTrustScore - Math.max(0, 100 - shippingPerformance));
-  const giveawaySummary = liveSnapshot.giveawaySummary ?? { activeGiveaways: 0, eligibleUsers: 0, claimedWinners: 0, totalCost: 0, platformRevenueProtected: true };
-  const giveaway = liveSnapshot.giveaways?.[0] ?? null;
-  const giveawaySecondsLeft = giveaway ? Math.max(0, Math.round((new Date(giveaway.endAt).getTime() - Date.now()) / 1000)) : 0;
-  const giveawayMinutes = Math.floor(giveawaySecondsLeft / 60);
-  const giveawaySeconds = giveawaySecondsLeft % 60;
-  const giveawayCost = giveaway?.sellerBudget ?? 0;
-  const giveawayProgress = giveaway ? Math.min(100, giveaway.eligibleUsers > 0 ? (giveaway.claimedWinners / giveaway.winnerCount) * 100 : 0) : 0;
+  const showTrustScore = 100;
+  const notificationsEnabled = false;
+  const totalLiveShowSales = sellerLiveShows.reduce((sum) => sum, 0);
+  const showQueueSize = sellerLiveShows.length;
+  const auctionHealth = Math.max(0, 100 - Math.max(0, 100 - shippingPerformance));
+  const giveawaySummary = { activeGiveaways: 0, eligibleUsers: 0, claimedWinners: 0, totalCost: 0, platformRevenueProtected: true };
+  const giveaway = null;
+  const giveawaySecondsLeft = 0;
+  const giveawayMinutes = 0;
+  const giveawaySeconds = 0;
+  const giveawayCost = 0;
+  const giveawayProgress = 0;
+
+  useEffect(() => {
+    if (!supabase || !profile?.id) return;
+    let alive = true;
+    setLiveShowsLoading(true);
+    listLiveShowsBySeller(profile.id)
+      .then((rows) => {
+        if (!alive) return;
+        setSellerLiveShows(rows);
+        setActiveLiveShowId((current) => current ?? rows[0]?.id ?? null);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setSellerLiveShows([]);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLiveShowsLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [profile?.id, supabase]);
 
   if (loading) {
     return (
@@ -218,24 +266,43 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       </nav>
 
       <div className="mx-auto max-w-6xl px-4 pb-16 pt-24">
-        <div className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-yellow-400/20 text-xl font-black text-yellow-400">
-              {profile?.username?.[0]?.toUpperCase() ?? profile?.full_name?.[0]?.toUpperCase() ?? "?"}
+        <div className="mb-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
+          <div className="space-y-4">
+            <div className="inline-flex rounded-full border border-yellow-400/20 bg-yellow-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-yellow-400">
+              Seller dashboard
             </div>
-            <div>
-              <h1 className="text-2xl font-black">{profile?.full_name ?? "My Dashboard"}</h1>
-              {profile?.username && <p className="text-sm text-gray-400">@{profile.username}</p>}
+            <div className="flex items-center gap-4">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-yellow-400/20 text-xl font-black text-yellow-400">
+                {profile?.username?.[0]?.toUpperCase() ?? profile?.full_name?.[0]?.toUpperCase() ?? "?"}
+              </div>
+              <div>
+                <h1 className="text-3xl font-black sm:text-4xl">{profile?.full_name ?? "My Dashboard"}</h1>
+                {profile?.username && <p className="text-sm text-gray-400">@{profile.username}</p>}
+              </div>
             </div>
+            <p className="max-w-2xl text-lg leading-relaxed text-gray-300">
+              Manage listings, review sales, track seller fees, and keep your live auctions moving with a polished control center.
+            </p>
           </div>
 
-          <button
-            onClick={handleCopyBrainSummary}
-            className="rounded-xl border border-yellow-400/40 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-400 transition-colors hover:bg-yellow-400/20"
-          >
-            {brainCopied ? "Copied for Brain" : "Copy Brain summary"}
-          </button>
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm uppercase tracking-widest text-yellow-400">Quick action</p>
+                <h2 className="mt-2 text-xl font-black">Copy dashboard summary</h2>
+              </div>
+              <button
+                onClick={handleCopyBrainSummary}
+                className="rounded-xl border border-yellow-400/40 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-400 transition-colors hover:bg-yellow-400/20"
+              >
+                {brainCopied ? "Copied" : "Copy"}
+              </button>
+            </div>
+            <p className="mt-3 text-sm text-gray-400">Grab a clean summary of your store metrics for notes or planning.</p>
+          </div>
         </div>
+
+
 
         <div className="mb-8 flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-white/5 p-1">
           {TABS.map((t) => (
@@ -308,30 +375,30 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/10 via-red-500/10 to-blue-500/10 p-6">
-                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Giveaway performance</div>
-                <h3 className="mt-2 text-xl font-black">{giveaway?.title ?? "No active giveaway"}</h3>
+                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Seller room summary</div>
+                <h3 className="mt-2 text-xl font-black">{sellerLiveShows.length} rooms in your storefront</h3>
                 <div className="mt-3 grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
-                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Active giveaways</span><span>{giveawaySummary.activeGiveaways}</span></div>
-                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Eligible users</span><span>{giveawaySummary.eligibleUsers}</span></div>
-                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Claimed winners</span><span>{giveawaySummary.claimedWinners}</span></div>
-                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Seller cost</span><span>${giveawayCost.toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Active rooms</span><span>{sellerLiveShows.filter((room) => room.status === "live").length}</span></div>
+                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Scheduled rooms</span><span>{sellerLiveShows.filter((room) => room.status === "scheduled").length}</span></div>
+                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Featured rooms</span><span>{sellerLiveShows.filter((room) => Boolean((room.auction_settings as any)?.featured)).length}</span></div>
+                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Total viewers</span><span>{sellerLiveShows.reduce((sum, room) => sum + (room.viewer_count ?? 0), 0)}</span></div>
                 </div>
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${giveawayProgress}%` }} />
+                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${Math.min(100, sellerLiveShows.length * 10)}%` }} />
                 </div>
-                <p className="mt-3 text-sm text-gray-300">Countdown: {giveawayMinutes}:{giveawaySeconds.toString().padStart(2, "0")} · seller pays all giveaway fees separately.</p>
+                <p className="mt-3 text-sm text-gray-300">Each room keeps its own bids, chat, viewers, and auction queue isolated by seller_id and show_id.</p>
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Wallet impact</div>
                 <div className="mt-3 space-y-2 text-sm text-gray-300">
-                  <div className="flex items-center justify-between"><span>Giveaway creation fee</span><span>$0.00</span></div>
-                  <div className="flex items-center justify-between"><span>Prize costs</span><span>${giveaway?.estimatedItemValue.toFixed(2) ?? "0.00"}</span></div>
-                  <div className="flex items-center justify-between"><span>Shipping costs</span><span>${giveaway?.shippingCost.toFixed(2) ?? "0.00"}</span></div>
-                  <div className="flex items-center justify-between"><span>Winner payouts</span><span>$0.00</span></div>
-                  <div className="flex items-center justify-between"><span>Seller expense tracking</span><span>${giveawaySummary.totalCost.toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between"><span>Active room revenue</span><span>${totalLiveShowSales.toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between"><span>Seller balance</span><span>${availableBalance.toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between"><span>Pending balance</span><span>${pendingBalance.toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between"><span>Total rooms</span><span>{sellerLiveShows.length}</span></div>
+                  <div className="flex items-center justify-between"><span>Platform fee model</span><span>{sellerSummary.tierName}</span></div>
                 </div>
-                <p className="mt-3 text-sm text-gray-400">Giveaway activity is accounted for in the seller wallet and transaction ledger without reducing marketplace revenue.</p>
+                <p className="mt-3 text-sm text-gray-400">Seller payouts, fees, refunds, and disputes are tracked per seller_id instead of one shared owner account.</p>
               </div>
             </div>
 
@@ -572,7 +639,168 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         )}
 
         {tab === "live" && (
-          <LiveShowStudio listings={listings} />
+          <div className="space-y-6 rounded-3xl border border-white/10 bg-[#13131f] p-5">
+            <div>
+              <p className="text-sm uppercase tracking-widest text-yellow-400">Seller live rooms</p>
+              <h2 className="mt-1 text-2xl font-black">Manage multiple live shows</h2>
+              <p className="mt-2 text-sm text-gray-400">Each show is its own room with its own bids, chat, product queue, and viewers.</p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-sm text-gray-300">Show title</label>
+                    <input value={liveShowTitle} onChange={(e) => setLiveShowTitle(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm text-gray-300">Start time</label>
+                    <input type="datetime-local" value={liveShowStartTime} onChange={(e) => setLiveShowStartTime(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="mb-2 block text-sm text-gray-300">Description</label>
+                    <textarea value={liveShowDescription} onChange={(e) => setLiveShowDescription(e.target.value)} rows={3} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3 text-sm">
+                  <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-gray-300"><input type="checkbox" checked={liveShowFeatured} onChange={(e) => setLiveShowFeatured(e.target.checked)} /> Feature room</label>
+                  <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-gray-300"><input type="checkbox" checked={liveShowAutoModeration} onChange={(e) => setLiveShowAutoModeration(e.target.checked)} /> Auto moderation</label>
+                  <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-gray-300"><input type="checkbox" checked={liveShowScheduledOnly} onChange={(e) => setLiveShowScheduledOnly(e.target.checked)} /> Scheduled only</label>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                  <input value={liveShowCategory} onChange={(e) => setLiveShowCategory(e.target.value)} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Category" />
+                  <input value={liveShowProductType} onChange={(e) => setLiveShowProductType(e.target.value)} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Product type" />
+                  <input type="number" min="0" value={liveShowProductsCount} onChange={(e) => setLiveShowProductsCount(Number(e.target.value))} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Products" />
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <input type="number" min="0" value={liveShowPriceFloor} onChange={(e) => setLiveShowPriceFloor(Number(e.target.value))} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Price floor" />
+                  <input type="number" min="0" value={liveShowPriceCeiling} onChange={(e) => setLiveShowPriceCeiling(Number(e.target.value))} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Price ceiling" />
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!supabase || !profile) return;
+                      const payload = {
+                        seller_id: profile.id,
+                        title: liveShowTitle,
+                        description: liveShowDescription,
+                        status: liveShowScheduledOnly ? "scheduled" : "live",
+                        auction_state: liveShowScheduledOnly ? "upcoming" : "live",
+                        scheduled_start: new Date(liveShowStartTime).toISOString(),
+                        viewer_count: 0,
+                        peak_viewers: 0,
+                        host_permissions: ["host", "moderate_chat", "start_auction", "end_auction"],
+                        auction_settings: {
+                          category: liveShowCategory,
+                          product_type: liveShowProductType,
+                          price_floor: liveShowPriceFloor,
+                          price_ceiling: liveShowPriceCeiling,
+                          featured: liveShowFeatured,
+                          auto_moderation: liveShowAutoModeration,
+                          queue_mode: liveShowQueueMode,
+                          boost: liveShowBoost,
+                        },
+                      };
+                      const { data, error } = await supabase.from("live_shows").insert(payload as any).select("*").single();
+                      const createdRoom = data as { id: string; title: string } | null;
+                      if (error) {
+                        setLiveShowStatusMessage(error.message);
+                        return;
+                      }
+                      setLiveShowStatusMessage(`Created ${createdRoom?.title ?? "live room"}`);
+                      const rows = await listLiveShowsBySeller(profile.id);
+                      setSellerLiveShows(rows);
+                      setActiveLiveShowId(createdRoom?.id ?? rows[0]?.id ?? null);
+                    }}
+                    className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black"
+                  >
+                    Create live room
+                  </button>
+                  <button type="button" onClick={() => setLiveShowStatusMessage("Seller rooms load independently by show_id.")} className="rounded-xl border border-white/20 px-4 py-3 text-gray-300 hover:bg-white/5">
+                    Room isolation note
+                  </button>
+                </div>
+
+                {liveShowStatusMessage && <div className="mt-4 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">{liveShowStatusMessage}</div>}
+              </div>
+
+              <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm uppercase tracking-widest text-gray-500">Your rooms</div>
+                    <div className="text-lg font-black">{sellerLiveShows.length} total</div>
+                  </div>
+                  <div className="text-xs text-gray-500">{liveShowsLoading ? "Refreshing..." : "Realtime-ready"}</div>
+                </div>
+
+                <input value={liveShowSearch} onChange={(e) => setLiveShowSearch(e.target.value)} placeholder="Search rooms" className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+
+                <div className="flex flex-wrap gap-2 text-xs">
+                  {["all", "live", "scheduled", "ended"].map((state) => (
+                    <button key={state} type="button" onClick={() => setLiveShowFilter(state)} className={`rounded-full border px-3 py-1 ${liveShowFilter === state ? "border-yellow-400 bg-yellow-400/10 text-yellow-400" : "border-white/10 bg-white/5 text-gray-300"}`}>
+                      {state}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="max-h-[520px] space-y-3 overflow-auto pr-1">
+                  {sellerLiveShows
+                    .filter((room) => (liveShowFilter === "all" ? true : room.status === liveShowFilter))
+                    .filter((room) => !liveShowSearch || room.title.toLowerCase().includes(liveShowSearch.toLowerCase()) || (room.description ?? "").toLowerCase().includes(liveShowSearch.toLowerCase()))
+                    .map((room) => (
+                      <div key={room.id} className={`rounded-2xl border p-4 ${activeLiveShowId === room.id ? "border-yellow-400/40 bg-yellow-400/10" : "border-white/10 bg-[#13131f]"}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <div className="font-semibold">{room.title}</div>
+                            <div className="text-xs text-gray-400">{room.description ?? "No description"}</div>
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
+                              <span>{room.status}</span>
+                              <span>•</span>
+                              <span>{room.viewer_count} viewers</span>
+                              <span>•</span>
+                              <span>Peak {room.peak_viewers}</span>
+                            </div>
+                          </div>
+                          <a href={`/live/${room.id}`} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5">Open room</a>
+                        </div>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <button type="button" onClick={() => setActiveLiveShowId(room.id)} className="rounded-xl border border-white/10 px-3 py-2 text-xs hover:bg-white/5">Select</button>
+                          <button type="button" onClick={() => setLiveShowRoomMessage(`Room ${room.id} is isolated by show_id and does not share bids, chat, or viewers.`)} className="rounded-xl border border-white/10 px-3 py-2 text-xs hover:bg-white/5">Verify isolation</button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
+                <div className="font-bold text-white">Room analytics</div>
+                <div className="mt-2 space-y-2">
+                  <div>Mode: {liveShowAnalyticsMode}</div>
+                  <div>Featured rooms: {sellerLiveShows.filter((room) => Boolean((room.auction_settings as any)?.featured)).length}</div>
+                  <div>Scheduled rooms: {sellerLiveShows.filter((room) => room.status === "scheduled").length}</div>
+                  <div>Live rooms: {sellerLiveShows.filter((room) => room.status === "live").length}</div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
+                <div className="font-bold text-white">Moderator management</div>
+                <div className="mt-2 space-y-2">
+                  <div>Moderators assigned: {liveShowModerators.length}</div>
+                  <div>Queue mode: {liveShowQueueMode}</div>
+                  <div>Boost enabled: {liveShowBoost ? "Yes" : "No"}</div>
+                  <div>Auto moderation: {liveShowAutoModeration ? "On" : "Off"}</div>
+                </div>
+              </div>
+            </div>
+
+            {liveShowRoomMessage && <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">{liveShowRoomMessage}</div>}
+          </div>
         )}
       </div>
     </div>

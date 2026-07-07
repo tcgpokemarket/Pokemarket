@@ -140,6 +140,112 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['orders']['Insert']>
       }
+      sellers: {
+        Row: {
+          id: string
+          display_name: string
+          storefront_slug: string
+          bio: string | null
+          avatar_url: string | null
+          banner_url: string | null
+          verified: boolean
+          rating: number
+          follower_count: number
+          sales_count: number
+          total_revenue: number
+          total_listings: number
+          total_live_shows: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          display_name: string
+          storefront_slug: string
+          bio?: string | null
+          avatar_url?: string | null
+          banner_url?: string | null
+          verified?: boolean
+          rating?: number
+          follower_count?: number
+          sales_count?: number
+          total_revenue?: number
+          total_listings?: number
+          total_live_shows?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['sellers']['Insert']>
+      }
+      seller_stores: {
+        Row: {
+          id: string
+          seller_id: string
+          name: string
+          slug: string
+          description: string | null
+          banner_url: string | null
+          logo_url: string | null
+          theme: Json
+          verified: boolean
+          featured: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          seller_id: string
+          name: string
+          slug: string
+          description?: string | null
+          banner_url?: string | null
+          logo_url?: string | null
+          theme?: Json
+          verified?: boolean
+          featured?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['seller_stores']['Insert']>
+      }
+      seller_followers: {
+        Row: {
+          id: string
+          seller_id: string
+          follower_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          seller_id: string
+          follower_id: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['seller_followers']['Insert']>
+      }
+      seller_reviews: {
+        Row: {
+          id: string
+          seller_id: string
+          buyer_id: string
+          order_id: string | null
+          rating: number
+          title: string | null
+          body: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          seller_id: string
+          buyer_id: string
+          order_id?: string | null
+          rating: number
+          title?: string | null
+          body?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['seller_reviews']['Insert']>
+      }
       seller_wallets: {
         Row: {
           seller_id: string
@@ -224,14 +330,20 @@ export interface Database {
           id: string
           seller_id: string
           title: string
+          description: string | null
+          thumbnail: string | null
           status: string
           auction_state: string | null
+          scheduled_start: string | null
+          scheduled_end: string | null
           viewer_count: number
           peak_viewers: number
           total_sales_amount: number
           total_bidders: number
           average_bid_value: number
           engagement_score: number
+          host_permissions: string[] | null
+          auction_settings: Json | null
           created_at: string
           updated_at: string
         }
@@ -239,18 +351,206 @@ export interface Database {
           id?: string
           seller_id: string
           title: string
+          description?: string | null
+          thumbnail?: string | null
           status: string
           auction_state?: string | null
+          scheduled_start?: string | null
+          scheduled_end?: string | null
           viewer_count?: number
           peak_viewers?: number
           total_sales_amount?: number
           total_bidders?: number
           average_bid_value?: number
           engagement_score?: number
+          host_permissions?: string[] | null
+          auction_settings?: Json | null
           created_at?: string
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['live_shows']['Insert']>
+      }
+      show_products: {
+        Row: {
+          id: string
+          show_id: string
+          listing_id: string | null
+          title: string
+          subtitle: string | null
+          image_url: string | null
+          start_price: number
+          buy_now_price: number | null
+          current_bid: number
+          bid_count: number
+          auction_seconds: number
+          seconds_left: number
+          pinned: boolean
+          sold: boolean
+          passed: boolean
+          winner_id: string | null
+          sort_order: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          show_id: string
+          listing_id?: string | null
+          title: string
+          subtitle?: string | null
+          image_url?: string | null
+          start_price: number
+          buy_now_price?: number | null
+          current_bid?: number
+          bid_count?: number
+          auction_seconds?: number
+          seconds_left?: number
+          pinned?: boolean
+          sold?: boolean
+          passed?: boolean
+          winner_id?: string | null
+          sort_order?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['show_products']['Insert']>
+      }
+      live_bids: {
+        Row: {
+          id: string
+          show_id: string
+          product_id: string
+          bidder_id: string
+          amount: number
+          is_auto_bid: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          show_id: string
+          product_id: string
+          bidder_id: string
+          amount: number
+          is_auto_bid?: boolean
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['live_bids']['Insert']>
+      }
+      live_chat: {
+        Row: {
+          id: string
+          show_id: string
+          user_id: string
+          username: string
+          message: string
+          role: string
+          highlighted: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          show_id: string
+          user_id: string
+          username: string
+          message: string
+          role?: string
+          highlighted?: boolean
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['live_chat']['Insert']>
+      }
+      viewers: {
+        Row: {
+          id: string
+          show_id: string
+          user_id: string
+          joined_at: string
+          last_seen_at: string
+          active: boolean
+        }
+        Insert: {
+          id?: string
+          show_id: string
+          user_id: string
+          joined_at?: string
+          last_seen_at?: string
+          active?: boolean
+        }
+        Update: Partial<Database['public']['Tables']['viewers']['Insert']>
+      }
+      giveaways: {
+        Row: {
+          id: string
+          show_id: string
+          title: string
+          prize_type: string
+          prize_name: string
+          prize_quantity: number
+          winner_count: number
+          start_at: string
+          end_at: string
+          eligibility: string[]
+          eligible_users: number
+          claimed_winners: number
+          live_entries: number
+          total_entries: number
+          estimated_item_value: number
+          platform_processing_fee: number
+          shipping_cost: number
+          seller_budget: number
+          seller_pays_all_fees: boolean
+          status: string
+          winner_ids: string[]
+          fraud_flags: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          show_id: string
+          title: string
+          prize_type: string
+          prize_name: string
+          prize_quantity: number
+          winner_count: number
+          start_at: string
+          end_at: string
+          eligibility: string[]
+          eligible_users?: number
+          claimed_winners?: number
+          live_entries?: number
+          total_entries?: number
+          estimated_item_value?: number
+          platform_processing_fee?: number
+          shipping_cost?: number
+          seller_budget?: number
+          seller_pays_all_fees?: boolean
+          status?: string
+          winner_ids?: string[]
+          fraud_flags?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['giveaways']['Insert']>
+      }
+      show_events: {
+        Row: {
+          id: string
+          show_id: string
+          event_type: string
+          payload: Json | null
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          show_id: string
+          event_type: string
+          payload?: Json | null
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['show_events']['Insert']>
       }
       seller_fee_settings: {
         Row: {
@@ -370,6 +670,102 @@ export interface Database {
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['card_library_items']['Insert']>
+      }
+      legal_documents: {
+        Row: {
+          id: string
+          slug: string
+          title: string
+          version: string
+          jurisdiction: string | null
+          content: string
+          active: boolean
+          updated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          slug: string
+          title: string
+          version: string
+          jurisdiction?: string | null
+          content: string
+          active?: boolean
+          updated_at?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['legal_documents']['Insert']>
+      }
+      legal_acceptances: {
+        Row: {
+          id: string
+          user_id: string
+          document_slug: string
+          document_version: string
+          accepted_at: string
+          accepted_ip: string | null
+          accepted_user_agent: string | null
+          source: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          document_slug: string
+          document_version: string
+          accepted_at?: string
+          accepted_ip?: string | null
+          accepted_user_agent?: string | null
+          source: string
+        }
+        Update: Partial<Database['public']['Tables']['legal_acceptances']['Insert']>
+      }
+      ip_reports: {
+        Row: {
+          id: string
+          reporter_id: string | null
+          subject_type: string
+          subject_id: string | null
+          complaint_type: string
+          details: string
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          reporter_id?: string | null
+          subject_type: string
+          subject_id?: string | null
+          complaint_type: string
+          details: string
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['ip_reports']['Insert']>
+      }
+      dispute_records: {
+        Row: {
+          id: string
+          order_id: string | null
+          user_id: string | null
+          dispute_type: string
+          status: string
+          resolution: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          order_id?: string | null
+          user_id?: string | null
+          dispute_type: string
+          status?: string
+          resolution?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['dispute_records']['Insert']>
       }
     }
     Views: Record<string, never>
