@@ -58,57 +58,42 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            request.cookies.set(name, value)
-            response.cookies.set(name, value, options)
-          })
-        },
-      },
-    }
-  )
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  const { data: { user } } = await supabase.auth.getUser()
+  if (supabaseUrl && supabaseKey) {
+    const supabase = createServerClient(
+      supabaseUrl,
+      supabaseKey,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              request.cookies.set(name, value)
+              response.cookies.set(name, value, options)
+            })
+          },
+        },
+      }
+    )
+
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (isProtected && !user) {
+      if (shouldThrottle(pathname)) noteFailure(clientKey)
+
+      const url = request.nextUrl.clone()
+      url.pathname = '/auth/signin'
+      url.searchParams.set('redirectTo', request.nextUrl.pathname)
+
+      return applySecurityHeaders(NextResponse.redirect(url))
+    }
+  }
 
   if (shouldThrottle(pathname)) clearFailures(clientKey)
-
-  if (isProtected && !user) {
-    if (shouldThrottle(pathname)) noteFailure(clientKey)
-
-    recordAuditEvent({
-      event_type: 'api.denied',
-      actor_id: null,
-      action: 'protected_route_redirect',
-      resource_type: 'route',
-      resource_id: pathname,
-      previous_value: null,
-      new_value: null,
-      ip_address: clientKey,
-      user_agent: request.headers.get('user-agent'),
-    })
-
-    recordSecurityEvent({
-      event_type: 'auth.redirect',
-      severity: 'medium',
-      ip_address: clientKey,
-      user_agent: request.headers.get('user-agent'),
-      details: { pathname },
-    })
-
-    const url = request.nextUrl.clone()
-    url.pathname = '/auth/signin'
-    url.searchParams.set('redirectTo', request.nextUrl.pathname)
-
-    return applySecurityHeaders(NextResponse.redirect(url))
-  }
 
   return applySecurityHeaders(response)
 }
