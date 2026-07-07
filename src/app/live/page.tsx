@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { listLiveShows } from "@/lib/live-shows-client";
+import { listActiveLiveShows, listFeaturedLiveShows, listUpcomingLiveShows } from "@/lib/live-shows";
+import type { LiveShowDirectoryItem } from "@/lib/live-shows";
 
 function formatState(state?: string | null) {
   return (state ?? "upcoming").replaceAll("_", " ");
@@ -11,7 +12,7 @@ function matchesSearch(show: { title: string; description: string | null }, sear
   return haystack.includes(search.toLowerCase());
 }
 
-function getPriceBand(show: { auction_settings?: unknown }) {
+function getPriceBand(show: LiveShowDirectoryItem) {
   const settings = (show.auction_settings as { min_price?: number; max_price?: number } | undefined) ?? {};
   return {
     min: Number(settings.min_price ?? 0),
@@ -28,18 +29,20 @@ export default async function LivePage({ searchParams }: { searchParams?: Promis
   const priceMin = Number(typeof params.priceMin === "string" ? params.priceMin : 0);
   const priceMax = Number(typeof params.priceMax === "string" ? params.priceMax : Number.MAX_SAFE_INTEGER);
 
-  const shows = await listLiveShows();
+  const [activeShows, featuredShows, upcomingShows] = await Promise.all([
+    listActiveLiveShows(),
+    listFeaturedLiveShows(),
+    listUpcomingLiveShows(),
+  ]);
+  const shows = [...activeShows, ...featuredShows, ...upcomingShows];
   const filtered = shows.filter((show) => {
-    const band = getPriceBand(show as any);
+    const band = getPriceBand(show);
     const matchesSeller = !seller || show.seller_id === seller;
     const matchesProductType = !productType || String((show.auction_settings as any)?.product_type ?? "").toLowerCase() === productType.toLowerCase();
     const matchesBand = band.min <= priceMax && band.max >= priceMin;
     return matchesSearch(show, search) && matchesSeller && matchesProductType && matchesBand;
   });
 
-  const activeShows = filtered.filter((show) => show.status === "live");
-  const featuredShows = [...filtered].sort((a, b) => (b.peak_viewers ?? 0) - (a.peak_viewers ?? 0)).slice(0, 6);
-  const upcomingShows = filtered.filter((show) => show.status !== "live").slice(0, 6);
   const sortedShows = [...filtered].sort((a, b) => {
     if (sort === "newest") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     if (sort === "live") return (b.viewer_count ?? 0) - (a.viewer_count ?? 0);
