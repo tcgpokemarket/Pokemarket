@@ -146,6 +146,13 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const totalLiveShowSales = liveSnapshot.items.filter((item) => item.sold).reduce((sum, item) => sum + item.currentBid, 0);
   const showQueueSize = liveSnapshot.queue?.length ?? liveSnapshot.items.length;
   const auctionHealth = Math.max(0, showTrustScore - Math.max(0, 100 - shippingPerformance));
+  const giveawaySummary = liveSnapshot.giveawaySummary ?? { activeGiveaways: 0, eligibleUsers: 0, claimedWinners: 0, totalCost: 0, platformRevenueProtected: true };
+  const giveaway = liveSnapshot.giveaways?.[0] ?? null;
+  const giveawaySecondsLeft = giveaway ? Math.max(0, Math.round((new Date(giveaway.endAt).getTime() - Date.now()) / 1000)) : 0;
+  const giveawayMinutes = Math.floor(giveawaySecondsLeft / 60);
+  const giveawaySeconds = giveawaySecondsLeft % 60;
+  const giveawayCost = giveaway?.sellerBudget ?? 0;
+  const giveawayProgress = giveaway ? Math.min(100, giveaway.eligibleUsers > 0 ? (giveaway.claimedWinners / giveaway.winnerCount) * 100 : 0) : 0;
 
   if (loading) {
     return (
@@ -296,6 +303,35 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                   <div className="flex items-center justify-between"><span>Notifications</span><span>{notificationsEnabled ? "On" : "Off"}</span></div>
                   <div className="flex items-center justify-between"><span>Auction health</span><span>{auctionHealth}%</span></div>
                 </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/10 via-red-500/10 to-blue-500/10 p-6">
+                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Giveaway performance</div>
+                <h3 className="mt-2 text-xl font-black">{giveaway?.title ?? "No active giveaway"}</h3>
+                <div className="mt-3 grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
+                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Active giveaways</span><span>{giveawaySummary.activeGiveaways}</span></div>
+                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Eligible users</span><span>{giveawaySummary.eligibleUsers}</span></div>
+                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Claimed winners</span><span>{giveawaySummary.claimedWinners}</span></div>
+                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Seller cost</span><span>${giveawayCost.toFixed(2)}</span></div>
+                </div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${giveawayProgress}%` }} />
+                </div>
+                <p className="mt-3 text-sm text-gray-300">Countdown: {giveawayMinutes}:{giveawaySeconds.toString().padStart(2, "0")} · seller pays all giveaway fees separately.</p>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Wallet impact</div>
+                <div className="mt-3 space-y-2 text-sm text-gray-300">
+                  <div className="flex items-center justify-between"><span>Giveaway creation fee</span><span>$0.00</span></div>
+                  <div className="flex items-center justify-between"><span>Prize costs</span><span>${giveaway?.estimatedItemValue.toFixed(2) ?? "0.00"}</span></div>
+                  <div className="flex items-center justify-between"><span>Shipping costs</span><span>${giveaway?.shippingCost.toFixed(2) ?? "0.00"}</span></div>
+                  <div className="flex items-center justify-between"><span>Winner payouts</span><span>$0.00</span></div>
+                  <div className="flex items-center justify-between"><span>Seller expense tracking</span><span>${giveawaySummary.totalCost.toFixed(2)}</span></div>
+                </div>
+                <p className="mt-3 text-sm text-gray-400">Giveaway activity is accounted for in the seller wallet and transaction ledger without reducing marketplace revenue.</p>
               </div>
             </div>
 

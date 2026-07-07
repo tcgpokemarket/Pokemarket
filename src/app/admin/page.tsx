@@ -11,7 +11,15 @@ const modules = [
   { title: "Orders", description: "Checkout, fulfillment, refunds, and payouts", href: "/dashboard" },
   { title: "Shipping", description: "Rates, labels, shipment groups, and tracking", href: "/dashboard" },
   { title: "Live shows", description: "Auctions, chat, bids, and stream health", href: "/live" },
+  { title: "Giveaways", description: "Review prizes, fraud checks, and seller limits", href: "/live" },
   { title: "Fees", description: "Marketplace fee tiers and overrides", href: "/dashboard/fees" },
+] as const;
+
+const giveawayControls = [
+  "Review giveaway eligibility and fraud flags",
+  "Track seller-funded giveaway expenses",
+  "Handle disputes and refunds",
+  "Throttle repeated giveaway abuse",
 ] as const;
 
 export default function AdminPage() {
@@ -32,6 +40,15 @@ export default function AdminPage() {
                 <p className="mt-2 text-sm text-gray-400">{module.description}</p>
               </a>
             ))}
+          </div>
+
+          <div className="mt-8 rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-6">
+            <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Giveaway admin controls</div>
+            <div className="grid gap-3 md:grid-cols-2">
+              {giveawayControls.map((item) => (
+                <div key={item} className="rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">{item}</div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

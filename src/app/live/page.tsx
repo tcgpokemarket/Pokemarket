@@ -139,6 +139,57 @@ function LiveStage({ showId }: { showId: string }) {
   return <LiveKitStage token={token} roomName={`tcg-poke-market-${showId}`} />;
 }
 
+function GiveawayCard({ show }: { show: LiveShowState }) {
+  const giveaway = show.giveaways?.[0];
+  if (!giveaway) return null;
+
+  const secondsLeft = Math.max(0, Math.round((new Date(giveaway.endAt).getTime() - Date.now()) / 1000));
+  const minutes = Math.floor(secondsLeft / 60);
+  const seconds = secondsLeft % 60;
+  const progress = giveaway.totalEntries > 0 ? Math.min(100, (giveaway.eligibleUsers / giveaway.totalEntries) * 100) : 0;
+
+  return (
+    <div className="rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/10 via-red-500/10 to-blue-500/10 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-widest text-yellow-400">Live giveaway</div>
+          <div className="mt-1 text-xl font-black text-white">{giveaway.title}</div>
+        </div>
+        <div className="rounded-full border border-red-400/30 bg-red-400/10 px-3 py-1 text-xs font-bold text-red-300">
+          {giveaway.status === "live" ? "Spinning now" : "Upcoming"}
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-white/10 bg-[#13131f]/80 p-4">
+          <div className="text-xs uppercase tracking-widest text-gray-500">Prize preview</div>
+          <div className="mt-2 font-semibold text-white">{giveaway.prizeQuantity}× {giveaway.prizeName}</div>
+          <div className="mt-1 text-sm text-gray-400">{giveaway.prizeType.replaceAll("_", " ")}</div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-[#13131f]/80 p-4">
+          <div className="text-xs uppercase tracking-widest text-gray-500">Eligible users</div>
+          <div className="mt-2 text-2xl font-black text-yellow-400">{giveaway.eligibleUsers}</div>
+          <div className="mt-1 text-sm text-gray-400">{giveaway.totalEntries} total entries</div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-[#13131f]/80 p-4">
+          <div className="text-xs uppercase tracking-widest text-gray-500">Countdown</div>
+          <div className="mt-2 text-2xl font-black text-yellow-400">{minutes}:{seconds.toString().padStart(2, "0")}</div>
+          <div className="mt-1 text-sm text-gray-400">Winners: {giveaway.winnerCount}</div>
+        </div>
+      </div>
+
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-black/40">
+        <div className="h-full rounded-full bg-yellow-400" style={{ width: `${progress}%` }} />
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-4 text-sm text-gray-300">
+        <div>Seller pays giveaway fees separately</div>
+        <div className="font-semibold text-yellow-400">${giveaway.sellerBudget.toFixed(2)} budget</div>
+      </div>
+    </div>
+  );
+}
+
 export default function LiveRoomPage() {
   const [show, setShow] = useState<LiveShowState | null>(null);
   const [chatInput, setChatInput] = useState("");
@@ -395,10 +446,25 @@ export default function LiveRoomPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
-                <div className="font-bold text-white">Live video stage</div>
-                <p className="mt-1">The stage is ready for a real room when you connect a video provider, and the auction flow stays active below.</p>
+              <div className="space-y-4">
+                <GiveawayCard show={show} />
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+                  <div className="font-bold text-white">Live video stage</div>
+                  <p className="mt-1">The stage is ready for a real room when you connect a video provider, and the auction flow stays active below.</p>
+                </div>
               </div>
+            </div>
+            <div className="mt-4 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">
+              Giveaway entries are tied to live participation and seller-funded costs, so marketplace revenue stays protected.
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {(show.giveaways ?? []).map((giveaway) => (
+                <div key={giveaway.id} className="rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+                  <div className="text-xs uppercase tracking-widest text-yellow-400">{giveaway.status}</div>
+                  <div className="mt-1 font-semibold text-white">{giveaway.title}</div>
+                  <div className="mt-2 text-gray-400">{giveaway.prizeQuantity} winners · {giveaway.eligibility.join(", ")}</div>
+                </div>
+              ))}
             </div>
 
             <div className="space-y-3 rounded-2xl border border-white/10 bg-[#13131f] p-4">

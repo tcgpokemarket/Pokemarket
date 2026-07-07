@@ -17,6 +17,11 @@ export default function CollectionPage() {
   const [cards, setCards] = useState<SavedCardRecord[]>([]);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const giveawayHistory = [
+    { title: "Collector Boost Giveaway", status: "Eligible", reward: "Scarlet & Violet Booster Bundle" },
+    { title: "Live Show Slab Spin", status: "Won", reward: "PSA 9 Charizard slab" },
+    { title: "Mystery Prize Drop", status: "Pending", reward: "Hidden prize" },
+  ];
 
   useEffect(() => {
     const client = createClient();
@@ -63,6 +68,25 @@ export default function CollectionPage() {
         </div>
 
         <div className="mt-4 text-sm text-gray-400">{LABELS[view].hint}</div>
+
+        <div className="mt-6 rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/10 via-red-500/10 to-blue-500/10 p-5">
+          <div className="mb-2 text-sm font-semibold uppercase tracking-widest text-yellow-400">Giveaways</div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {giveawayHistory.map((item) => (
+              <div key={item.title} className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+                <div className="text-xs uppercase tracking-widest text-gray-500">{item.status}</div>
+                <div className="mt-1 font-bold text-white">{item.title}</div>
+                <div className="mt-1 text-sm text-gray-400">{item.reward}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-4 grid gap-2 text-sm text-gray-300 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-white/10 bg-[#13131f] px-3 py-2">Eligible giveaways page</div>
+            <div className="rounded-xl border border-white/10 bg-[#13131f] px-3 py-2">Prize claim instructions</div>
+            <div className="rounded-xl border border-white/10 bg-[#13131f] px-3 py-2">Follow seller to qualify</div>
+            <div className="rounded-xl border border-white/10 bg-[#13131f] px-3 py-2">Purchase and bid tracking</div>
+          </div>
+        </div>
 
         {!isSignedIn ? (
           <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">

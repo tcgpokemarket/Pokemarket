@@ -11,6 +11,7 @@ import {
   saveLiveShow,
   type LiveShowState,
   type LiveShowTemplate,
+  type LiveShowGiveaway,
 } from "@/lib/live-commerce";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
@@ -28,6 +29,18 @@ const SHOW_FORMATS: { value: LiveShowTemplate; label: string }[] = [
   { value: "random_slot_break", label: "Random Slot Break" },
   { value: "fixed_price_drop", label: "Fixed Price Drop" },
 ];
+
+const GIVEAWAY_ELIGIBILITY = ["purchase", "bid", "watch", "follow", "join"] as const;
+const GIVEAWAY_PRIZE_TYPES = ["booster_pack", "promo_card", "sealed_product", "slab", "mystery_prize"] as const;
+const GIVEAWAY_FRAUD_RULES = ["account age", "purchase verification", "participation limits", "fraud monitoring"];
+const GIVEAWAY_HISTORY_PREVIEW = [
+  "Giveaway creation fee",
+  "Prize costs",
+  "Shipping costs",
+  "Winner payouts",
+  "Seller expenses",
+];
+
 
 function seedFromListings(listings: Listing[]): LiveShowState {
   const base = getLiveShow();
@@ -78,6 +91,13 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
   const [mutedChat, setMutedChat] = useState(false);
   const [slowModeSeconds, setSlowModeSeconds] = useState(0);
   const [aiHostEnabled, setAiHostEnabled] = useState(false);
+  const [giveawayEnabled, setGiveawayEnabled] = useState(true);
+  const [giveawayTitle, setGiveawayTitle] = useState("Collector Boost Giveaway");
+  const [giveawayPrize, setGiveawayPrize] = useState("Scarlet & Violet Booster Bundle");
+  const [giveawayPrizeType, setGiveawayPrizeType] = useState<LiveShowGiveaway["prizeType"]>("sealed_product");
+  const [giveawayWinners, setGiveawayWinners] = useState(3);
+  const [giveawayBudget, setGiveawayBudget] = useState(72);
+  const [giveawayEligibility, setGiveawayEligibility] = useState<string[]>(["purchase", "bid", "watch", "join"]);
   const [message, setMessage] = useState<string | null>(null);
   const [queue, setQueue] = useState(() => createDefaultQueue(listings.slice(0, 5).map((listing, index) => ({
     id: `listing-${listing.id}`,
@@ -104,6 +124,31 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
 
   const handleSave = () => {
     const base = seedFromListings(listings);
+    const giveaway = giveawayEnabled ? {
+      id: `giveaway-${Date.now()}`,
+      title: giveawayTitle,
+      prizeType: giveawayPrizeType,
+      prizeName: giveawayPrize,
+      prizeQuantity: giveawayWinners,
+      winnerCount: giveawayWinners,
+      startAt: new Date(scheduledStart).toISOString(),
+      endAt: new Date(Date.now() + 1000 * 60 * 20).toISOString(),
+      eligibility: giveawayEligibility as LiveShowGiveaway["eligibility"],
+      eligibleUsers: Math.max(0, Math.floor(listings.length * 2 + giveawayWinners * 4)),
+      claimedWinners: 0,
+      liveEntries: Math.max(0, Math.floor(listings.length * 2 + giveawayWinners * 4)),
+      totalEntries: Math.max(0, Math.floor(listings.length * 3 + giveawayWinners * 8)),
+      estimatedItemValue: Math.max(0, giveawayWinners * 19.99),
+      platformProcessingFee: 0,
+      shippingCost: Math.max(0, giveawayWinners * 4),
+      sellerBudget: giveawayBudget,
+      sellerPaysAllFees: true,
+      status: "scheduled" as const,
+      winnerIds: [],
+      fraudFlags: 0,
+      createdAt: new Date().toISOString(),
+    } : undefined;
+
     const show = createLiveShowSnapshot(
       applyLiveShowTemplate(
         {
@@ -112,11 +157,21 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
           format: template,
           scheduledStart: new Date(scheduledStart).toISOString(),
           queue,
+          giveaways: giveaway ? [giveaway] : [],
+          giveawayRules: {
+            accountAgeDays: 14,
+            requirePurchaseVerification: true,
+            minWatchMinutes: 5,
+            maxEntriesPerUser: 3,
+            allowMultipleSources: true,
+            fraudThreshold: 70,
+          },
           hostSettings: {
             ...(base.hostSettings ?? { mutedChat: false, slowModeSeconds: 0, bannedUsers: [], blockedWords: [], autoReconnect: true }),
             mutedChat,
             slowModeSeconds,
             aiHostEnabled,
+            giveawayBannerEnabled: giveawayEnabled,
           },
         },
         template
@@ -190,6 +245,101 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
           <input type="checkbox" checked={aiHostEnabled} onChange={(e) => setAiHostEnabled(e.target.checked)} />
           AI host
         </label>
+      </div>
+
+      <div className="rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-5">
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Giveaway controls</div>
+            <div className="mt-1 text-sm text-gray-300">Seller-funded, buyer-focused giveaways that run inside the live show.</div>
+          </div>
+          <label className="flex items-center gap-3 rounded-full border border-yellow-400/20 bg-black/20 px-3 py-2 text-xs font-semibold text-yellow-300">
+            <input type="checkbox" checked={giveawayEnabled} onChange={(e) => setGiveawayEnabled(e.target.checked)} />
+            Enable giveaway
+          </label>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="block space-y-2 text-sm">
+            <div className="text-gray-200">Giveaway title</div>
+            <input value={giveawayTitle} onChange={(e) => setGiveawayTitle(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
+          </label>
+          <label className="block space-y-2 text-sm">
+            <div className="text-gray-200">Prize item</div>
+            <input value={giveawayPrize} onChange={(e) => setGiveawayPrize(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
+          </label>
+          <label className="block space-y-2 text-sm">
+            <div className="text-gray-200">Prize type</div>
+            <select value={giveawayPrizeType} onChange={(e) => setGiveawayPrizeType(e.target.value as LiveShowGiveaway["prizeType"])} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none">
+              {GIVEAWAY_PRIZE_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}
+            </select>
+          </label>
+          <label className="block space-y-2 text-sm">
+            <div className="text-gray-200">Winner count</div>
+            <input type="number" min="1" value={giveawayWinners} onChange={(e) => setGiveawayWinners(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
+          </label>
+          <label className="block space-y-2 text-sm md:col-span-2">
+            <div className="text-gray-200">Seller giveaway budget</div>
+            <input type="number" min="0" step="0.01" value={giveawayBudget} onChange={(e) => setGiveawayBudget(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
+          </label>
+        </div>
+
+        <div className="mt-4">
+          <div className="mb-2 text-sm text-gray-200">Eligibility rules</div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {GIVEAWAY_ELIGIBILITY.map((rule) => (
+              <label key={rule} className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0f0f1a] px-3 py-2 text-sm text-gray-300">
+                <input type="checkbox" checked={giveawayEligibility.includes(rule)} onChange={(e) => setGiveawayEligibility((current) => e.target.checked ? [...current, rule] : current.filter((item) => item !== rule))} />
+                {rule}
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+          <div className="font-semibold text-white">Anti-abuse rules</div>
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+            {GIVEAWAY_FRAUD_RULES.map((rule) => <li key={rule}>• {rule}</li>)}
+          </ul>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+          <div className="font-semibold text-white">Cost tracking</div>
+          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
+            {GIVEAWAY_HISTORY_PREVIEW.map((item) => <li key={item}>• {item}</li>)}
+          </ul>
+          <div className="mt-3 text-yellow-400">Seller funds the full giveaway cost so marketplace revenue stays protected.</div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="mb-2 font-bold text-white">Buyer experience</div>
+        <div className="grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Eligible giveaways page</div>
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Prize history and claim instructions</div>
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Live giveaway notifications</div>
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Winner announcement and replay history</div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="mb-2 font-bold text-white">Admin controls</div>
+        <div className="grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Review giveaways and fraud checks</div>
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Refund handling and disputes</div>
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Seller limits and escalation</div>
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Transaction ledger review</div>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+        <div className="mb-2 font-bold text-white">Wallet and ledger impact</div>
+        <div className="grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Giveaway creation fees</div>
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Prize costs and shipping</div>
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Winner payouts</div>
+          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Seller expense tracking</div>
+        </div>
       </div>
 
       <div>
