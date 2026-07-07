@@ -44,7 +44,16 @@ function getImageStatus(listing: Listing) {
 }
 
 interface ListingCardProps {
-  listing: Listing & { profiles?: { username: string | null; seller_rating: number } | null };
+  listing: Listing & {
+    sellers?: {
+      display_name: string;
+      storefront_slug: string;
+      rating: number;
+      verified: boolean;
+      avatar_url: string | null;
+    } | null;
+    profiles?: { username: string | null; seller_rating: number } | null;
+  };
 }
 
 const CONDITION_COLORS: Record<string, string> = {
@@ -109,11 +118,15 @@ export default function ListingCard({ listing }: ListingCardProps) {
           <span className="text-lg font-black text-white">${listing.price.toFixed(2)}</span>
         </div>
 
-        {listing.profiles?.username && (
-          <a href={`/profile/${listing.profiles.username}`} className="text-gray-500 text-xs mt-2 block hover:text-yellow-400 transition-colors">
-            by {listing.profiles.username}
-            {listing.profiles.seller_rating > 0 && (
-              <span className="ml-1 text-yellow-400">★ {listing.profiles.seller_rating.toFixed(1)}</span>
+        {(listing.sellers?.storefront_slug || listing.profiles?.username) && (
+          <a
+            href={listing.sellers?.storefront_slug ? `/sellers/${listing.sellers.storefront_slug}` : `/profile/${listing.profiles?.username}`}
+            className="mt-2 block text-xs text-gray-500 transition-colors hover:text-yellow-400"
+          >
+            by {listing.sellers?.display_name ?? listing.profiles?.username}
+            {listing.sellers?.verified && <span className="ml-1 text-yellow-400">Verified</span>}
+            {!listing.sellers?.verified && (listing.profiles?.seller_rating ?? 0) > 0 && (
+              <span className="ml-1 text-yellow-400">★ {(listing.profiles?.seller_rating ?? 0).toFixed(1)}</span>
             )}
           </a>
         )}

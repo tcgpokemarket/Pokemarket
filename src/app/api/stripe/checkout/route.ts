@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
   const listingResult = await supabase
     .from("listings")
-    .select("*, profiles:seller_id(*)")
+    .select("*, profiles:seller_id(*), sellers:seller_id(*)")
     .eq("id", listingId)
     .eq("status", "active")
     .single();

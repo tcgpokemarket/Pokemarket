@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { incrementTotalSales } from "@/lib/supabase/fees";
+import { incrementSellerTotals, incrementTotalSales } from "@/lib/supabase/fees";
 
 export const runtime = "nodejs";
 
@@ -68,16 +68,22 @@ export async function POST(req: Request) {
     .update(orderUpdate)
     .eq("id", order.id);
 
-  const { data: sellerProfile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", order.seller_id)
-    .single();
+  const [{ data: sellerProfile }, { data: sellerRecord }] = await Promise.all([
+    supabase.from("profiles").select("*").eq("id", order.seller_id).single(),
+    supabase.from("sellers").select("*").eq("id", order.seller_id).maybeSingle(),
+  ]);
 
   if (sellerProfile) {
     await (supabase as any)
       .from("profiles")
       .update(incrementTotalSales(sellerProfile, order.quantity ?? 1))
+      .eq("id", order.seller_id);
+  }
+
+  if (sellerRecord) {
+    await (supabase as any)
+      .from("sellers")
+      .update(incrementSellerTotals(sellerRecord, Number(order.total_amount ?? 0), 0, 0))
       .eq("id", order.seller_id);
   }
 

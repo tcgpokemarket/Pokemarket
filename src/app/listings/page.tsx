@@ -18,7 +18,7 @@ export default function ListingsPage() {
     setSupabase(client);
     client
       .from("listings")
-      .select("*, profiles:seller_id(username, seller_rating)")
+      .select("*, profiles:seller_id(username, seller_rating), sellers:seller_id(display_name, storefront_slug, rating, verified, avatar_url)")
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .then(({ data }) => {
@@ -94,7 +94,13 @@ export default function ListingsPage() {
         ) : filtered.length ? (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((listing) => (
-              <ListingCard key={listing.id} listing={listing as Listing & { profiles?: { username: string | null; seller_rating: number } | null }} />
+              <ListingCard
+                key={listing.id}
+                listing={listing as Listing & {
+                  profiles?: { username: string | null; seller_rating: number } | null;
+                  sellers?: { display_name: string; storefront_slug: string; rating: number; verified: boolean; avatar_url: string | null } | null;
+                }}
+              />
             ))}
           </div>
         ) : (

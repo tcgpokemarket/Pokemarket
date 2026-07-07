@@ -14,6 +14,14 @@ type ListingWithSeller = Listing & {
     total_sales: number;
     avatar_url: string | null;
   } | null;
+  sellers?: {
+    id: string;
+    display_name: string;
+    storefront_slug: string;
+    rating: number;
+    verified: boolean;
+    avatar_url: string | null;
+  } | null;
 };
 
 const CONDITION_COLORS: Record<string, string> = {
@@ -252,16 +260,23 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
               </p>
             )}
 
-            {listing.profiles && (
-              <div className="mt-6 bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-yellow-400/20 flex items-center justify-center text-yellow-400 font-black text-lg">
-                  {listing.profiles.username?.[0]?.toUpperCase() ?? "?"}
+            {(listing.sellers || listing.profiles) && (
+              <div className="mt-6 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-yellow-400/20 text-lg font-black text-yellow-400">
+                  {listing.sellers?.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={listing.sellers.avatar_url} alt={listing.sellers.display_name} className="h-full w-full object-cover" />
+                  ) : (
+                    (listing.sellers?.display_name ?? listing.profiles?.username ?? "?")[0]?.toUpperCase() ?? "?"
+                  )}
                 </div>
                 <div>
-                  <p className="font-semibold text-sm">{listing.profiles.username ?? "Seller"}</p>
-                  <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
-                    {listing.profiles.seller_rating > 0 && <span className="text-yellow-400">★ {listing.profiles.seller_rating.toFixed(1)}</span>}
-                    <span>{listing.profiles.total_sales} sales</span>
+                  <p className="text-sm font-semibold">{listing.sellers?.display_name ?? listing.profiles?.username ?? "Seller"}</p>
+                  <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-400">
+                    {listing.sellers?.verified ? <span className="text-yellow-400">Verified seller</span> : listing.profiles && listing.profiles.seller_rating > 0 && <span className="text-yellow-400">★ {listing.profiles.seller_rating.toFixed(1)}</span>}
+                    <a href={listing.sellers?.storefront_slug ? `/sellers/${listing.sellers.storefront_slug}` : `/profile/${listing.profiles?.username ?? ""}`} className="hover:text-yellow-400">
+                      View storefront
+                    </a>
                   </div>
                 </div>
               </div>
