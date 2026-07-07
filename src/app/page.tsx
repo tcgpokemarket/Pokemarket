@@ -1,711 +1,461 @@
-"use client";
+import Link from "next/link";
+import { getHomepageData } from "@/lib/homepage-data";
+import type { HomepageActivity, HomepageListing, HomepageLiveShow, HomepageSeller } from "@/lib/homepage-data";
 
-import { useState } from "react";
+export const dynamic = "force-dynamic";
 
 const NAV_LINKS = [
-  { label: "Shop Singles", href: "/listings?category=single" },
-  { label: "Sealed", href: "/listings?category=sealed" },
-  { label: "Graded", href: "/listings?category=graded" },
-  { label: "Sell With Us", href: "/sell" },
-  { label: "Live Auctions", href: "/live" },
-  { label: "My Library", href: "/collection" },
-  { label: "About", href: "/about" },
+  { label: "Live Shows", href: "/live" },
+  { label: "Marketplace", href: "/listings" },
+  { label: "Sellers", href: "/sellers" },
+  { label: "Sell", href: "/sell" },
+  { label: "Dashboard", href: "/dashboard" },
   { label: "Help", href: "/help" },
-  { label: "FAQ", href: "#faq" },
 ];
 
-const HERO_STATS = [
-  { value: "Fast", label: "Secure dispatch" },
-  { value: "Trusted", label: "Collector-focused" },
-  { value: "Live", label: "Fresh inventory" },
-  { value: "Easy", label: "Simple selling" },
-];
-
-const FEATURED_CATEGORIES = [
-  {
-    icon: "⚡",
-    title: "Pokémon Singles",
-    desc: "Chase cards, modern hits, and everyday staples sorted by set, rarity, and condition.",
-    cta: "Browse Singles",
-    href: "/listings?category=single",
-  },
-  {
-    icon: "📦",
-    title: "Sealed Products",
-    desc: "Booster boxes, ETBs, and collector boxes for opening, holding, or displaying.",
-    cta: "Shop Sealed",
-    href: "/listings?category=sealed",
-  },
-  {
-    icon: "🏆",
-    title: "Graded Cards",
-    desc: "Standout slabs with clear grading, strong presentation, and collector appeal.",
-    cta: "View Graded",
-    href: "/listings?category=graded",
-  },
-  {
-    icon: "🔔",
-    title: "Live Auctions",
-    desc: "Bid on rotating drops and rare finds before they disappear from the market.",
-    cta: "See Auctions",
-    href: "/live",
-  },
-  {
-    icon: "🛡️",
-    title: "Accessories",
-    desc: "Protective supplies, binders, sleeves, and storage essentials for every collection.",
-    cta: "Shop Supplies",
-    href: "/listings?category=accessory",
-  },
-  {
-    icon: "🤝",
-    title: "Sell Your Collection",
-    desc: "List cards and sealed products for collectors who want a clean, fast selling flow.",
-    cta: "Open Storefront",
-    href: "/sell",
-  },
-  {
-    icon: "🔎",
-    title: "Card Lookup",
-    desc: "Check live Pokémon card pricing and save a market sample for later review.",
-    cta: "Open Lookup",
-    href: "/cards",
-  },
-];
-
-const TRUST_POINTS = [
-  "Collector-focused marketplace",
-  "Clear product details and pricing",
-  "Secure checkout experience",
-  "Fast shipping and careful packing",
-];
-
-const FEATURED_ITEMS = [
-  {
-    name: "Charizard ex",
-    set: "Obsidian Flames",
-    number: "125/197",
-    badge: "Hot Listing",
-    condition: "Near Mint",
-    price: "$189.99",
-  },
-  {
-    name: "Umbreon V",
-    set: "Evolving Skies",
-    number: "188/203",
-    badge: "Collector Favorite",
-    condition: "Near Mint",
-    price: "$124.50",
-  },
-  {
-    name: "Charizard",
-    set: "Base Set",
-    number: "4/102",
-    badge: "Graded",
-    condition: "PSA 9",
-    price: "$549.00",
-  },
-];
-
-const SELLER_STEPS = [
-  {
-    title: "Submit your cards",
-    desc: "Send in singles, sealed products, or a full collection with simple intake.",
-  },
-  {
-    title: "Get reviewed",
-    desc: "We check condition, pricing, and listing readiness before items go live.",
-  },
-  {
-    title: "Sell with confidence",
-    desc: "Reach collectors ready to buy, bid, and complete checkout quickly.",
-  },
-];
-
-const SELLER_BENEFITS = [
-  "Competitive seller fees that help you keep more of each sale",
-  "Built for singles, sealed products, and graded cards",
-  "Clear listing flow with less friction for first-time sellers",
-];
-
-const FOOTER_LINKS = [
-  { label: "Browse Listings", href: "/listings" },
-  { label: "Sell With Us", href: "/sell" },
+const CATEGORY_SHORTCUTS = [
+  { label: "Singles", href: "/listings?category=single" },
+  { label: "Graded Cards", href: "/listings?category=graded" },
+  { label: "Sealed Products", href: "/listings?category=sealed" },
+  { label: "Accessories", href: "/listings?category=accessory" },
   { label: "Live Auctions", href: "/live" },
-  { label: "My Library", href: "/collection" },
-  { label: "About", href: "/about" },
-  { label: "Help", href: "/help" },
-  { label: "Policies", href: "/policies" },
-  { label: "Terms", href: "/terms" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Seller Agreement", href: "/seller-agreement" },
-  { label: "Marketplace Rules", href: "/marketplace-rules" },
-  { label: "Giveaway Rules", href: "/giveaway-rules" },
-  { label: "Refund Policy", href: "/refund-policy" },
-  { label: "Shipping Policy", href: "/shipping-policy" },
-  { label: "DMCA", href: "/dmca" },
-  { label: "Compliance Dashboard", href: "/admin/compliance" },
-  { label: "Terms", href: "/terms" },
-  { label: "Privacy", href: "/privacy" },
-  { label: "Seller Agreement", href: "/seller-agreement" },
-  { label: "Marketplace Rules", href: "/marketplace-rules" },
-  { label: "Giveaway Rules", href: "/giveaway-rules" },
-  { label: "Refund Policy", href: "/refund-policy" },
-  { label: "Shipping Policy", href: "/shipping-policy" },
-  { label: "DMCA", href: "/dmca" },
-  { label: "Compliance Dashboard", href: "/admin/compliance" },
+  { label: "Seller Stores", href: "/sellers" },
 ];
 
-const CONTACT_DETAILS = [
-  "Support email: tcgpokemarketadmin@gmail.com",
-  "Shipping and returns guidance on policy pages",
-  "Seller help built into onboarding and dashboard flows",
-];
+const FALLBACK_PROMO = {
+  title: "Live marketplace",
+  body: "Browse live shows, auction rooms, and seller storefronts in one place.",
+  cta: "Browse live shows",
+};
 
-const MARKETPLACE_FEATURES = [
-  "Secure checkout",
-  "Verified seller flow",
-  "Tracked shipping support",
-  "Collector-friendly categories",
-];
+function formatTimeRemaining(target?: string | null) {
+  if (!target) return "Scheduled";
+  const diff = new Date(target).getTime() - Date.now();
+  if (diff <= 0) return "Starting soon";
+  const totalMinutes = Math.floor(diff / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) return `${hours}h ${minutes.toString().padStart(2, "0")}m`;
+  return `${minutes}m`;
+}
 
-const BUYER_SELLER_POINTS = [
-  "Search and filter listings by category, condition, and price",
-  "Create listings with clear product details and honest photos",
-  "Review seller fees, payouts, and onboarding guidance before you list",
-];
+function formatMoney(value: number) {
+  return `$${value.toFixed(2)}`;
+}
 
+function sectionHeader(title: string, subtitle: string, href?: string, ctaLabel?: string) {
+  return (
+    <div className="mb-6 flex items-end justify-between gap-4">
+      <div>
+        <h2 className="text-2xl font-black sm:text-3xl">{title}</h2>
+        <p className="mt-2 max-w-2xl text-sm text-gray-400">{subtitle}</p>
+      </div>
+      {href && ctaLabel && (
+        <Link href={href} className="text-sm font-semibold text-yellow-400 hover:underline">
+          {ctaLabel} →
+        </Link>
+      )}
+    </div>
+  );
+}
 
-const FAQS = [
-  {
-    q: "What do you sell?",
-    a: "We focus on Pokémon singles, sealed products, graded cards, and collector accessories.",
-  },
-  {
-    q: "How do I find the right product?",
-    a: "Use the category pages to browse by product type, then filter by set, condition, and price.",
-  },
-  {
-    q: "Can I sell my cards here?",
-    a: "Yes — use the sell page to start the process and submit your collection.",
-  },
-  {
-    q: "How do auctions work?",
-    a: "Live auctions show the current bid, timing, and listing details so buyers can act fast.",
-  },
-];
+function LiveCard({ show }: { show: HomepageLiveShow }) {
+  const countdown = formatTimeRemaining(show.scheduled_end ?? show.scheduled_start);
+  const currentBid = Number((show.auction_settings as { current_bid?: number } | null | undefined)?.current_bid ?? 0);
+  const currentItem = String((show.auction_settings as { current_item?: string } | null | undefined)?.current_item ?? "Featured auction item");
 
-const TESTIMONIALS = [
-  {
-    quote: "The layout makes it easy to find what I want fast, and the listings feel collector-first.",
-    author: "Jordan M.",
-    role: "Collector",
-  },
-  {
-    quote: "Selling was simple and the process felt clear from the start.",
-    author: "Alex R.",
-    role: "Seller",
-  },
-  {
-    quote: "Great place to browse sealed and graded cards without feeling overwhelmed.",
-    author: "Sam T.",
-    role: "Collector",
-  },
-];
+  return (
+    <Link href={`/live/${show.id}`} className="group block rounded-3xl border border-white/10 bg-[#13131f] p-4 transition hover:-translate-y-1 hover:border-yellow-400/40">
+      <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-br from-white/10 via-white/5 to-transparent">
+        {show.thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={show.thumbnail} alt={show.title} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-5xl">🃏</div>
+        )}
+      </div>
+      <div className="mt-4 flex items-center justify-between gap-3 text-xs uppercase tracking-widest text-gray-400">
+        <span>{show.status === "live" ? "Live now" : formatTimeRemaining(show.scheduled_start)}</span>
+        <span className="rounded-full bg-yellow-400/10 px-3 py-1 text-yellow-300">{show.viewer_count} watching</span>
+      </div>
+      <h3 className="mt-3 text-lg font-bold group-hover:text-yellow-400">{show.title}</h3>
+      <p className="mt-1 line-clamp-2 text-sm text-gray-400">{show.description ?? "Live auction show"}</p>
+      <div className="mt-4 grid gap-2 text-sm text-gray-300">
+        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2"><span>Current item</span><span className="font-semibold text-white">{currentItem}</span></div>
+        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2"><span>Highest bid</span><span className="font-semibold text-white">{currentBid ? formatMoney(currentBid) : "—"}</span></div>
+        <div className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-3 py-2"><span>Countdown</span><span className="font-semibold text-white">{countdown}</span></div>
+      </div>
+      <div className="mt-4 inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition group-hover:bg-yellow-300">Join Live</div>
+    </Link>
+  );
+}
 
-export default function Home() {
-  const [email, setEmail] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+function AuctionCard({ item }: { item: { listing: HomepageListing; secondsLeft: number } }) {
+  const { listing, secondsLeft } = item;
+  const sellerLabel = listing.seller_id.slice(0, 8);
+  return (
+    <Link href={`/listings/${listing.id}`} className="min-w-[260px] flex-1 rounded-3xl border border-white/10 bg-[#13131f] p-4 transition hover:border-yellow-400/40">
+      <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-white/5 bg-white/5">
+        {listing.images?.[0] ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={listing.images[0]} alt={listing.card_name} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-4xl">🃏</div>
+        )}
+      </div>
+      <div className="mt-4 text-xs uppercase tracking-widest text-gray-400">Seller {sellerLabel}</div>
+      <h3 className="mt-2 text-lg font-bold">{listing.card_name}</h3>
+      <p className="mt-1 text-sm text-gray-400">{listing.set_name}</p>
+      <div className="mt-4 grid gap-2 text-sm text-gray-300">
+        <div className="flex items-center justify-between"><span>Current bid</span><span className="font-semibold text-white">{formatMoney(listing.price)}</span></div>
+        <div className="flex items-center justify-between"><span>Remaining time</span><span className="font-semibold text-white">{secondsLeft > 0 ? `${Math.floor(secondsLeft / 60)}m ${secondsLeft % 60}s` : "Ending"}</span></div>
+        <div className="flex items-center justify-between"><span>Bid count</span><span className="font-semibold text-white">View item</span></div>
+      </div>
+      <div className="mt-4 inline-flex rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white">Watch</div>
+    </Link>
+  );
+}
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) return;
+function SellerCard({ seller }: { seller: HomepageSeller }) {
+  return (
+    <Link href={`/sellers/${seller.storefront_slug}`} className="min-w-[280px] flex-1 rounded-3xl border border-white/10 bg-[#13131f] p-4 transition hover:border-yellow-400/40">
+      <div className="h-28 overflow-hidden rounded-2xl border border-white/5 bg-gradient-to-r from-yellow-400/20 via-red-500/10 to-blue-500/10">
+        {seller.banner_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={seller.banner_url} alt={seller.display_name} className="h-full w-full object-cover" />
+        ) : null}
+      </div>
+      <div className="-mt-8 flex items-end gap-3 px-1">
+        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-[#08111f] text-2xl font-black text-yellow-400">
+          {seller.avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={seller.avatar_url} alt={seller.display_name} className="h-full w-full object-cover" />
+          ) : (
+            seller.display_name.slice(0, 1).toUpperCase()
+          )}
+        </div>
+        <div className="pb-1">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold">{seller.display_name}</h3>
+            {seller.verified && <span className="rounded-full bg-yellow-400/10 px-2 py-0.5 text-[11px] font-semibold text-yellow-300">Verified</span>}
+          </div>
+          <div className="text-xs text-gray-400">{seller.follower_count} followers</div>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-2 text-sm text-gray-300">
+        <div className="flex items-center justify-between"><span>Items sold</span><span className="font-semibold text-white">{seller.sales_count}</span></div>
+        <div className="flex items-center justify-between"><span>Rating</span><span className="font-semibold text-white">{seller.rating.toFixed(1)}</span></div>
+        <div className="flex items-center justify-between"><span>Live rooms</span><span className="font-semibold text-white">{seller.total_live_shows}</span></div>
+      </div>
+      <div className="mt-4 flex gap-2">
+        <span className="inline-flex flex-1 justify-center rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">View Store</span>
+        <span className="inline-flex rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white">Follow</span>
+      </div>
+    </Link>
+  );
+}
 
-    try {
-      await fetch("https://alluring-encouragement-production.up.railway.app/public/lead_v3", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, source: "tcg-poke-market-homepage" }),
-      });
-    } catch {
-      // silent
-    }
+function ActivityCard({ activity }: { activity: HomepageActivity }) {
+  const badge = {
+    purchase: "Purchase",
+    auction: "Auction",
+    follow: "Follow",
+    collection: "Collection",
+  }[activity.type];
 
-    setSubmitted(true);
-    setEmail("");
-  };
+  return (
+    <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+      <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-widest text-gray-400">
+        <span>{badge}</span>
+        <span>{new Date(activity.created_at).toLocaleString()}</span>
+      </div>
+      <div className="mt-2 font-semibold text-white">{activity.title}</div>
+      <div className="mt-1 text-sm text-gray-400">{activity.subtitle}</div>
+    </div>
+  );
+}
+
+function CategoryPill({ name, count }: { name: string; count: number }) {
+  return (
+    <Link href={`/listings?category=${encodeURIComponent(name.toLowerCase().replace(/\s+/g, ""))}`} className="min-w-[180px] rounded-2xl border border-white/10 bg-[#13131f] px-4 py-4 text-left transition hover:border-yellow-400/40">
+      <div className="text-sm font-semibold text-white">{name}</div>
+      <div className="mt-1 text-xs text-gray-400">{count} listings</div>
+    </Link>
+  );
+}
+
+export default async function Home() {
+  const data = await getHomepageData().catch(() => ({
+    liveNow: [],
+    featuredLiveShows: [],
+    endingSoonAuctions: [],
+    trendingMarketplace: [],
+    recentlyAdded: [],
+    popularCategories: [],
+    featuredSellers: [],
+    activity: [],
+    upcomingLiveShows: [],
+  }));
+
+  const promo = FALLBACK_PROMO;
 
   return (
     <div className="min-h-screen bg-[#08111f] text-white">
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-yellow-400/15 bg-[#08111f]/90 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <a href="/" className="flex items-center gap-2 text-xl font-black tracking-tight">
+      <nav className="sticky top-0 z-50 border-b border-yellow-400/15 bg-[#08111f]/90 backdrop-blur-sm">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+          <Link href="/" className="flex items-center gap-2 text-xl font-black tracking-tight">
             <span className="text-2xl">⚡</span>
             <span>TCG</span>
             <span className="text-yellow-400">Poke</span>
             <span>Market</span>
-          </a>
-
-          <div className="hidden items-center gap-6 md:flex">
+          </Link>
+          <div className="hidden items-center gap-5 md:flex">
             {NAV_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="text-sm font-medium text-gray-300 transition-colors hover:text-yellow-400"
-              >
+              <Link key={link.label} href={link.href} className="text-sm font-medium text-gray-300 transition hover:text-yellow-400">
                 {link.label}
-              </a>
+              </Link>
             ))}
-            <a
-              href="/listings"
-              className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition-colors hover:bg-yellow-300"
-            >
-              Shop Now
-            </a>
           </div>
-
-          <button
-            className="text-gray-300 md:hidden"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Toggle menu"
-          >
-            {menuOpen ? (
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            ) : (
-              <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            )}
-          </button>
+          <Link href="/listings" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">
+            Shop Marketplace
+          </Link>
         </div>
-
-        {menuOpen && (
-          <div className="flex flex-col gap-4 border-t border-white/10 bg-[#0f0f1a] px-4 py-4 md:hidden">
-            {NAV_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                className="text-sm font-medium text-gray-300"
-                onClick={() => setMenuOpen(false)}
-              >
-                {link.label}
-              </a>
-            ))}
-            <a
-              href="/listings"
-              className="rounded-lg bg-yellow-400 px-4 py-2 text-center text-sm font-bold text-black"
-              onClick={() => setMenuOpen(false)}
-            >
-              Shop Now
-            </a>
-          </div>
-        )}
       </nav>
 
       <main>
-        <section className="relative overflow-hidden px-4 pb-20 pt-32 sm:px-6">
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute left-1/2 top-0 h-[520px] w-[980px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle_at_center,_rgba(255,255,255,0.18),_rgba(255,255,255,0)_65%)] blur-3xl" />
-            <div className="absolute left-1/2 top-20 h-[460px] w-[460px] -translate-x-1/2 rounded-full bg-[radial-gradient(circle_at_center,_rgba(255,203,5,0.24),_rgba(255,203,5,0)_70%)] blur-3xl" />
-            <div className="absolute -left-20 top-40 h-72 w-72 rounded-full bg-[radial-gradient(circle_at_center,_rgba(239,68,68,0.25),_rgba(239,68,68,0)_70%)] blur-3xl" />
-            <div className="absolute right-[-60px] top-44 h-80 w-80 rounded-full bg-[radial-gradient(circle_at_center,_rgba(59,130,246,0.2),_rgba(59,130,246,0)_70%)] blur-3xl" />
-            <div className="absolute left-1/2 top-24 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full border border-white/10 opacity-25" />
-            <div className="absolute left-1/2 top-24 h-[28rem] w-[28rem] -translate-x-1/2 rounded-full border border-yellow-400/20 opacity-50" />
-            <div className="absolute left-1/2 top-40 h-24 w-24 -translate-x-1/2 rounded-full border-[18px] border-white/10" />
-            <div className="absolute left-1/2 top-[calc(10rem+4.25rem)] h-3 w-[28rem] -translate-x-1/2 bg-white/10" />
-          </div>
-
-          <div className="relative z-10 mx-auto max-w-5xl text-center">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-4 py-1.5 text-sm font-semibold text-yellow-400">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-yellow-400" />
-              Trusted marketplace for collectors
-            </div>
-
-            <h1 className="mb-6 text-4xl font-black leading-tight sm:text-6xl md:text-7xl">
-              Buy, sell, and bid on <span className="text-yellow-400">Pokémon cards</span> with confidence.
-            </h1>
-
-            <p className="mx-auto mb-10 max-w-2xl text-lg leading-relaxed text-gray-300 sm:text-xl">
-              TCG Poke Market is built for collectors who want clear listings, secure checkout,
-              fast shipping, and a smooth way to sell their collection.
-            </p>
-
-            <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-              <a
-                href="/listings"
-                className="w-full rounded-xl bg-yellow-400 px-8 py-4 text-lg font-bold text-black transition-all hover:bg-yellow-300 hover:scale-105 sm:w-auto"
-              >
-                Shop Now
-              </a>
-              <a
-                href="/sell"
-                className="w-full rounded-xl border border-white/20 px-8 py-4 text-lg font-semibold text-white transition-colors hover:bg-white/5 sm:w-auto"
-              >
-                Sell Your Cards
-              </a>
-            </div>
-
-            <div className="mt-12 grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {HERO_STATS.map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-5">
-                  <div className="text-2xl font-black text-yellow-400">{stat.value}</div>
-                  <div className="mt-1 text-sm text-gray-400">{stat.label}</div>
+        <section className="relative overflow-hidden border-b border-white/10 px-4 py-10 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-6 lg:grid-cols-[1.3fr_0.7fr] lg:items-stretch">
+              <div className="rounded-[2rem] border border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-transparent p-6 shadow-2xl shadow-black/30 sm:p-8 lg:p-10">
+                <div className="flex flex-wrap items-center gap-3 text-xs uppercase tracking-[0.35em] text-yellow-400">
+                  <span>Live marketplace</span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] tracking-normal text-gray-300">Verified sellers</span>
+                  <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] tracking-normal text-gray-300">Secure checkout</span>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="border-y border-yellow-400/15 bg-gradient-to-r from-red-500/10 via-yellow-400/10 to-blue-500/10 px-4 py-8 sm:px-6">
-          <div className="mx-auto grid max-w-5xl gap-4 md:grid-cols-4">
-            {TRUST_POINTS.map((point) => (
-              <div key={point} className="rounded-2xl border border-white/10 bg-[#13131f] px-5 py-4 text-sm text-gray-300">
-                {point}
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="px-4 py-20 sm:px-6">
-          <div className="mx-auto max-w-6xl">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="rounded-3xl border border-white/10 bg-white/5 p-6 sm:p-8">
-                <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">How it works</div>
-                <h2 className="text-3xl font-black">A simple path for buyers and sellers</h2>
-                <div className="mt-8 space-y-4">
-                  {BUYER_SELLER_POINTS.map((point, index) => (
-                    <div key={point} className="flex gap-4 rounded-2xl border border-white/10 bg-[#13131f] p-4">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-yellow-400/10 text-sm font-black text-yellow-400">
-                        0{index + 1}
-                      </div>
-                      <div className="text-sm text-gray-300">{point}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-yellow-400/10 to-purple-600/10 p-8">
-                <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Marketplace features</div>
-                <h2 className="text-3xl font-black">Trust signals that help visitors buy with confidence</h2>
-                <div className="mt-8 grid gap-3 sm:grid-cols-2">
-                  {MARKETPLACE_FEATURES.map((feature) => (
-                    <div key={feature} className="rounded-2xl border border-white/10 bg-[#13131f]/70 px-4 py-4 text-sm text-gray-300">
-                      {feature}
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-6 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4 text-sm text-gray-200">
-                  Secure checkout, clear shipping expectations, and visible seller standards help buyers shop with confidence.
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="px-4 py-20 sm:px-6">
-          <div className="mx-auto max-w-6xl rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-red-500/10 via-yellow-400/10 to-blue-500/10 p-6 sm:p-8 lg:p-10">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Live auctions</div>
-                <h2 className="text-3xl font-black sm:text-4xl">Browse live auctions from active sellers</h2>
-              </div>
-              <div className="hidden rounded-full border border-red-400/30 bg-red-400/10 px-4 py-2 text-sm font-bold text-red-300 sm:inline-flex">
-                Live now
-              </div>
-            </div>
-
-            <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-              <div>
-                <p className="max-w-2xl text-base leading-relaxed text-gray-300 sm:text-lg">
-                  Watch live shows, review current bids, and follow ongoing auctions across multiple sellers in one place.
+                <h1 className="mt-4 max-w-3xl text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">
+                  Live auctions, marketplace listings, and collector storefronts in one place.
+                </h1>
+                <p className="mt-4 max-w-2xl text-base leading-7 text-gray-300 sm:text-lg">
+                  Discover active sellers, browse current inventory, and move between live shows and fixed-price listings without leaving the marketplace.
                 </p>
 
-                <div className="mt-8 grid gap-4 sm:grid-cols-2">
-                  {[
-                    { label: "Current bid", value: "$84.00", note: "Charizard ex auction" },
-                    { label: "Time left", value: "08:12", note: "Live room countdown" },
-                    { label: "Bidders watching", value: "128", note: "Collectors in the room" },
-                    { label: "Fresh drops", value: "12", note: "New auction items today" },
-                  ].map((item) => (
-                    <div key={item.label} className="rounded-2xl border border-white/10 bg-[#13131f]/80 p-5">
-                      <div className="text-xs font-semibold uppercase tracking-widest text-gray-400">{item.label}</div>
-                      <div className="mt-2 text-2xl font-black text-yellow-400">{item.value}</div>
-                      <div className="mt-2 text-sm text-gray-300">{item.note}</div>
-                    </div>
+                <div className="mt-6 grid gap-3 sm:grid-cols-[1.4fr_1fr]">
+                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
+                    <span className="text-gray-500">⌕</span>
+                    <input aria-label="Search marketplace" placeholder="Search live shows, sellers, cards, sets" className="w-full bg-transparent text-sm outline-none placeholder:text-gray-500" />
+                  </label>
+                  <Link href="/listings" className="rounded-2xl bg-yellow-400 px-5 py-3.5 text-center text-sm font-bold text-black transition hover:bg-yellow-300">
+                    Shop Marketplace
+                  </Link>
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {CATEGORY_SHORTCUTS.map((category) => (
+                    <Link key={category.label} href={category.href} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-300 transition hover:border-yellow-400/40 hover:text-yellow-300">
+                      {category.label}
+                    </Link>
                   ))}
                 </div>
 
-                <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                  <a
-                    href="/live"
-                    className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-6 py-3.5 font-bold text-black transition-colors hover:bg-yellow-300"
-                  >
-                    Enter Live Auctions
-                  </a>
-                  <a
-                    href="/live"
-                    className="inline-flex items-center justify-center rounded-xl border border-white/20 px-6 py-3.5 font-semibold text-white transition-colors hover:bg-white/5"
-                  >
-                    View Auction Room
-                  </a>
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Link href="/live" className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black transition hover:bg-yellow-300">
+                    Browse Live Shows
+                  </Link>
+                  <Link href="/listings" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white transition hover:bg-white/5">
+                    Shop Marketplace
+                  </Link>
+                  <Link href="/sellers" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white transition hover:bg-white/5">
+                    Explore Sellers
+                  </Link>
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-[#111522] p-5 shadow-2xl shadow-black/30">
+              <aside className="space-y-4 rounded-[2rem] border border-white/10 bg-[#13131f] p-5 sm:p-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-widest text-red-300">Featured live lot</div>
-                    <div className="mt-1 text-xl font-black text-white">Charizard ex · Obsidian Flames</div>
+                    <div className="text-xs uppercase tracking-widest text-yellow-400">Marketplace notice</div>
+                    <div className="mt-1 text-lg font-bold">{promo.title}</div>
                   </div>
-                  <div className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-bold text-yellow-300">
-                    17 bids
-                  </div>
+                  <span className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-300">Live</span>
                 </div>
+                <p className="text-sm leading-6 text-gray-300">{promo.body}</p>
+                <Link href="/live" className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">
+                  {promo.cta}
+                </Link>
 
-                <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-red-500/20 via-yellow-400/10 to-blue-500/20 p-5">
-                  <div className="flex items-center justify-between text-sm text-gray-200">
-                    <span>Current bid</span>
-                    <span className="rounded-full bg-black/30 px-3 py-1 text-xs font-semibold text-white">Ends in 08:12</span>
-                  </div>
-                  <div className="mt-4 flex h-48 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-7xl">
-                    🃏
-                  </div>
-                  <div className="mt-5 flex items-end justify-between gap-4">
-                    <div>
-                      <div className="text-4xl font-black text-yellow-400">$84.00</div>
-                      <div className="mt-1 text-sm text-gray-300">Last bid placed 24 seconds ago</div>
-                    </div>
-                    <div className="text-right text-sm text-gray-300">
-                      <div className="font-semibold text-white">128 watching</div>
-                      <div>Fast-moving, collector-focused action</div>
-                    </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-sm font-semibold text-white">Featured live shows</div>
+                  <div className="mt-3 space-y-3">
+                    {data.featuredLiveShows.slice(0, 3).map((show) => (
+                      <Link key={show.id} href={`/live/${show.id}`} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#08111f] p-3 transition hover:border-yellow-400/40">
+                        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-white/5">
+                          {show.thumbnail ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={show.thumbnail} alt={show.title} className="h-full w-full object-cover" />
+                          ) : null}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-semibold text-white">{show.title}</div>
+                          <div className="text-xs text-gray-400">{show.viewer_count} watching · {formatTimeRemaining(show.scheduled_end ?? show.scheduled_start)}</div>
+                        </div>
+                      </Link>
+                    ))}
+                    {!data.featuredLiveShows.length && <div className="text-sm text-gray-400">No live shows are active right now.</div>}
                   </div>
                 </div>
-
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  <a
-                    href="/live"
-                    className="rounded-xl bg-yellow-400 px-5 py-3 text-center font-bold text-black transition-colors hover:bg-yellow-300"
-                  >
-                    Place a Bid
-                  </a>
-                  <a
-                    href="/live"
-                    className="rounded-xl border border-white/15 px-5 py-3 text-center font-semibold text-white transition-colors hover:bg-white/5"
-                  >
-                    Watch Auction
-                  </a>
-                </div>
-              </div>
+              </aside>
             </div>
           </div>
         </section>
 
-        <section className="px-4 py-20 sm:px-6">
-          <div className="mx-auto max-w-6xl">
-            <div className="mb-14 text-center">
-              <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Shop by category</div>
-              <h2 className="text-3xl font-black sm:text-4xl">Everything Pokémon TCG in one place</h2>
-              <p className="mx-auto mt-3 max-w-2xl text-gray-400">
-                Browse live shows, marketplace listings, and trusted sellers by category.
-              </p>
+        <section className="px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            {sectionHeader("Live now", "Currently live sellers with real-time bidding and chat.", "/live", "View all live shows")}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {data.liveNow.map((show) => <LiveCard key={show.id} show={show} />)}
+              {!data.liveNow.length && <div className="rounded-3xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">No sellers are live at the moment.</div>}
             </div>
+          </div>
+        </section>
 
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {FEATURED_CATEGORIES.map((cat) => (
-                <a
-                  key={cat.title}
-                  href={cat.href}
-                  className="group rounded-2xl border border-white/10 bg-white/5 p-6 transition-all hover:border-yellow-400/40 hover:bg-white/[0.08]"
-                >
-                  <div className="mb-4 text-4xl">{cat.icon}</div>
-                  <h3 className="mb-2 text-lg font-bold transition-colors group-hover:text-yellow-400">{cat.title}</h3>
-                  <p className="mb-4 text-sm leading-relaxed text-gray-400">{cat.desc}</p>
-                  <span className="text-sm font-semibold text-yellow-400 group-hover:underline">{cat.cta} →</span>
-                </a>
+        <section className="border-y border-white/10 bg-white/[0.02] px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            {sectionHeader("Featured auctions", "Auctions with the strongest closing activity and most recent bidding.", "/listings", "Browse marketplace")}
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {data.endingSoonAuctions.map((item) => <AuctionCard key={item.listing.id} item={item} />)}
+              {!data.endingSoonAuctions.length && <div className="rounded-3xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">No auctions are ending soon.</div>}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            {sectionHeader("Trending marketplace", "Trending listings across the catalog. Swipe horizontally on mobile.")}
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {data.trendingMarketplace.map((listing) => (
+                <Link key={listing.id} href={`/listings/${listing.id}`} className="min-w-[220px] rounded-3xl border border-white/10 bg-[#13131f] p-4 transition hover:border-yellow-400/40">
+                  <div className="aspect-square overflow-hidden rounded-2xl border border-white/5 bg-white/5">
+                    {listing.images?.[0] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={listing.images[0]} alt={listing.card_name} className="h-full w-full object-cover" />
+                    ) : <div className="flex h-full items-center justify-center text-4xl">🃏</div>}
+                  </div>
+                  <h3 className="mt-4 text-sm font-bold text-white">{listing.card_name}</h3>
+                  <p className="mt-1 text-xs text-gray-400">{listing.set_name}</p>
+                  <div className="mt-3 text-lg font-black text-yellow-400">{formatMoney(listing.price)}</div>
+                </Link>
               ))}
+              {!data.trendingMarketplace.length && <div className="rounded-3xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">No trending items to show.</div>}
             </div>
           </div>
         </section>
 
-        <section className="border-y border-white/10 bg-white/3 px-4 py-20 sm:px-6">
-          <div className="mx-auto max-w-6xl">
-            <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <div className="mb-2 text-sm font-semibold uppercase tracking-widest text-yellow-400">Featured items</div>
-                <h2 className="text-3xl font-black sm:text-4xl">High-interest listings that drive clicks</h2>
-              </div>
-              <a href="/listings" className="text-sm font-semibold text-yellow-400 hover:underline">
-                Browse all listings →
-              </a>
+        <section className="px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            {sectionHeader("Featured sellers", "Professional storefronts with active listings and live rooms.", "/sellers", "Explore sellers")}
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {data.featuredSellers.map((seller) => <SellerCard key={seller.id} seller={seller} />)}
+              {!data.featuredSellers.length && <div className="rounded-3xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">No featured sellers are available yet.</div>}
             </div>
+          </div>
+        </section>
 
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              {FEATURED_ITEMS.map((item) => (
-                <a
-                  key={item.name}
-                  href="/listings"
-                  className="rounded-2xl border border-white/10 bg-[#13131f] p-5 transition-all hover:border-yellow-400/40"
-                >
-                  <div className="mb-4 flex h-36 items-center justify-center rounded-xl border border-white/5 bg-white/5 text-5xl">
-                    🃏
+        <section className="border-y border-white/10 bg-white/[0.02] px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            {sectionHeader("Recently added", "Newest active listings from across the marketplace.", "/listings", "View all listings")}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {data.recentlyAdded.map((listing) => (
+                <Link key={listing.id} href={`/listings/${listing.id}`} className="rounded-3xl border border-white/10 bg-[#13131f] p-4 transition hover:border-yellow-400/40">
+                  <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-white/5 bg-white/5">
+                    {listing.images?.[0] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={listing.images[0]} alt={listing.card_name} className="h-full w-full object-cover" />
+                    ) : <div className="flex h-full items-center justify-center text-4xl">🃏</div>}
                   </div>
-                  <div className="mb-1 flex items-center justify-between gap-3">
-                    <h3 className="font-bold transition-colors hover:text-yellow-400">{item.name}</h3>
-                    <span className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-2 py-0.5 text-xs font-semibold text-yellow-400">
-                      {item.badge}
-                    </span>
-                  </div>
-                  <div className="text-xs text-gray-500">{item.set} · {item.number}</div>
-                  <div className="mt-1 text-xs text-gray-400">{item.condition}</div>
-                  <div className="mt-4 text-2xl font-black">{item.price}</div>
-                </a>
+                  <div className="mt-4 text-sm font-bold">{listing.card_name}</div>
+                  <div className="mt-1 text-xs text-gray-400">{listing.set_name}</div>
+                  <div className="mt-3 text-lg font-black text-white">{formatMoney(listing.price)}</div>
+                </Link>
               ))}
+              {!data.recentlyAdded.length && <div className="rounded-3xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">No recent listings yet.</div>}
             </div>
           </div>
         </section>
 
-        <section className="px-4 py-20 sm:px-6">
-          <div className="mx-auto grid max-w-6xl gap-12 lg:grid-cols-2 lg:items-center">
-            <div>
-              <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Sell with us</div>
-              <h2 className="text-3xl font-black sm:text-4xl">Turn your collection into cash</h2>
-              <p className="mt-4 max-w-xl text-lg leading-relaxed text-gray-300">
-                Make selling feel simple. Use a clean intake flow, reach collectors, and get your inventory in front of buyers who already know what they want.
-              </p>
+        <section className="px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            {sectionHeader("Popular categories", "Categories based on active marketplace inventory.")}
+            <div className="flex gap-3 overflow-x-auto pb-2">
+              {data.popularCategories.map((category) => <CategoryPill key={category.name} {...category} />)}
+              {!data.popularCategories.length && <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3 text-sm text-gray-400">No category data available yet.</div>}
+            </div>
+          </div>
+        </section>
 
-              <div className="mt-8 space-y-4">
-                {SELLER_STEPS.map((step, index) => (
-                  <div key={step.title} className="flex gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-yellow-400/10 text-sm font-black text-yellow-400">
-                      0{index + 1}
+        <section className="border-y border-white/10 bg-white/[0.02] px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            {sectionHeader("Recommended for you", "Personalized picks if you are signed in. Otherwise, see items the marketplace is already surfacing.")}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {data.trendingMarketplace.slice(0, 8).map((listing) => (
+                <Link key={listing.id} href={`/listings/${listing.id}`} className="rounded-3xl border border-white/10 bg-[#13131f] p-4 transition hover:border-yellow-400/40">
+                  <div className="aspect-[4/3] overflow-hidden rounded-2xl border border-white/5 bg-white/5">
+                    {listing.images?.[0] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={listing.images[0]} alt={listing.card_name} className="h-full w-full object-cover" />
+                    ) : <div className="flex h-full items-center justify-center text-4xl">🃏</div>}
+                  </div>
+                  <div className="mt-4 text-sm font-bold">{listing.card_name}</div>
+                  <div className="mt-1 text-xs text-gray-400">{listing.set_name}</div>
+                  <div className="mt-3 text-lg font-black text-yellow-400">{formatMoney(listing.price)}</div>
+                </Link>
+              ))}
+              {!data.trendingMarketplace.length && <div className="rounded-3xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">No recommendations available yet.</div>}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            {sectionHeader("Community activity", "Recent completed purchases, auction results, and follow activity.")}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {data.activity.map((item) => <ActivityCard key={`${item.type}-${item.created_at}-${item.title}`} activity={item} />)}
+              {!data.activity.length && <div className="rounded-3xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">No recent marketplace activity yet.</div>}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y border-white/10 bg-white/[0.02] px-4 py-14 sm:px-6 lg:px-8">
+          <div className="mx-auto max-w-7xl">
+            {sectionHeader("Upcoming live shows", "Scheduled shows with reminders and countdowns.", "/live", "Browse live schedule")}
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {data.upcomingLiveShows.map((show) => (
+                <Link key={show.id} href={`/live/${show.id}`} className="overflow-hidden rounded-3xl border border-white/10 bg-[#13131f] transition hover:border-yellow-400/40">
+                  <div className="aspect-[16/9] overflow-hidden bg-gradient-to-r from-yellow-400/20 via-red-500/10 to-blue-500/10">
+                    {show.thumbnail ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={show.thumbnail} alt={show.title} className="h-full w-full object-cover" />
+                    ) : null}
+                  </div>
+                  <div className="p-4">
+                    <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-widest text-gray-400">
+                      <span>{formatTimeRemaining(show.scheduled_start)}</span>
+                      <span className="rounded-full bg-yellow-400/10 px-3 py-1 text-yellow-300">{show.viewer_count} watching</span>
                     </div>
-                    <div>
-                      <div className="font-bold">{step.title}</div>
-                      <div className="mt-1 text-sm text-gray-400">{step.desc}</div>
-                    </div>
+                    <h3 className="mt-3 text-lg font-bold text-white">{show.title}</h3>
+                    <p className="mt-1 text-sm text-gray-400">{show.description ?? "Scheduled live show"}</p>
+                    <div className="mt-4 inline-flex rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white">Set reminder</div>
                   </div>
-                ))}
-              </div>
-
-              <div className="mt-6 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4">
-                <div className="text-sm font-semibold text-yellow-400">Competitive seller fees</div>
-                <ul className="mt-2 space-y-2 text-sm text-gray-300">
-                  {SELLER_BENEFITS.map((benefit) => (
-                    <li key={benefit} className="flex items-start gap-2">
-                      <span className="mt-0.5 text-yellow-400">✓</span>
-                      <span>{benefit}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="mt-8">
-                <a
-                  href="/sell"
-                  className="inline-block rounded-xl bg-yellow-400 px-7 py-3.5 font-bold text-black transition-colors hover:bg-yellow-300"
-                >
-                  Open Storefront
-                </a>
-              </div>
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-yellow-400/10 to-purple-600/10 p-8 text-center">
-              <div className="mb-4 text-6xl">🎯</div>
-              <div className="text-2xl font-black">Built for buyer intent</div>
-              <p className="mx-auto mt-3 max-w-sm text-sm leading-relaxed text-gray-300">
-                Showcase the right products, remove friction, and keep every page focused on getting visitors to the next click.
-              </p>
-              <a
-                href="/dashboard"
-                className="mt-6 block rounded-xl border border-yellow-400/50 px-6 py-3 font-bold text-yellow-400 transition-colors hover:bg-yellow-400/10"
-              >
-                Go to Dashboard
-              </a>
-            </div>
-          </div>
-        </section>
-
-        <section className="border-y border-white/10 bg-white/3 px-4 py-20 sm:px-6">
-          <div className="mx-auto max-w-5xl">
-            <div className="text-center">
-              <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Social proof</div>
-              <h2 className="text-3xl font-black sm:text-4xl">Trusted by collectors and sellers</h2>
-            </div>
-
-            <div className="mt-12 grid gap-6 md:grid-cols-3">
-              {TESTIMONIALS.map((t) => (
-                <div key={t.author} className="rounded-2xl border border-white/10 bg-[#13131f] p-6">
-                  <div className="mb-4 text-2xl text-yellow-400">★★★★★</div>
-                  <p className="mb-4 text-sm leading-relaxed text-gray-300 italic">“{t.quote}”</p>
-                  <div className="font-bold text-sm">{t.author}</div>
-                  <div className="text-xs text-gray-500">{t.role}</div>
-                </div>
+                </Link>
               ))}
+              {!data.upcomingLiveShows.length && <div className="rounded-3xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">No upcoming live shows are scheduled.</div>}
             </div>
-          </div>
-        </section>
-
-        <section className="px-4 py-20 sm:px-6" id="faq">
-          <div className="mx-auto max-w-4xl">
-            <div className="text-center">
-              <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">FAQ</div>
-              <h2 className="text-3xl font-black sm:text-4xl">Answer the questions that stop people from buying</h2>
-            </div>
-
-            <div className="mt-12 space-y-4">
-              {FAQS.map((faq) => (
-                <div key={faq.q} className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                  <div className="font-bold">{faq.q}</div>
-                  <div className="mt-2 text-sm leading-relaxed text-gray-400">{faq.a}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="border-t border-white/10 bg-gradient-to-b from-yellow-400/10 to-transparent px-4 py-20 sm:px-6">
-          <div className="mx-auto max-w-2xl text-center">
-            <div className="mb-4 text-5xl">⚡</div>
-            <h2 className="text-3xl font-black sm:text-4xl">Get marketplace updates</h2>
-            <p className="mb-8 mt-4 text-lg text-gray-300">
-              Receive listing updates, pricing changes, and seller announcements.
-            </p>
-
-            {submitted ? (
-              <div className="rounded-2xl border border-yellow-400/30 bg-yellow-400/10 p-8">
-                <div className="mb-3 text-4xl">🎉</div>
-                <div className="mb-2 text-xl font-bold text-yellow-400">You&apos;re on the list!</div>
-                <p className="text-gray-400">We&apos;ll send updates as new inventory and opportunities go live.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleSubmit} className="mx-auto flex max-w-md flex-col gap-3 sm:flex-row">
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email address"
-                  required
-                  className="flex-1 rounded-xl border border-white/20 bg-white/10 px-5 py-3.5 text-white placeholder:text-gray-500 focus:border-yellow-400 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  className="rounded-xl bg-yellow-400 px-6 py-3.5 font-bold text-black transition-colors hover:bg-yellow-300"
-                >
-                  Subscribe
-                </button>
-              </form>
-            )}
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-white/10 px-4 py-10 sm:px-6">
-        <div className="mx-auto max-w-6xl">
-          <div className="grid gap-8 md:grid-cols-3">
+      <footer className="border-t border-white/10 px-4 py-10 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="grid gap-8 md:grid-cols-4">
             <div>
               <div className="flex items-center gap-2 text-xl font-black">
                 <span className="text-2xl">⚡</span>
@@ -713,34 +463,34 @@ export default function Home() {
                 <span className="text-yellow-400">Poke</span>
                 <span>Market</span>
               </div>
-              <p className="mt-4 text-sm leading-relaxed text-gray-400">
-                A collector-focused marketplace for buying and selling Pokémon cards with confidence.
-              </p>
+              <p className="mt-4 text-sm leading-relaxed text-gray-400">A collector-focused marketplace for live auctions, storefronts, and fixed-price listings.</p>
             </div>
-
             <div>
-              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Explore</div>
+              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Help</div>
               <div className="mt-4 flex flex-col gap-3 text-sm text-gray-400">
-                {FOOTER_LINKS.map((link) => (
-                  <a key={link.label} href={link.href} className="transition-colors hover:text-yellow-400">
-                    {link.label}
-                  </a>
-                ))}
+                <a href="/help" className="hover:text-yellow-400">Help Center</a>
+                <a href="/policies" className="hover:text-yellow-400">Policies</a>
+                <a href="/terms" className="hover:text-yellow-400">Terms</a>
+                <a href="/privacy" className="hover:text-yellow-400">Privacy</a>
               </div>
             </div>
-
             <div>
-              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Support</div>
-              <div className="mt-4 space-y-3 text-sm text-gray-400">
-                {CONTACT_DETAILS.map((item) => (
-                  <div key={item}>{item}</div>
-                ))}
+              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Seller</div>
+              <div className="mt-4 flex flex-col gap-3 text-sm text-gray-400">
+                <a href="/sell" className="hover:text-yellow-400">Seller Resources</a>
+                <a href="/seller-agreement" className="hover:text-yellow-400">Seller Agreement</a>
+                <a href="/shipping-policy" className="hover:text-yellow-400">Shipping Policy</a>
+                <a href="/refund-policy" className="hover:text-yellow-400">Refund Policy</a>
               </div>
             </div>
-          </div>
-
-          <div className="mt-8 border-t border-white/10 pt-6 text-center text-xs text-gray-500">
-            © {new Date().getFullYear()} TCG Poke Market. All rights reserved.
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Contact</div>
+              <div className="mt-4 flex flex-col gap-3 text-sm text-gray-400">
+                <a href="mailto:tcgpokemarketadmin@gmail.com" className="hover:text-yellow-400">Contact</a>
+                <a href="/live" className="hover:text-yellow-400">Live Shows</a>
+                <a href="/sellers" className="hover:text-yellow-400">Social links</a>
+              </div>
+            </div>
           </div>
         </div>
       </footer>
