@@ -9,13 +9,6 @@ function getClientKey(request: NextRequest) {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.ip || 'unknown'
 }
 
-function getAdminEmails() {
-  return (process.env.ADMIN_EMAILS ?? 'tcgpokemarketadmin@gmail.com')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
-}
-
 function isLockedOut(key: string) {
   const entry = authAttempts.get(key)
   return Boolean(entry && entry.lockedUntil > Date.now())
@@ -44,7 +37,6 @@ function buildThrottleResponse() {
 export async function middleware(request: NextRequest) {
   const clientKey = getClientKey(request)
   const pathname = request.nextUrl.pathname
-  const adminEmails = getAdminEmails()
 
   const isProtected = ['/sell', '/dashboard', '/admin', '/api/admin'].some((p) => pathname.startsWith(p))
 
@@ -84,6 +76,26 @@ export async function middleware(request: NextRequest) {
 
     if (isProtected && !user) {
       if (shouldThrottle(pathname)) noteFailure(clientKey)
+
+      recordAuditEvent({
+        event_type: 'api.denied',
+        actor_id: null,
+        action: 'protected_route_redirect',
+        resource_type: 'route',
+        resource_id: pathname,
+        previous_value: null,
+        new_value: null,
+        ip_address: clientKey,
+        user_agent: request.headers.get('user-agent'),
+      })
+
+      recordSecurityEvent({
+        event_type: 'auth.redirect',
+        severity: 'medium',
+        ip_address: clientKey,
+        user_agent: request.headers.get('user-agent'),
+        details: { pathname },
+      })
 
       const url = request.nextUrl.clone()
       url.pathname = '/auth/signin'
