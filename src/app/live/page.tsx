@@ -4,6 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 import { buildDiscoveryFeed, buildPostShowReplay, buildSellerCoPilotSuggestions, createMarketplaceSimulationSummary, getLiveShow, saveLiveShow, updateLiveShow, type LiveShowState } from "@/lib/live-commerce";
 import type { LiveShow, LiveShowBid, LiveShowItem, LiveShowMessage } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
+import LiveKitStage from "@/components/LiveKitStage";
+
+async function fetchLiveKitToken(roomName: string, identity: string) {
+  const response = await fetch(`/api/livekit/token?room=${encodeURIComponent(roomName)}&identity=${encodeURIComponent(identity)}`);
+  if (!response.ok) return null;
+  const data = await response.json();
+  return typeof data?.token === "string" ? data.token : null;
+}
 
 const QUICK_BIDS = [5, 10, 25, 50];
 const QUICK_REACTIONS = ["🔥", "❤️", "⭐", "🚀"];
@@ -99,23 +107,36 @@ function formatTime(seconds: number) {
 }
 
 function LiveStage({ showId }: { showId: string }) {
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [available, setAvailable] = useState(false);
 
   useEffect(() => {
-    setAvailable(false);
-    setLoading(false);
+    let alive = true;
+    setLoading(true);
+    fetchLiveKitToken(`tcg-poke-market-${showId}`, `host-${showId}`)
+      .then((nextToken) => {
+        if (!alive) return;
+        setToken(nextToken);
+      })
+      .finally(() => {
+        if (!alive) return;
+        setLoading(false);
+      });
+
+    return () => {
+      alive = false;
+    };
   }, [showId]);
 
   if (loading) {
     return <div className="aspect-video rounded-2xl border border-white/10 bg-black/70 p-4 text-sm text-gray-300">Connecting to live room…</div>;
   }
 
-  return (
-    <div className="aspect-video rounded-2xl border border-white/10 bg-black/70 p-4 text-sm text-gray-300">
-      {available ? "Live video stage is ready in the full deployment." : "Video stage unavailable. Auction controls remain live."}
-    </div>
-  );
+  if (!token) {
+    return <div className="aspect-video rounded-2xl border border-white/10 bg-black/70 p-4 text-sm text-gray-300">LiveKit room is not ready yet.</div>;
+  }
+
+  return <LiveKitStage token={token} roomName={`tcg-poke-market-${showId}`} />;
 }
 
 export default function LiveRoomPage() {
