@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { stripe } from "@/lib/stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { incrementTotalSales } from "@/lib/supabase/fees";
 
@@ -15,6 +14,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Missing webhook secret" }, { status: 400 });
   }
 
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey) {
+    return NextResponse.json({ error: "Stripe is not configured" }, { status: 500 });
+  }
+
+  const stripe = new Stripe(stripeSecretKey, { apiVersion: "2026-06-24.dahlia" });
   let event: Stripe.Event;
 
   try {
