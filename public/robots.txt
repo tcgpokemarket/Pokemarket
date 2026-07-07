@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /auth
+
+Sitemap: https://tcg-poke-market.sintra.site/sitemap.xml

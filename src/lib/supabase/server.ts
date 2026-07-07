@@ -1,8 +1,8 @@
-import { createServerClient, getCookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import type { Database } from './types'
 
-export const createClient = async () => {
+export async function createClient() {
   const cookieStore = await cookies()
 
   return createServerClient<Database>(
@@ -18,9 +18,7 @@ export const createClient = async () => {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options)
             )
-          } catch {
-            // setAll was called from a Server Component
-          }
+          } catch {}
         },
       },
     }
