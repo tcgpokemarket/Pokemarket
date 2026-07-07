@@ -390,13 +390,36 @@ export default function Home() {
 
         <section className="px-4 py-20 sm:px-6">
           <div className="mx-auto max-w-6xl rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-red-500/10 via-yellow-400/10 to-blue-500/10 p-6 sm:p-8 lg:p-10">
-            <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+            <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Live auctions</div>
                 <h2 className="text-3xl font-black sm:text-4xl">Bid in real time on rotating collector drops</h2>
-                <p className="mt-4 max-w-2xl text-base leading-relaxed text-gray-300 sm:text-lg">
+              </div>
+              <div className="hidden rounded-full border border-red-400/30 bg-red-400/10 px-4 py-2 text-sm font-bold text-red-300 sm:inline-flex">
+                Live now
+              </div>
+            </div>
+
+            <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+              <div>
+                <p className="max-w-2xl text-base leading-relaxed text-gray-300 sm:text-lg">
                   Jump into live auctions for rare finds, competitive bidding, and fast-moving listings that create urgency for buyers ready to act.
                 </p>
+
+                <div className="mt-8 grid gap-4 sm:grid-cols-2">
+                  {[
+                    { label: "Current bid", value: "$84.00", note: "Charizard ex auction" },
+                    { label: "Time left", value: "08:12", note: "Live room countdown" },
+                    { label: "Bidders watching", value: "128", note: "Collectors in the room" },
+                    { label: "Fresh drops", value: "12", note: "New auction items today" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-2xl border border-white/10 bg-[#13131f]/80 p-5">
+                      <div className="text-xs font-semibold uppercase tracking-widest text-gray-400">{item.label}</div>
+                      <div className="mt-2 text-2xl font-black text-yellow-400">{item.value}</div>
+                      <div className="mt-2 text-sm text-gray-300">{item.note}</div>
+                    </div>
+                  ))}
+                </div>
 
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                   <a
@@ -414,19 +437,51 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                {[
-                  { label: "Current bid", value: "$84.00", note: "Charizard ex auction" },
-                  { label: "Time left", value: "08:12", note: "Live room countdown" },
-                  { label: "Bidders watching", value: "128", note: "Collectors in the room" },
-                  { label: "Fresh drops", value: "12", note: "New auction items today" },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-white/10 bg-[#13131f]/80 p-5">
-                    <div className="text-xs font-semibold uppercase tracking-widest text-gray-400">{item.label}</div>
-                    <div className="mt-2 text-2xl font-black text-yellow-400">{item.value}</div>
-                    <div className="mt-2 text-sm text-gray-300">{item.note}</div>
+              <div className="rounded-3xl border border-white/10 bg-[#111522] p-5 shadow-2xl shadow-black/30">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-widest text-red-300">Featured live lot</div>
+                    <div className="mt-1 text-xl font-black text-white">Charizard ex · Obsidian Flames</div>
                   </div>
-                ))}
+                  <div className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-bold text-yellow-300">
+                    17 bids
+                  </div>
+                </div>
+
+                <div className="mt-5 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-red-500/20 via-yellow-400/10 to-blue-500/20 p-5">
+                  <div className="flex items-center justify-between text-sm text-gray-200">
+                    <span>Current bid</span>
+                    <span className="rounded-full bg-black/30 px-3 py-1 text-xs font-semibold text-white">Ends in 08:12</span>
+                  </div>
+                  <div className="mt-4 flex h-48 items-center justify-center rounded-2xl border border-white/10 bg-black/25 text-7xl">
+                    🃏
+                  </div>
+                  <div className="mt-5 flex items-end justify-between gap-4">
+                    <div>
+                      <div className="text-4xl font-black text-yellow-400">$84.00</div>
+                      <div className="mt-1 text-sm text-gray-300">Last bid placed 24 seconds ago</div>
+                    </div>
+                    <div className="text-right text-sm text-gray-300">
+                      <div className="font-semibold text-white">128 watching</div>
+                      <div>Fast-moving, collector-focused action</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <a
+                    href="/live"
+                    className="rounded-xl bg-yellow-400 px-5 py-3 text-center font-bold text-black transition-colors hover:bg-yellow-300"
+                  >
+                    Place a Bid
+                  </a>
+                  <a
+                    href="/live"
+                    className="rounded-xl border border-white/15 px-5 py-3 text-center font-semibold text-white transition-colors hover:bg-white/5"
+                  >
+                    Watch Auction
+                  </a>
+                </div>
               </div>
             </div>
           </div>
