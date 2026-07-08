@@ -190,7 +190,7 @@ export default function CreateListingPage() {
             </div>
             <div className="space-y-3 rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-5">
               <div className="text-sm font-semibold text-yellow-400">Competitive seller fees</div>
-              <p className="text-sm text-gray-300">First 100 completed sales are fee-free for the marketplace fee. After that, fees start at 5%, with lower power seller tiers available.</p>
+              <p className="text-sm text-gray-300">First 1,000 completed sales are fee-free for the marketplace fee. After that, fees start at 5%, with lower power seller tiers available.</p>
               <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
                 <div className="flex items-center justify-between gap-3">
                   <div>

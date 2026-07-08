@@ -68,7 +68,7 @@ export type SellerFeeSummary = {
 };
 
 export const DEFAULT_SELLER_FEE_CONFIG: SellerFeeConfig = {
-  freeSalesLimit: 100,
+  freeSalesLimit: 1000,
   standardMarketplaceFeePercent: 5,
   processingFeePercent: 2.9,
   processingFeeFixed: 0.3,
@@ -126,7 +126,7 @@ export function buildSellerFeeConfig(args: {
   } satisfies SellerFeeConfig;
 }
 
-const COMPLETED_STATUSES = new Set(["paid", "escrow", "shipped", "delivered", "completed"]);
+const COMPLETED_STATUSES = new Set(["paid", "escrow", "released", "shipped", "delivered", "completed"]);
 
 export function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;

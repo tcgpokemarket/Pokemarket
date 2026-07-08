@@ -91,7 +91,7 @@ export async function POST(req: Request) {
     }
 
     const payload = {
-      free_sales_limit: body.settings.free_sales_limit ?? 100,
+      free_sales_limit: body.settings.free_sales_limit ?? 1000,
       standard_marketplace_fee_percent: body.settings.standard_marketplace_fee_percent ?? 5,
       processing_fee_percent: body.settings.processing_fee_percent ?? 2.9,
       processing_fee_fixed: body.settings.processing_fee_fixed ?? 0.3,

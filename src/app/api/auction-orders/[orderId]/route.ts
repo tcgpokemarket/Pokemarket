@@ -171,5 +171,43 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
     return NextResponse.json({ ok: true });
   }
 
+  if (body.action === "release_escrow" || body.action === "freeze_escrow" || body.action === "open_dispute") {
+    if (!isAdmin) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const nextStatus = body.action === "release_escrow" ? "released" : body.action === "freeze_escrow" ? "frozen" : "disputed";
+    const updatePayload =
+      body.action === "release_escrow"
+        ? { payment_status: "paid", updated_at: new Date().toISOString() }
+        : body.action === "freeze_escrow"
+          ? { payment_status: "failed", updated_at: new Date().toISOString() }
+          : { payment_status: "payment_pending", updated_at: new Date().toISOString() };
+
+    const { error: updateError } = await (admin as any)
+      .from("auction_orders")
+      .update(updatePayload)
+      .eq("id", orderId);
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    await (admin as any).from("payment_events").insert({
+      order_id: orderId,
+      stripe_event_id: `${body.action}-${orderId}`,
+      status: nextStatus,
+    });
+
+    await (admin as any).from("notifications").insert({
+      user_id: order.seller_id,
+      type: `auction_escrow_${nextStatus}`,
+      related_user: order.buyer_id,
+      related_content: { orderId, status: nextStatus },
+    });
+
+    return NextResponse.json({ ok: true });
+  }
+
   return NextResponse.json({ order });
 }

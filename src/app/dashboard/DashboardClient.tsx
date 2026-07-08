@@ -314,12 +314,20 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
 
   const activeListings = listings.filter((l) => l.status === "active").length;
   const totalRevenue = completedSales.reduce((sum, o) => sum + (o.total_amount ?? 0), 0);
-  const ordersToVerified = Math.max(0, 100 - (wallet?.completed_orders_count ?? sellerSummary.lifetimeSales));
-  const payoutTier = wallet?.completed_orders_count && wallet.completed_orders_count >= 100 ? "Verified Seller (Instant Eligible)" : "Standard Payout";
+  const ordersToVerified = Math.max(0, 1000 - (wallet?.completed_orders_count ?? sellerSummary.lifetimeSales));
+  const payoutTier = wallet?.completed_orders_count && wallet.completed_orders_count >= 1000 ? "Verified Seller (Instant Eligible)" : "Standard Payout";
   const nextPayout = wallet?.next_payout_at ? new Date(wallet.next_payout_at).toLocaleDateString() : "Daily at 12:00 AM PST";
   const availableBalance = wallet?.available_balance ?? 0;
   const pendingBalance = wallet?.pending_balance ?? sellerSummary.upcomingPayouts;
-  const instantEligible = Boolean(wallet?.instant_payout_enabled && (wallet?.completed_orders_count ?? 0) >= 100 && !wallet?.fraud_flag);
+  const frozenBalance = (wallet as { frozen_balance?: number | null } | null)?.frozen_balance ?? 0;
+  const escrowBalance = pendingBalance;
+  const instantEligible = Boolean(wallet?.instant_payout_enabled && (wallet?.completed_orders_count ?? 0) >= 1000 && !wallet?.fraud_flag);
+  const payoutStatus = wallet?.fraud_flag ? "Frozen for review" : instantEligible ? "Instant payout enabled" : "Escrow hold active";
+  const payoutProgress = Math.min(100, ((wallet?.completed_orders_count ?? sellerSummary.lifetimeSales) / 1000) * 100);
+  const fraudRiskScore = wallet?.fraud_flag ? 80 : instantEligible ? 0 : 20;
+  const disputeCount = 0;
+  const releaseStatus = pendingBalance > 0 ? "Awaiting escrow release" : "No funds in escrow";
+  const statusSummary = [payoutStatus, releaseStatus].join(" · ");
   const brainSummary = [
     `TcgPoké Market dashboard summary for ${profile?.full_name ?? "user"}`,
     `Active listings: ${activeListings}`,
@@ -557,18 +565,20 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Payout tier</div>
                 <h3 className="mt-2 text-xl font-black">{payoutTier}</h3>
-                <p className="mt-2 text-sm text-gray-400">Orders completed: {wallet?.completed_orders_count ?? sellerSummary.lifetimeSales} / 100</p>
+                <p className="mt-2 text-sm text-gray-400">Orders completed: {wallet?.completed_orders_count ?? sellerSummary.lifetimeSales} / 1,000</p>
                 <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${Math.min(100, ((wallet?.completed_orders_count ?? sellerSummary.lifetimeSales) / 100) * 100)}%` }} />
+                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${payoutProgress}%` }} />
                 </div>
                 <p className="mt-3 text-sm text-gray-400">{instantEligible ? "Instant payout is available." : `Instant payout unlocks in ${ordersToVerified} completed orders.`}</p>
+                <p className="mt-2 text-xs text-gray-500">{statusSummary}</p>
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Wallet</div>
                 <div className="mt-3 space-y-2 text-sm text-gray-300">
                   <div className="flex items-center justify-between"><span>Available balance</span><span>${availableBalance.toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Pending balance</span><span>${pendingBalance.toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between"><span>Escrow balance</span><span>${escrowBalance.toFixed(2)}</span></div>
+                  <div className="flex items-center justify-between"><span>Frozen balance</span><span>${frozenBalance.toFixed(2)}</span></div>
                   <div className="flex items-center justify-between"><span>Lifetime earnings</span><span>${(wallet?.lifetime_earnings ?? totalRevenue).toFixed(2)}</span></div>
                   <div className="flex items-center justify-between"><span>Next payout</span><span>{nextPayout}</span></div>
                 </div>
@@ -578,11 +588,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               </div>
 
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Live trust</div>
-                <h3 className="mt-2 text-xl font-black">Score {showTrustScore}</h3>
+                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Risk & disputes</div>
+                <h3 className="mt-2 text-xl font-black">Score {fraudRiskScore}</h3>
                 <div className="mt-3 space-y-2 text-sm text-gray-300">
-                  <div className="flex items-center justify-between"><span>Queue items</span><span>{showQueueSize}</span></div>
-                  <div className="flex items-center justify-between"><span>Shipping performance</span><span>{shippingPerformance}%</span></div>
+                  <div className="flex items-center justify-between"><span>Open disputes</span><span>{disputeCount}</span></div>
+                  <div className="flex items-center justify-between"><span>Pending release</span><span>{pendingBalance > 0 ? "Yes" : "No"}</span></div>
                   <div className="flex items-center justify-between"><span>Notifications</span><span>{notificationsEnabled ? "On" : "Off"}</span></div>
                   <div className="flex items-center justify-between"><span>Auction health</span><span>{auctionHealth}%</span></div>
                 </div>
@@ -667,7 +677,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                 <div>
                   <div className="mb-2 text-sm font-semibold uppercase tracking-widest text-yellow-400">Fees & Earnings</div>
                   <h2 className="text-2xl font-black">Your seller fee summary</h2>
-                  <p className="mt-2 text-sm text-gray-400">The first {sellerSummary.freeSalesRemaining > 0 ? freeSalesUsed + freeSalesRemaining : sellerSummary.lifetimeSales} sales are tracked automatically and fee tiers update as you grow.</p>
+                  <p className="mt-2 text-sm text-gray-400">The first {sellerSummary.freeSalesRemaining > 0 ? freeSalesUsed + freeSalesRemaining : sellerSummary.lifetimeSales} completed sales are tracked automatically and fee tiers update as you grow.</p>
                 </div>
                 <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-400">
                   Current tier: <span className="font-bold">{sellerSummary.tierName}</span>
@@ -698,7 +708,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <h3 className="text-lg font-bold">Free sales progress</h3>
-                  <p className="text-sm text-gray-400">X of 100 free sales used</p>
+                  <p className="text-sm text-gray-400">X of 1,000 free sales used</p>
                 </div>
                 <div className="text-right text-sm text-gray-300">
                   {freeSalesUsed} of {feeConfig.freeSalesLimit} free sales used

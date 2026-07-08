@@ -99,13 +99,18 @@ export interface Database {
           platform_revenue_amount: number | null
           marketplace_fee_percent: number | null
           seller_tier_name: string | null
-          status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'refunded' | 'completed'
+          status: 'pending' | 'paid' | 'escrow' | 'released' | 'frozen' | 'disputed' | 'shipped' | 'delivered' | 'cancelled' | 'refunded' | 'completed'
+          escrow_status: 'held' | 'released' | 'frozen' | 'disputed' | 'refunded' | null
+          escrow_held_at: string | null
+          escrow_release_at: string | null
+          escrow_released_at: string | null
+          escrow_frozen_at: string | null
           stripe_payment_intent_id: string | null
           stripe_checkout_session_id: string | null
           tracking_number: string | null
           shipping_carrier: string | null
           buyer_address: Json | null
-          payout_status: 'pending' | 'paid' | 'failed' | null
+          payout_status: 'pending' | 'held' | 'released' | 'paid' | 'failed' | 'frozen' | null
           completed_at: string | null
           created_at: string
           updated_at: string
@@ -133,7 +138,12 @@ export interface Database {
           tracking_number?: string | null
           shipping_carrier?: string | null
           buyer_address?: Json | null
-          payout_status?: 'pending' | 'paid' | 'failed' | null
+          payout_status?: 'pending' | 'held' | 'released' | 'paid' | 'failed' | 'frozen' | null
+          escrow_status?: 'held' | 'released' | 'frozen' | 'disputed' | 'refunded' | null
+          escrow_held_at?: string | null
+          escrow_release_at?: string | null
+          escrow_released_at?: string | null
+          escrow_frozen_at?: string | null
           completed_at?: string | null
           created_at?: string
           updated_at?: string
@@ -396,22 +406,30 @@ export interface Database {
           seller_id: string
           available_balance: number | null
           pending_balance: number | null
+          frozen_balance: number | null
           lifetime_earnings: number | null
           completed_orders_count: number | null
           instant_payout_enabled: boolean | null
           next_payout_at: string | null
           fraud_flag: boolean | null
+          fraud_risk_score: number | null
+          fraud_risk_reason: string | null
+          manual_review_required: boolean | null
           updated_at: string | null
         }
         Insert: {
           seller_id: string
           available_balance?: number | null
           pending_balance?: number | null
+          frozen_balance?: number | null
           lifetime_earnings?: number | null
           completed_orders_count?: number | null
           instant_payout_enabled?: boolean | null
           next_payout_at?: string | null
           fraud_flag?: boolean | null
+          fraud_risk_score?: number | null
+          fraud_risk_reason?: string | null
+          manual_review_required?: boolean | null
           updated_at?: string | null
         }
         Update: Partial<Database['public']['Tables']['seller_wallets']['Insert']>

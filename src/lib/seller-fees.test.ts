@@ -25,17 +25,17 @@ const completedOrder = (overrides: Partial<{ status: string; created_at: string;
 });
 
 describe("seller fee rules", () => {
-  it("keeps the first 100 sales at 0% marketplace fee", () => {
-    const orders = Array.from({ length: 99 }, () => completedOrder());
+  it("keeps the first 1,000 sales at 0% marketplace fee", () => {
+    const orders = Array.from({ length: 999 }, () => completedOrder());
     const tier = getActiveMarketplaceFeePercent({ lifetimeSales: orders.length, monthlySales: 10, config: DEFAULT_SELLER_FEE_CONFIG });
     expect(tier.feePercent).toBe(0);
     const breakdown = calculateFeeBreakdown({ itemSubtotal: 50, shipping: 0, salesTax: 0, orders });
     expect(breakdown.marketplaceFee).toBe(0);
-    expect(breakdown.freeSalesUsed).toBe(99);
+    expect(breakdown.freeSalesUsed).toBe(999);
   });
 
-  it("switches sale 101 to the standard fee", () => {
-    const orders = Array.from({ length: 100 }, () => completedOrder());
+  it("switches sale 1001 to the standard fee", () => {
+    const orders = Array.from({ length: 1000 }, () => completedOrder());
     const tier = getActiveMarketplaceFeePercent({ lifetimeSales: orders.length, monthlySales: 10, config: DEFAULT_SELLER_FEE_CONFIG });
     expect(tier.feePercent).toBe(5);
     const breakdown = calculateFeeBreakdown({ itemSubtotal: 100, shipping: 0, salesTax: 0, orders });

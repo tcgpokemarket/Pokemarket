@@ -70,13 +70,18 @@ create table public.orders (
   platform_revenue_amount numeric(10,2) default 0,
   marketplace_fee_percent numeric(5,2) default 0,
   seller_tier_name text,
-  status text default 'pending' check (status in ('pending', 'paid', 'shipped', 'delivered', 'cancelled', 'refunded', 'completed')),
+  status text default 'pending' check (status in ('pending', 'paid', 'escrow', 'released', 'frozen', 'disputed', 'shipped', 'delivered', 'cancelled', 'refunded', 'completed')),
   stripe_payment_intent_id text,
   stripe_checkout_session_id text,
   tracking_number text,
   shipping_carrier text,
   buyer_address jsonb,
-  payout_status text default 'pending' check (payout_status in ('pending', 'paid', 'failed')),
+  payout_status text default 'pending' check (payout_status in ('pending', 'held', 'released', 'paid', 'failed', 'frozen')),
+  escrow_status text default 'held' check (escrow_status in ('held', 'released', 'frozen', 'disputed', 'refunded')),
+  escrow_held_at timestamptz,
+  escrow_release_at timestamptz,
+  escrow_released_at timestamptz,
+  escrow_frozen_at timestamptz,
   completed_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
@@ -88,12 +93,16 @@ create table public.seller_wallets (
   seller_id uuid references public.profiles(id) on delete cascade not null unique,
   available_balance numeric(10,2) default 0,
   pending_balance numeric(10,2) default 0,
+  frozen_balance numeric(10,2) default 0,
   lifetime_earnings numeric(10,2) default 0,
   completed_orders_count integer default 0,
   instant_payout_enabled boolean default false,
   last_payout_at timestamptz,
   next_payout_at timestamptz,
   fraud_flag boolean default false,
+  fraud_risk_score numeric(5,2) default 0,
+  fraud_risk_reason text,
+  manual_review_required boolean default false,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -195,10 +204,11 @@ create table public.tracking_events (
 
 create table public.seller_fee_settings (
   id uuid default gen_random_uuid() primary key,
-  free_sales_limit integer not null default 100,
+  free_sales_limit integer not null default 1000,
   standard_marketplace_fee_percent numeric(5,2) not null default 5,
   processing_fee_percent numeric(5,2) not null default 2.9,
   processing_fee_fixed numeric(10,2) not null default 0.30,
+  escrow_hold_hours integer not null default 72,
   updated_by uuid references public.profiles(id),
   updated_at timestamptz default now()
 );
@@ -268,6 +278,53 @@ create table public.audit_logs (
   user_agent text,
   created_at timestamptz default now()
 );
+
+create table public.escrow_ledger (
+  id uuid default gen_random_uuid() primary key,
+  order_id uuid references public.orders(id) on delete cascade not null,
+  seller_id uuid references public.profiles(id) on delete cascade not null,
+  entry_type text not null check (entry_type in ('hold', 'release', 'freeze', 'refund', 'dispute', 'adjustment')),
+  amount numeric(10,2) not null,
+  status text not null default 'posted' check (status in ('posted', 'reversed', 'pending')),
+  reference_id text,
+  note text,
+  created_by uuid references public.profiles(id),
+  created_at timestamptz default now()
+);
+
+create unique index escrow_ledger_unique_entry_idx on public.escrow_ledger(order_id, entry_type, coalesce(reference_id, ''));
+
+create table public.escrow_disputes (
+  id uuid default gen_random_uuid() primary key,
+  order_id uuid references public.orders(id) on delete cascade not null unique,
+  seller_id uuid references public.profiles(id) on delete cascade not null,
+  buyer_id uuid references public.profiles(id) on delete cascade not null,
+  reason text not null,
+  status text not null default 'open' check (status in ('open', 'under_review', 'won', 'lost', 'cancelled')),
+  opened_at timestamptz default now(),
+  resolved_at timestamptz,
+  resolution_note text,
+  created_by uuid references public.profiles(id),
+  updated_at timestamptz default now()
+);
+
+create table public.escrow_release_jobs (
+  id uuid default gen_random_uuid() primary key,
+  order_id uuid references public.orders(id) on delete cascade not null unique,
+  seller_id uuid references public.profiles(id) on delete cascade not null,
+  release_after_at timestamptz not null,
+  status text not null default 'queued' check (status in ('queued', 'running', 'released', 'skipped', 'failed')),
+  attempted_at timestamptz,
+  completed_at timestamptz,
+  error_message text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create index escrow_ledger_order_idx on public.escrow_ledger(order_id);
+create index escrow_ledger_seller_idx on public.escrow_ledger(seller_id);
+create index escrow_disputes_status_idx on public.escrow_disputes(status);
+create index escrow_release_jobs_status_idx on public.escrow_release_jobs(status);
 
 create table public.security_events (
   id uuid default gen_random_uuid() primary key,
@@ -341,6 +398,17 @@ create policy "listings_delete" on public.listings for delete using (auth.uid() 
 create policy "orders_select" on public.orders for select using (auth.uid() = buyer_id or auth.uid() = seller_id);
 create policy "orders_insert" on public.orders for insert with check (auth.uid() = buyer_id);
 create policy "orders_update" on public.orders for update using (false);
+
+alter table public.seller_wallets enable row level security;
+alter table public.escrow_ledger enable row level security;
+alter table public.escrow_disputes enable row level security;
+alter table public.escrow_release_jobs enable row level security;
+
+create policy "seller_wallets_select" on public.seller_wallets for select using (auth.uid() = seller_id);
+create policy "seller_wallets_update" on public.seller_wallets for update using (false);
+create policy "escrow_ledger_select" on public.escrow_ledger for select using (auth.uid() = seller_id or exists (select 1 from public.orders o where o.id = order_id and (o.buyer_id = auth.uid() or o.seller_id = auth.uid())));
+create policy "escrow_disputes_select" on public.escrow_disputes for select using (auth.uid() = buyer_id or auth.uid() = seller_id);
+create policy "escrow_release_jobs_select" on public.escrow_release_jobs for select using (auth.uid() = seller_id);
 
 -- Price history (public read)
 create policy "price_history_select" on public.price_history for select using (true);

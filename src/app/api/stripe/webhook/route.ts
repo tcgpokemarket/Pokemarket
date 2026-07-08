@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { incrementSellerTotals, incrementTotalSales } from "@/lib/supabase/fees";
+import { getDeliveryReleaseAt, shouldReleaseFromEscrow, buildEscrowLedgerKey } from "@/lib/escrow";
 
 async function recordWebhookEvent(
   supabase: ReturnType<typeof createAdminClient>,
@@ -40,7 +41,7 @@ async function isProcessed(supabase: ReturnType<typeof createAdminClient>, sessi
     .maybeSingle();
 
   if (error || !data) return false;
-  return Boolean(data.completed_at || data.status === "completed");
+  return Boolean(data.completed_at || data.status === "completed" || data.status === "escrow");
 }
 
 export async function POST(req: Request) {
@@ -70,25 +71,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   }
 
-  if (event.type === "checkout.session.async_payment_failed") {
-    const session = event.data.object as Stripe.Checkout.Session;
-    const supabase = createAdminClient();
-    await (supabase as any).from("webhook_events").insert({
-      provider: "stripe",
-      event_id: event.id,
-      event_type: event.type,
-      payload: event,
-    }).select("id").maybeSingle();
-    return NextResponse.json({ received: true });
-  }
-
-  if (event.type !== "checkout.session.completed") {
-    return NextResponse.json({ received: true });
-  }
-
   const session = event.data.object as Stripe.Checkout.Session;
   const supabase = createAdminClient();
-  const sessionId = session.id;
 
   try {
     const recorded = await recordWebhookEvent(supabase, event);
@@ -99,14 +83,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   }
 
-  if (await isProcessed(supabase, sessionId)) {
+  if (event.type === "checkout.session.async_payment_failed") {
+    await (supabase as any)
+      .from("orders")
+      .update({ status: "frozen", payout_status: "frozen", escrow_status: "frozen", escrow_frozen_at: new Date().toISOString() })
+      .eq("stripe_checkout_session_id", session.id);
+    return NextResponse.json({ received: true });
+  }
+
+  if (await isProcessed(supabase, session.id)) {
     return NextResponse.json({ received: true });
   }
 
   const orderResult = await (supabase as any)
     .from("orders")
     .select("*")
-    .eq("stripe_checkout_session_id", sessionId)
+    .eq("stripe_checkout_session_id", session.id)
     .maybeSingle();
   const order = orderResult.data as any;
 
@@ -114,10 +106,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   }
 
+  const now = new Date().toISOString();
+  const releaseAt = order.escrow_release_at ?? getDeliveryReleaseAt(now);
+  const shouldRelease = shouldReleaseFromEscrow({
+    disputeStatus: order.escrow_status === "disputed" ? "open" : null,
+    releaseAfterAt: releaseAt,
+    currentStatus: order.status,
+    now,
+  });
+
   const orderUpdate = {
-    status: "completed",
-    completed_at: new Date().toISOString(),
-    payout_status: "pending",
+    status: shouldRelease ? "released" : "escrow",
+    completed_at: now,
+    payout_status: shouldRelease ? "released" : "held",
+    escrow_status: shouldRelease ? "released" : "held",
+    escrow_released_at: shouldRelease ? now : null,
     total_amount: toNumber(session.metadata?.totalAmount, order.total_amount),
     item_subtotal: toNumber(session.metadata?.itemSubtotal, order.item_subtotal ?? 0),
     shipping_amount: toNumber(session.metadata?.shippingAmount, order.shipping_amount ?? 0),
@@ -135,7 +138,31 @@ export async function POST(req: Request) {
     .update(orderUpdate)
     .eq("id", order.id)
     .is("completed_at", null)
-    .or("status.eq.pending,status.eq.paid");
+    .or("status.eq.pending,status.eq.paid,status.eq.escrow");
+
+  await (supabase as any).from("escrow_ledger").upsert({
+    order_id: order.id,
+    seller_id: order.seller_id,
+    entry_type: "hold",
+    amount: toNumber(order.seller_payout_amount, 0),
+    status: shouldRelease ? "posted" : "pending",
+    reference_id: buildEscrowLedgerKey(order.id, "hold"),
+    note: "Escrow hold created from checkout completion",
+    created_by: null,
+  }, { onConflict: "order_id,entry_type,reference_id" });
+
+  if (shouldRelease) {
+    await (supabase as any).from("escrow_ledger").upsert({
+      order_id: order.id,
+      seller_id: order.seller_id,
+      entry_type: "release",
+      amount: toNumber(order.seller_payout_amount, 0),
+      status: "posted",
+      reference_id: buildEscrowLedgerKey(order.id, "release"),
+      note: "Escrow released after confirmation window",
+      created_by: null,
+    }, { onConflict: "order_id,entry_type,reference_id" });
+  }
 
   const [{ data: sellerProfile }, { data: sellerRecord }] = await Promise.all([
     (supabase as any).from("profiles").select("*").eq("id", order.seller_id).maybeSingle(),

@@ -4,6 +4,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildSellerFeeConfig, calculateFeeBreakdown } from "@/lib/seller-fees";
 import { DEFAULT_DESTINATION_COUNTRY, getEasyshipRates } from "@/lib/easyship";
+import { decideEscrowFlow, getDeliveryReleaseAt, calculateFraudRisk } from "@/lib/escrow";
+
+const DEFAULT_ESCROW_SIGNAL_BASE = {
+  failedPayments: 0,
+  chargebacks: 0,
+  payoutSpikes: 0,
+  rapidAccountAgeHours: 0,
+  linkedFraudAccounts: 0,
+  vpnProxyHits: 0,
+  deviceFingerprintMatches: 0,
+  velocityBreaches: 0,
+  suspiciousIpEvents: 0,
+};
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -24,7 +37,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid quantity" }, { status: 400 });
   }
 
-
   const listingResult = await supabase
     .from("listings")
     .select("*, profiles:seller_id(*), sellers:seller_id(*)")
@@ -39,7 +51,6 @@ export async function POST(req: Request) {
   }
 
   const shippingPaidBy = listing.shipping_paid_by ?? "buyer";
-
   const admin = createAdminClient();
   const [sellerOrdersResult, feeSettingsResult, feeTiersResult, feeOverrideResult] = await Promise.all([
     supabase.from("orders").select("*").eq("seller_id", listing.seller_id),
@@ -47,6 +58,7 @@ export async function POST(req: Request) {
     admin.from("seller_fee_tiers").select("*").eq("active", true).order("min_monthly_orders", { ascending: true }),
     admin.from("seller_fee_overrides").select("*").eq("seller_id", listing.seller_id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
+
   const sellerFeeOrders = ((sellerOrdersResult.data ?? []) as Array<{ seller_id: string; status: string; created_at?: string | null; completed_at?: string | null; quantity?: number | null; unit_price?: number | null; total_amount?: number | null; item_subtotal?: number | null; shipping_amount?: number | null; sales_tax_amount?: number | null; processing_fee_amount?: number | null; marketplace_fee_amount?: number | null; seller_payout_amount?: number | null; platform_revenue_amount?: number | null; payout_status?: string | null }>).filter((order) => order.seller_id === listing.seller_id);
   const feeConfig = buildSellerFeeConfig({ settings: feeSettingsResult.data, tiers: feeTiersResult.data ?? undefined });
   const feeOverrideRow = feeOverrideResult.data as any;
@@ -84,10 +96,22 @@ export async function POST(req: Request) {
   });
 
   const totalAmount = feeBreakdown.totalDue;
+  const escrowSignals = calculateFraudRisk(DEFAULT_ESCROW_SIGNAL_BASE);
+  const escrowDecision = decideEscrowFlow({
+    wallet: {
+      completed_orders_count: sellerFeeOrders.length,
+      instant_payout_enabled: false,
+      fraud_flag: false,
+    },
+    signals: DEFAULT_ESCROW_SIGNAL_BASE,
+    orderAmount: totalAmount,
+  });
+
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeSecretKey) {
     return NextResponse.json({ error: "Stripe is not configured" }, { status: 500 });
   }
+
   const stripe = new Stripe(stripeSecretKey, { apiVersion: "2026-06-24.dahlia" });
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",
@@ -103,7 +127,7 @@ export async function POST(req: Request) {
             name: listing.card_name,
             description: `${listing.set_name}${listing.card_number ? ` · #${listing.card_number}` : ""}`,
           },
-          unit_amount: Math.round(itemSubtotal * 100 / quantity),
+          unit_amount: Math.round((itemSubtotal * 100) / quantity),
         },
       },
     ],
@@ -123,10 +147,14 @@ export async function POST(req: Request) {
       platformRevenueAmount: feeBreakdown.platformRevenue.toFixed(2),
       marketplaceFeePercent: feeBreakdown.marketplaceFeePercent.toFixed(2),
       sellerTierName: feeBreakdown.tierName,
+      escrowStatus: escrowDecision.requiresEscrowHold ? "held" : "released",
+      escrowRiskScore: String(escrowSignals.score),
+      escrowRiskReason: escrowSignals.reasons.join("; "),
       totalAmount: totalAmount.toFixed(2),
     },
   });
 
+  const heldAt = new Date().toISOString();
   const orderPayload = {
     buyer_id: user.id,
     seller_id: listing.seller_id,
@@ -143,9 +171,12 @@ export async function POST(req: Request) {
     platform_revenue_amount: feeBreakdown.platformRevenue,
     marketplace_fee_percent: feeBreakdown.marketplaceFeePercent,
     seller_tier_name: feeBreakdown.tierName,
-    status: "pending",
+    status: escrowDecision.requiresEscrowHold ? "escrow" : "paid",
     stripe_checkout_session_id: checkoutSession.id,
-    payout_status: "pending",
+    payout_status: escrowDecision.requiresEscrowHold ? "held" : "released",
+    escrow_status: escrowDecision.requiresEscrowHold ? "held" : "released",
+    escrow_held_at: heldAt,
+    escrow_release_at: getDeliveryReleaseAt(heldAt),
   } as const;
 
   const { error: orderError } = await supabase.from("orders").insert(orderPayload as any);

@@ -26,7 +26,7 @@ type AdminFeePayload = {
 };
 
 const defaultConfig = {
-  freeSalesLimit: 100,
+  freeSalesLimit: 1000,
   standardMarketplaceFeePercent: 5,
   processingFeePercent: 2.9,
   processingFeeFixed: 0.3,

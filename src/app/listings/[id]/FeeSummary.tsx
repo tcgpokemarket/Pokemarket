@@ -50,7 +50,7 @@ export default function FeeSummary({ listingPrice, sellerOrders, shippingPaidBy 
         ))}
       </div>
       <p className="mt-4 text-xs text-gray-500">
-        Marketplace fee: {summary.tierName} · {summary.freeSalesUsed} of 100 free sales used
+        Marketplace fee: {summary.tierName} · {summary.freeSalesUsed} of {feeConfig.freeSalesLimit} free sales used
       </p>
     </div>
   );

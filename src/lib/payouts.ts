@@ -1,11 +1,13 @@
 import type { SellerWallet } from "@/lib/supabase/types";
 
+export const INSTANT_PAYOUT_COMPLETED_SALES_THRESHOLD = 1000;
+
 export function getPayoutTier(completedOrdersCount: number) {
-  return completedOrdersCount >= 100 ? "verified" : "new";
+  return completedOrdersCount >= INSTANT_PAYOUT_COMPLETED_SALES_THRESHOLD ? "verified" : "new";
 }
 
 export function canUseInstantPayout(wallet: Pick<SellerWallet, "completed_orders_count" | "fraud_flag" | "instant_payout_enabled">) {
-  return (wallet.completed_orders_count ?? 0) >= 100 && !wallet.fraud_flag && wallet.instant_payout_enabled;
+  return (wallet.completed_orders_count ?? 0) >= INSTANT_PAYOUT_COMPLETED_SALES_THRESHOLD && !wallet.fraud_flag && wallet.instant_payout_enabled;
 }
 
 export function nextPayoutDate(lastPayoutAt: string | null, timezoneOffsetHours = 0) {
