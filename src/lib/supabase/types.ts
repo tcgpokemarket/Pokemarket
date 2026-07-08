@@ -223,6 +223,101 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['seller_followers']['Insert']>
       }
+      follows: {
+        Row: {
+          id: string
+          follower_id: string
+          following_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          follower_id: string
+          following_id: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['follows']['Insert']>
+      }
+      friendships: {
+        Row: {
+          id: string
+          requester_id: string
+          receiver_id: string
+          status: 'pending' | 'accepted' | 'blocked'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          requester_id: string
+          receiver_id: string
+          status?: 'pending' | 'accepted' | 'blocked'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['friendships']['Insert']>
+      }
+      blocks: {
+        Row: {
+          id: string
+          blocker_id: string
+          blocked_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          blocker_id: string
+          blocked_id: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['blocks']['Insert']>
+      }
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: string
+          related_user: string | null
+          related_content: Json | null
+          read_status: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: string
+          related_user?: string | null
+          related_content?: Json | null
+          read_status?: boolean
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['notifications']['Insert']>
+      }
+      profile_privacy_settings: {
+        Row: {
+          user_id: string
+          who_can_follow: 'everyone' | 'followers_only' | 'no_one'
+          who_can_friend_request: 'everyone' | 'followers_only' | 'no_one'
+          profile_visibility: 'public' | 'followers_only' | 'friends_only' | 'private'
+          collection_visibility: 'public' | 'followers_only' | 'friends_only' | 'private'
+          activity_visibility: 'public' | 'followers_only' | 'friends_only' | 'private'
+          message_visibility: 'everyone' | 'followers_only' | 'friends_only' | 'no_one'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          who_can_follow?: 'everyone' | 'followers_only' | 'no_one'
+          who_can_friend_request?: 'everyone' | 'followers_only' | 'no_one'
+          profile_visibility?: 'public' | 'followers_only' | 'friends_only' | 'private'
+          collection_visibility?: 'public' | 'followers_only' | 'friends_only' | 'private'
+          activity_visibility?: 'public' | 'followers_only' | 'friends_only' | 'private'
+          message_visibility?: 'everyone' | 'followers_only' | 'friends_only' | 'no_one'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['profile_privacy_settings']['Insert']>
+      }
       seller_reviews: {
         Row: {
           id: string

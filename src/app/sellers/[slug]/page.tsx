@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
 import type { Listing } from "@/lib/supabase/types";
+import { getSocialCounts } from "@/lib/social-network";
+import type { Database } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
 export const dynamicParams = true;
@@ -67,6 +69,8 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
     rating: number;
   }>;
   const profile = profileResult.data as { username: string | null; full_name: string | null } | null;
+  const socialCounts = await getSocialCounts(sellerData.id).catch(() => ({ followers: sellerData.follower_count, following: 0, friends: 0 }));
+  const activeProfile = profile as (Database["public"]["Tables"]["profiles"]["Row"] & { username: string | null; full_name: string | null }) | null;
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -106,7 +110,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                     <h1 className="text-3xl font-black sm:text-4xl">{sellerData.display_name}</h1>
                     {sellerData.verified && <span className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-300">Verified seller</span>}
                   </div>
-                  <p className="mt-1 text-sm text-gray-400">@{sellerData.storefront_slug}{profile?.username ? ` · public profile @${profile.username}` : ""}</p>
+                  <p className="mt-1 text-sm text-gray-400">@{sellerData.storefront_slug}{activeProfile?.username ? ` · public profile @${activeProfile.username}` : ""}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
@@ -115,9 +119,19 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   <div className="text-xs text-gray-400">Rating</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerData.follower_count}</div>
+                  <div className="text-2xl font-black text-yellow-400">{socialCounts.followers}</div>
                   <div className="text-xs text-gray-400">Followers</div>
                 </div>
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
+                  <div className="text-2xl font-black text-yellow-400">{socialCounts.following}</div>
+                  <div className="text-xs text-gray-400">Following</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
+                  <div className="text-2xl font-black text-yellow-400">{socialCounts.friends}</div>
+                  <div className="text-xs text-gray-400">Friends</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
                   <div className="text-2xl font-black text-yellow-400">{sellerData.sales_count}</div>
                   <div className="text-xs text-gray-400">Sales</div>
@@ -125,6 +139,32 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
                   <div className="text-2xl font-black text-yellow-400">{sellerData.total_live_shows}</div>
                   <div className="text-xs text-gray-400">Live shows</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
+                  <div className="text-2xl font-black text-yellow-400">{listings.length}</div>
+                  <div className="text-xs text-gray-400">Listings</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
+                  <div className="text-2xl font-black text-yellow-400">{sellerData.total_live_shows}</div>
+                  <div className="text-xs text-gray-400">Shows</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
+                  <div className="text-2xl font-black text-yellow-400">{sellerData.total_revenue.toFixed(2)}</div>
+                  <div className="text-xs text-gray-400">Revenue</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
+                  <div className="text-2xl font-black text-yellow-400">{sellerData.total_listings}</div>
+                  <div className="text-xs text-gray-400">Total listings</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
+                  <div className="text-2xl font-black text-yellow-400">{sellerData.verified ? "Yes" : "No"}</div>
+                  <div className="text-xs text-gray-400">Verified</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
+                  <div className="text-2xl font-black text-yellow-400">{sellerData.display_name.slice(0, 1).toUpperCase()}</div>
+                  <div className="text-xs text-gray-400">Badge</div>
                 </div>
               </div>
             </div>
