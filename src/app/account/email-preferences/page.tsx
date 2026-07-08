@@ -1,15 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
+import EmailPreferencesForm from "./email-preferences-form";
 
 export const dynamic = "force-dynamic";
-
-const options = [
-  "marketing",
-  "live_alerts",
-  "seller_updates",
-  "auction_alerts",
-  "giveaway_alerts",
-  "community_notifications",
-];
 
 export default async function EmailPreferencesPage() {
   const supabase = await createClient();
@@ -27,22 +19,14 @@ export default async function EmailPreferencesPage() {
     );
   }
 
-  const { data: preferences } = await supabase.from("email_preferences").select("*").eq("user_id", user.id);
-  const enabled = new Map((preferences ?? []).map((row: any) => [row.notification_type, row.enabled]));
+  const { data: preferences } = await supabase.from("email_preferences").select("*").eq("user_id", user.id).order("created_at", { ascending: true });
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-10 text-white">
       <main className="mx-auto max-w-4xl rounded-3xl border border-white/10 bg-white/5 p-6">
         <h1 className="text-3xl font-black">Email preferences</h1>
         <p className="mt-2 text-sm text-gray-400">Choose which marketplace updates you want by email.</p>
-        <div className="mt-6 grid gap-3">
-          {options.map((option) => (
-            <label key={option} className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3 text-sm">
-              <span className="capitalize text-white">{option.replace(/_/g, " ")}</span>
-              <input type="checkbox" defaultChecked={enabled.get(option) ?? true} className="h-5 w-5 rounded border-white/20 bg-transparent text-yellow-400" />
-            </label>
-          ))}
-        </div>
+        <EmailPreferencesForm initialPreferences={(preferences ?? []) as Array<{ notification_type: string; enabled: boolean }>} />
       </main>
     </div>
   );

@@ -13,6 +13,7 @@ const modules = [
   { title: "Live shows", description: "Auctions, chat, bids, and stream health", href: "/live" },
   { title: "Giveaways", description: "Review prizes, fraud checks, and seller limits", href: "/live" },
   { title: "Fees", description: "Marketplace fee tiers and overrides", href: "/dashboard/fees" },
+  { title: "Email operations", description: "Queue health, delivery logs, and retries", href: "/admin/email" },
 ] as const;
 
 const giveawayControls = [
