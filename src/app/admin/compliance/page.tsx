@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/supabase/server";
 import { getMessageReports, getReportedConversations, suspendMessagingAccess, blockConversationUser } from "@/lib/messaging";
+import { isAdminUser } from "@/lib/admin-access";
+import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,7 +15,7 @@ async function handleModerationAction(formData: FormData) {
   const blockedId = String(formData.get("blockedId") ?? "").trim();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Unauthorized");
+  if (!user || !isAdminUser(user)) throw new Error("Unauthorized");
 
   if (action === "suspend" && targetId) {
     await suspendMessagingAccess(targetId, true);

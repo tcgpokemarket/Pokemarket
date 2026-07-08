@@ -4,14 +4,19 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordSecurityEvent } from "@/lib/audit-log";
+import { notFound } from "next/navigation";
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = await params;
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!isAdminUser(user)) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isAdminUser(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const adminUser = user!;

@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getSupportStats } from "@/lib/support";
+import { createClient } from "@/lib/supabase/server";
+import { isAdminUser } from "@/lib/admin-access";
+import { notFound } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -38,6 +42,13 @@ const supportHighlights = [
 ] as const;
 
 export default async function AdminPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!isAdminUser(user)) {
+    notFound();
+  }
+
   let supportStats = { total: 0, escalated: 0, resolved: 0, open: 0, aiHandling: 0, waitingForUser: 0 };
 
   try {

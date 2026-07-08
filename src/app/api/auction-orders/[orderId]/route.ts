@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isAdminUser } from "@/lib/admin-access";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordSecurityEvent } from "@/lib/audit-log";
 
@@ -66,24 +67,38 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
   }
 
   const isParticipant = order.buyer_id === user.id || order.seller_id === user.id;
-  const { data: adminProfile } = await supabase.from("profiles").select("is_seller").eq("id", user.id).maybeSingle() as { data: { is_seller: boolean } | null };
-  const isAdmin = Boolean(adminProfile?.is_seller);
+  const isAdmin = isAdminUser(user);
+  const isSellerActionAllowed = order.seller_id === user.id || isAdmin;
+  const isBuyerActionAllowed = order.buyer_id === user.id || isAdmin;
+  const canMutate = isParticipant || isAdmin;
 
-  if (!isParticipant && !isAdmin) {
+  if (!canMutate) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (body.action === "mark_paid" && order.buyer_id !== user.id && !isAdmin) {
+  if (body.action === "mark_paid" && !isBuyerActionAllowed) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (body.action === "mark_expired" && order.seller_id !== user.id && !isAdmin) {
+  if (body.action === "mark_expired" && !isSellerActionAllowed) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (body.action === "mark_paid" && order.payment_status === "paid") {
+    return NextResponse.json({ order });
+  }
+
+  if (body.action === "mark_expired" && !(order.payment_status === "payment_pending" && new Date(order.payment_deadline).getTime() <= Date.now())) {
+    return NextResponse.json({ order });
   }
 
   if (body.action === "mark_paid") {
     if (order.payment_status === "paid") {
       return NextResponse.json({ order });
+    }
+
+    if (!isBuyerActionAllowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { error: updateError } = await (admin as any)
@@ -123,7 +138,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
     return NextResponse.json({ ok: true });
   }
 
-  if (body.action === "mark_expired" && order.payment_status === "payment_pending" && new Date(order.payment_deadline).getTime() <= Date.now()) {
+  if (body.action === "mark_expired") {
+    if (!isSellerActionAllowed) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    if (order.payment_status !== "payment_pending" || new Date(order.payment_deadline).getTime() > Date.now()) {
+      return NextResponse.json({ order });
+    }
+
     const { error: updateError } = await (admin as any)
       .from("auction_orders")
       .update({

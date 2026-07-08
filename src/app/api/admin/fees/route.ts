@@ -9,8 +9,12 @@ export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!isAdminUser(user)) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isAdminUser(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const admin = createAdminClient();
@@ -48,8 +52,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
   }
 
-  if (!isAdminUser(user)) {
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  if (!isAdminUser(user)) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const body = (await req.json()) as {

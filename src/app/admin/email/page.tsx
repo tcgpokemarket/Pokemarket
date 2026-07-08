@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
+import { isAdminUser } from "@/lib/admin-access";
+import { notFound } from "next/navigation";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -7,17 +9,11 @@ export default async function AdminEmailPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
-        <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-          <h1 className="text-3xl font-black">Email operations</h1>
-          <p className="mt-3 text-gray-400">Sign in to review queue and delivery logs.</p>
-          <a href="/auth/signin" className="mt-6 inline-flex rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Sign in</a>
-        </div>
-      </div>
-    );
+  if (!user || !isAdminUser(user)) {
+    notFound();
   }
+
+
 
   const [{ data: queue }, { data: logs }] = await Promise.all([
     supabase.from("email_queue").select("id, template_name, recipient_email, status, attempts, next_attempt_at, last_error, created_at").order("created_at", { ascending: false }).limit(50),
