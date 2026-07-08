@@ -61,23 +61,23 @@ alter table public.support_ai_responses enable row level security;
 alter table public.support_ticket_events enable row level security;
 
 create policy "support tickets readable by owner or admin" on public.support_tickets
-  for select using (auth.uid() = user_id or auth.uid() is not null);
+  for select using (auth.uid() = user_id or exists (select 1 from public.profiles where id = auth.uid() and is_seller = true));
 create policy "support tickets insertable by authenticated users" on public.support_tickets
   for insert with check (auth.uid() = user_id);
 create policy "support tickets updatable by owner or admin" on public.support_tickets
-  for update using (auth.uid() = user_id or auth.uid() is not null);
+  for update using (auth.uid() = user_id or exists (select 1 from public.profiles where id = auth.uid() and is_seller = true));
 
 create policy "support knowledge readable by authenticated users" on public.support_knowledge_sources
   for select using (auth.uid() is not null);
 create policy "support knowledge writable by admin" on public.support_knowledge_sources
-  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+  for all using (exists (select 1 from public.profiles where id = auth.uid() and is_seller = true)) with check (exists (select 1 from public.profiles where id = auth.uid() and is_seller = true));
 
 create policy "support responses readable by owner or admin" on public.support_ai_responses
   for select using (auth.uid() is not null);
 create policy "support responses writable by admin" on public.support_ai_responses
-  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+  for all using (exists (select 1 from public.profiles where id = auth.uid() and is_seller = true)) with check (exists (select 1 from public.profiles where id = auth.uid() and is_seller = true));
 
 create policy "support ticket events readable by owner or admin" on public.support_ticket_events
   for select using (auth.uid() is not null);
 create policy "support ticket events writable by admin" on public.support_ticket_events
-  for all using (auth.uid() is not null) with check (auth.uid() is not null);
+  for all using (exists (select 1 from public.profiles where id = auth.uid() and is_seller = true)) with check (exists (select 1 from public.profiles where id = auth.uid() and is_seller = true));

@@ -308,14 +308,26 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     if (!supabase || !profile) return;
 
     if (updates.profile) {
-      await (supabase as any).from("profiles").update(updates.profile).eq("id", profile.id);
+      await fetch("/api/profile-assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: "profile", ...updates.profile }),
+      });
     }
     if (updates.seller) {
-      await (supabase as any).from("sellers").update(updates.seller).eq("id", profile.id);
+      await fetch("/api/profile-assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: "seller", ...updates.seller }),
+      });
       setSellerRecord((current) => (current ? { ...current, ...updates.seller } : current));
     }
     if (updates.store) {
-      await (supabase as any).from("seller_stores").update(updates.store).eq("seller_id", profile.id);
+      await fetch("/api/profile-assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target: "store", ...updates.store }),
+      });
       setStoreRecord((current) => (current ? { ...current, ...updates.store } : current));
     }
   };

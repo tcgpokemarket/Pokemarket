@@ -13,11 +13,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { listingId, quantity = 1, shippingPaidBy: shippingPaidByInput, shippingRateIndex = 0 } = (await req.json()) as { listingId?: string; quantity?: number; shippingPaidBy?: "buyer" | "seller"; shippingRateIndex?: number };
+  const { listingId, quantity: rawQuantity = 1, shippingPaidBy: shippingPaidByInput, shippingRateIndex = 0 } = (await req.json()) as { listingId?: string; quantity?: number; shippingPaidBy?: "buyer" | "seller"; shippingRateIndex?: number };
 
   if (!listingId) {
     return NextResponse.json({ error: "Missing listingId" }, { status: 400 });
   }
+
+  const quantity = Math.max(1, Math.floor(rawQuantity));
+  if (!Number.isFinite(quantity)) {
+    return NextResponse.json({ error: "Invalid quantity" }, { status: 400 });
+  }
+
 
   const listingResult = await supabase
     .from("listings")
@@ -32,7 +38,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
   }
 
-  const shippingPaidBy = shippingPaidByInput ?? listing.shipping_paid_by ?? "buyer";
+  const shippingPaidBy = shippingPaidByInput === "seller" ? "seller" : listing.shipping_paid_by ?? "buyer";
 
   const admin = createAdminClient();
   const [sellerOrdersResult, feeSettingsResult, feeTiersResult, feeOverrideResult] = await Promise.all([

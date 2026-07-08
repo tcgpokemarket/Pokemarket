@@ -277,7 +277,7 @@ create policy "price_history_insert" on public.price_history for insert with che
 
 -- Profiles
 create policy "profiles_select" on public.profiles for select using (true);
-create policy "profiles_update" on public.profiles for update using (auth.uid() = id);
+create policy "profiles_update" on public.profiles for update using (auth.uid() = id and coalesce(is_seller, false) = false);
 create policy "profiles_insert" on public.profiles for insert with check (auth.uid() = id);
 
 -- Listings
@@ -289,7 +289,7 @@ create policy "listings_delete" on public.listings for delete using (auth.uid() 
 -- Orders
 create policy "orders_select" on public.orders for select using (auth.uid() = buyer_id or auth.uid() = seller_id);
 create policy "orders_insert" on public.orders for insert with check (auth.uid() = buyer_id);
-create policy "orders_update" on public.orders for update using (auth.uid() = buyer_id or auth.uid() = seller_id);
+create policy "orders_update" on public.orders for update using (false);
 
 -- Price history (public read)
 create policy "price_history_select" on public.price_history for select using (true);

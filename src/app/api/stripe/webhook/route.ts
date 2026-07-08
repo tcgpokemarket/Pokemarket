@@ -5,6 +5,22 @@ import { incrementSellerTotals, incrementTotalSales } from "@/lib/supabase/fees"
 
 export const runtime = "nodejs";
 
+function toNumber(value: unknown, fallback = 0) {
+  const parsed = typeof value === "string" || typeof value === "number" ? Number(value) : NaN;
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+async function isProcessed(supabase: ReturnType<typeof createAdminClient>, sessionId: string) {
+  const { data, error } = await (supabase as any)
+    .from("orders")
+    .select("id, status, completed_at")
+    .eq("stripe_checkout_session_id", sessionId)
+    .maybeSingle();
+
+  if (error || !data) return false;
+  return Boolean(data.completed_at || data.status === "completed");
+}
+
 export async function POST(req: Request) {
   const body = await req.text();
   const signature = req.headers.get("stripe-signature");
@@ -34,13 +50,17 @@ export async function POST(req: Request) {
 
   const session = event.data.object as Stripe.Checkout.Session;
   const supabase = createAdminClient();
-
   const sessionId = session.id;
-  const orderResult = await supabase
+
+  if (await isProcessed(supabase, sessionId)) {
+    return NextResponse.json({ received: true });
+  }
+
+  const orderResult = await (supabase as any)
     .from("orders")
     .select("*")
     .eq("stripe_checkout_session_id", sessionId)
-    .single();
+    .maybeSingle();
   const order = orderResult.data as any;
 
   if (orderResult.error || !order) {
@@ -51,26 +71,28 @@ export async function POST(req: Request) {
     status: "completed",
     completed_at: new Date().toISOString(),
     payout_status: "pending",
-    total_amount: Number(session.metadata?.totalAmount ?? order.total_amount),
-    item_subtotal: Number(session.metadata?.itemSubtotal ?? order.item_subtotal ?? 0),
-    shipping_amount: Number(session.metadata?.shippingAmount ?? order.shipping_amount ?? 0),
-    sales_tax_amount: Number(session.metadata?.salesTaxAmount ?? order.sales_tax_amount ?? 0),
-    processing_fee_amount: Number(session.metadata?.processingFeeAmount ?? order.processing_fee_amount ?? 0),
-    marketplace_fee_amount: Number(session.metadata?.marketplaceFeeAmount ?? order.marketplace_fee_amount ?? 0),
-    seller_payout_amount: Number(session.metadata?.sellerPayoutAmount ?? order.seller_payout_amount ?? 0),
-    platform_revenue_amount: Number(session.metadata?.platformRevenueAmount ?? order.platform_revenue_amount ?? 0),
-    marketplace_fee_percent: Number(session.metadata?.marketplaceFeePercent ?? order.marketplace_fee_percent ?? 0),
+    total_amount: toNumber(session.metadata?.totalAmount, order.total_amount),
+    item_subtotal: toNumber(session.metadata?.itemSubtotal, order.item_subtotal ?? 0),
+    shipping_amount: toNumber(session.metadata?.shippingAmount, order.shipping_amount ?? 0),
+    sales_tax_amount: toNumber(session.metadata?.salesTaxAmount, order.sales_tax_amount ?? 0),
+    processing_fee_amount: toNumber(session.metadata?.processingFeeAmount, order.processing_fee_amount ?? 0),
+    marketplace_fee_amount: toNumber(session.metadata?.marketplaceFeeAmount, order.marketplace_fee_amount ?? 0),
+    seller_payout_amount: toNumber(session.metadata?.sellerPayoutAmount, order.seller_payout_amount ?? 0),
+    platform_revenue_amount: toNumber(session.metadata?.platformRevenueAmount, order.platform_revenue_amount ?? 0),
+    marketplace_fee_percent: toNumber(session.metadata?.marketplaceFeePercent, order.marketplace_fee_percent ?? 0),
     seller_tier_name: session.metadata?.sellerTierName ?? order.seller_tier_name,
   } as const;
 
   await (supabase as any)
     .from("orders")
     .update(orderUpdate)
-    .eq("id", order.id);
+    .eq("id", order.id)
+    .is("completed_at", null)
+    .or("status.eq.pending,status.eq.paid");
 
   const [{ data: sellerProfile }, { data: sellerRecord }] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", order.seller_id).single(),
-    supabase.from("sellers").select("*").eq("id", order.seller_id).maybeSingle(),
+    (supabase as any).from("profiles").select("*").eq("id", order.seller_id).maybeSingle(),
+    (supabase as any).from("sellers").select("*").eq("id", order.seller_id).maybeSingle(),
   ]);
 
   if (sellerProfile) {
@@ -83,14 +105,9 @@ export async function POST(req: Request) {
   if (sellerRecord) {
     await (supabase as any)
       .from("sellers")
-      .update(incrementSellerTotals(sellerRecord, Number(order.total_amount ?? 0), 0, 0))
+      .update(incrementSellerTotals(sellerRecord, toNumber(order.total_amount, 0), 0, 0))
       .eq("id", order.seller_id);
   }
-
-  await (supabase as any)
-    .from("orders")
-    .update({ platform_revenue_amount: Number(session.metadata?.platformRevenueAmount ?? order.platform_revenue_amount ?? 0) })
-    .eq("id", order.id);
 
   await (supabase as any)
     .from("listings")
