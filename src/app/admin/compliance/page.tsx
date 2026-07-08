@@ -1,8 +1,34 @@
 import type { Metadata } from "next";
-import { getMessageReports, getReportedConversations } from "@/lib/messaging";
+import { createClient } from "@/lib/supabase/server";
+import { getMessageReports, getReportedConversations, suspendMessagingAccess, blockConversationUser } from "@/lib/messaging";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
+
+async function handleModerationAction(formData: FormData) {
+  "use server";
+  const action = String(formData.get("action") ?? "");
+  const targetId = String(formData.get("targetId") ?? "").trim();
+  const conversationId = String(formData.get("conversationId") ?? "").trim();
+  const blockedId = String(formData.get("blockedId") ?? "").trim();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error("Unauthorized");
+
+  if (action === "suspend" && targetId) {
+    await suspendMessagingAccess(targetId, true);
+    return;
+  }
+
+  if (action === "unsuspend" && targetId) {
+    await suspendMessagingAccess(targetId, false);
+    return;
+  }
+
+  if (action === "block" && conversationId && blockedId) {
+    await blockConversationUser(user.id, blockedId);
+  }
+}
 
 export const metadata: Metadata = {
   title: "Compliance Dashboard",
@@ -75,6 +101,18 @@ export default async function CompliancePage() {
                     </div>
                     <p className="mt-2 text-gray-400">{report.messages?.message ?? "Message content unavailable."}</p>
                     <p className="mt-2 text-xs text-gray-500">Conversation {report.messages?.conversation_id?.slice(0, 8) ?? "n/a"}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <form action={handleModerationAction}>
+                        <input type="hidden" name="action" value="suspend" />
+                        <input type="hidden" name="targetId" value={report.messages?.sender_id ?? ""} />
+                        <button className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white">Suspend sender</button>
+                      </form>
+                      <form action={handleModerationAction}>
+                        <input type="hidden" name="action" value="unsuspend" />
+                        <input type="hidden" name="targetId" value={report.messages?.sender_id ?? ""} />
+                        <button className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white">Unsuspend sender</button>
+                      </form>
+                    </div>
                   </div>
                 )) : <p className="text-sm text-gray-400">No reported conversations yet.</p>}
               </div>
