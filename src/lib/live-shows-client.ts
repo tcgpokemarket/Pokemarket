@@ -35,8 +35,8 @@ export async function getLiveShowDetails(showId: string) {
   const [{ data: show, error: showError }, { data: products, error: productsError }, { data: bids, error: bidsError }, { data: chat, error: chatError }, { data: giveaways, error: giveawaysError }] = await Promise.all([
     supabase.from("live_shows").select("*").eq("id", showId).single(),
     supabase.from("show_products").select("*").eq("show_id", showId).order("sort_order", { ascending: true }),
-    supabase.from("live_bids").select("*").eq("show_id", showId).order("created_at", { ascending: false }).limit(100),
-    supabase.from("live_chat").select("*").eq("show_id", showId).order("created_at", { ascending: true }).limit(100),
+    supabase.from("live_bids").select("*").eq("show_id", showId).order("created_at", { ascending: false }).limit(50),
+    supabase.from("live_chat").select("*").eq("show_id", showId).order("created_at", { ascending: true }).limit(50),
     supabase.from("giveaways").select("*").eq("show_id", showId).order("created_at", { ascending: false }),
   ]);
 

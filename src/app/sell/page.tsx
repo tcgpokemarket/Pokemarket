@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { MAX_IMAGE_SIZE_BYTES, uploadImageFile } from "@/lib/uploads";
 
 const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"];
 const CATEGORIES = [
@@ -77,19 +78,37 @@ export default function SellPage() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !userId || !supabase) return;
-    setUploading(true);
 
-    const urls: string[] = [];
+    setUploading(true);
+    setMessage(null);
+
+    const nextUrls: string[] = [];
+    const nextErrors: string[] = [];
+
     for (const file of Array.from(files)) {
-      const ext = file.name.split(".").pop();
-      const path = `listings/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("listing-images").upload(path, file, { upsert: true });
-      if (!error) {
-        const { data } = supabase.storage.from("listing-images").getPublicUrl(path);
-        urls.push(data.publicUrl);
+      try {
+        if (file.size > MAX_IMAGE_SIZE_BYTES) {
+          throw new Error(`${file.name} is too large.`);
+        }
+
+        const uploaded = await uploadImageFile({
+          supabase,
+          target: "listing",
+          ownerId: userId,
+          file,
+        });
+
+        nextUrls.push(uploaded.publicUrl);
+      } catch (error) {
+        nextErrors.push(error instanceof Error ? error.message : `Failed to upload ${file.name}.`);
       }
     }
-    setImageUrls((prev) => [...prev, ...urls]);
+
+    setImageUrls((prev) => [...prev, ...nextUrls]);
+    if (nextErrors.length) {
+      setMessage({ type: "error", text: nextErrors.join(" ") });
+    }
+
     setUploading(false);
   };
 

@@ -2,6 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { Listing } from "@/lib/supabase/types";
+import { createClient } from "@/lib/supabase/client";
+import { uploadImageFile } from "@/lib/uploads";
+import type { LiveShowItem } from "@/lib/supabase/types";
 import {
   applyLiveShowTemplate,
   createDefaultQueue,
@@ -99,6 +102,43 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
   const [giveawayBudget, setGiveawayBudget] = useState(72);
   const [giveawayEligibility, setGiveawayEligibility] = useState<string[]>(["purchase", "bid", "watch", "join"]);
   const [message, setMessage] = useState<string | null>(null);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [thumbnailUploading, setThumbnailUploading] = useState(false);
+  const [thumbnailError, setThumbnailError] = useState<string | null>(null);
+  const [queueImageUploading, setQueueImageUploading] = useState<string | null>(null);
+  const [queueImageError, setQueueImageError] = useState<string | null>(null);
+  const [supabase] = useState(() => createClient());
+
+  const updateQueueImage = (itemId: string, imageUrl: string) => {
+    setQueue((current) => current.map((item) => (item.id === itemId ? { ...item, imageUrl } : item)));
+  };
+
+  const handleQueueImageUpload = async (itemId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setQueueImageUploading(itemId);
+    setQueueImageError(null);
+
+    try {
+      const uploaded = await uploadImageFile({
+        supabase,
+        target: "live-show",
+        ownerId: "live-show-studio",
+        file,
+        prefix: `queue-${itemId}`,
+      });
+      updateQueueImage(itemId, uploaded.publicUrl);
+    } catch (error) {
+      setQueueImageError(error instanceof Error ? error.message : "Unable to upload item image.");
+    } finally {
+      setQueueImageUploading(null);
+    }
+  };
+
+  const removeQueueImage = (itemId: string) => {
+    updateQueueImage(itemId, "");
+  };
   const [queue, setQueue] = useState(() => createDefaultQueue(listings.slice(0, 5).map((listing, index) => ({
     id: `listing-${listing.id}`,
     listingId: listing.id,
@@ -121,6 +161,30 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
   const handleMoveQueue = (fromIndex: number, toIndex: number) => {
     setQueue((current) => reorderLiveShowQueue(current, fromIndex, toIndex));
   };
+
+  const handleThumbnailUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setThumbnailUploading(true);
+    setThumbnailError(null);
+
+    try {
+      const uploaded = await uploadImageFile({
+        supabase,
+        target: "live-show",
+        ownerId: "live-show-studio",
+        file,
+      });
+      setThumbnailUrl(uploaded.publicUrl);
+    } catch (error) {
+      setThumbnailError(error instanceof Error ? error.message : "Unable to upload thumbnail.");
+    } finally {
+      setThumbnailUploading(false);
+    }
+  };
+
+  const thumbnailImage = thumbnailUrl ?? queuePreview[0]?.imageUrl ?? null;
 
   const handleSave = () => {
     const base = seedFromListings(listings);
@@ -156,7 +220,7 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
           title,
           format: template,
           scheduledStart: new Date(scheduledStart).toISOString(),
-          queue,
+          queue: queue.map((item, index) => index === 0 && thumbnailImage ? { ...item, imageUrl: thumbnailImage } : item),
           giveaways: giveaway ? [giveaway] : [],
           giveawayRules: {
             accountAgeDays: 14,
@@ -191,6 +255,20 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
+        <div className="md:col-span-2 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <label className="mb-2 block text-sm font-medium text-gray-300">Show thumbnail</label>
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleThumbnailUpload} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
+          <div className="mt-3 aspect-[16/9] overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f1a]">
+            {thumbnailImage ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={thumbnailImage} alt="Show thumbnail preview" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full items-center justify-center text-sm text-gray-500">Upload a thumbnail to preview the room</div>
+            )}
+          </div>
+          {thumbnailUploading && <p className="mt-2 text-xs text-gray-500">Uploading thumbnail...</p>}
+          {thumbnailError && <p className="mt-2 text-xs text-red-400">{thumbnailError}</p>}
+        </div>
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-300">Show title</label>
           <input
@@ -208,6 +286,7 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
           />
         </div>
+        {queueImageError && <p className="mt-2 text-xs text-red-400">{queueImageError}</p>}
       </div>
 
       <div>
@@ -356,10 +435,18 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{index + 1}. {item.title}</div>
                 <div className="text-xs text-gray-400">{item.subtitle}</div>
+                <div className="mt-2 flex gap-2 text-xs">
+                  <label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 hover:bg-white/5">
+                    Replace image
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => void handleQueueImageUpload(item.id, e)} className="hidden" />
+                  </label>
+                  {item.imageUrl && <button type="button" onClick={() => removeQueueImage(item.id)} className="rounded-lg border border-red-400/20 px-2 py-1 text-red-300 hover:bg-red-400/10">Clear</button>}
+                </div>
               </div>
               <div className="text-right text-sm text-gray-300">
                 <div>${item.buyNowPrice?.toFixed(2) ?? item.startPrice.toFixed(2)}</div>
                 <div className="text-xs text-gray-500">{item.auctionSeconds}s</div>
+                {queueImageUploading === item.id && <div className="mt-1 text-xs text-gray-500">Uploading...</div>}
               </div>
               <div className="flex flex-col gap-2">
                 <button type="button" onClick={() => handleMoveQueue(index, Math.max(0, index - 1))} className="rounded-lg border border-white/10 px-2 py-1 text-xs hover:bg-white/5">

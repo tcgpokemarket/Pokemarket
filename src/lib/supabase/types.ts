@@ -436,6 +436,29 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['live_bids']['Insert']>
       }
+      show_bid_preferences: {
+        Row: {
+          id: string
+          show_id: string
+          product_id: string
+          user_id: string
+          max_bid: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          show_id: string
+          product_id: string
+          user_id: string
+          max_bid: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['show_bid_preferences']['Insert']>
+      }
       live_chat: {
         Row: {
           id: string
@@ -482,14 +505,19 @@ export interface Database {
         Row: {
           id: string
           show_id: string
+          seller_id: string | null
           title: string
           prize_type: string
           prize_name: string
+          prize_image: string | null
           prize_quantity: number
           winner_count: number
           start_at: string
           end_at: string
           eligibility: string[]
+          follow_required: boolean
+          location_restrictions: string[]
+          age_restriction: number | null
           eligible_users: number
           claimed_winners: number
           live_entries: number
@@ -508,14 +536,19 @@ export interface Database {
         Insert: {
           id?: string
           show_id: string
+          seller_id?: string | null
           title: string
           prize_type: string
           prize_name: string
+          prize_image?: string | null
           prize_quantity: number
           winner_count: number
           start_at: string
           end_at: string
           eligibility: string[]
+          follow_required?: boolean
+          location_restrictions?: string[]
+          age_restriction?: number | null
           eligible_users?: number
           claimed_winners?: number
           live_entries?: number
@@ -532,6 +565,100 @@ export interface Database {
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['giveaways']['Insert']>
+      }
+      giveaway_entries: {
+        Row: {
+          id: string
+          giveaway_id: string
+          show_id: string
+          seller_id: string
+          user_id: string
+          entry_status: string
+          eligibility_status: Json
+          following_seller: boolean
+          winner_status: string
+          qualified_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          giveaway_id: string
+          show_id: string
+          seller_id: string
+          user_id: string
+          entry_status?: string
+          eligibility_status?: Json
+          following_seller?: boolean
+          winner_status?: string
+          qualified_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['giveaway_entries']['Insert']>
+      }
+      giveaway_winners: {
+        Row: {
+          id: string
+          giveaway_id: string
+          entry_id: string
+          user_id: string
+          seller_id: string
+          selected_at: string
+          claimed_at: string | null
+          claim_status: string
+          audit_log: Json
+        }
+        Insert: {
+          id?: string
+          giveaway_id: string
+          entry_id: string
+          user_id: string
+          seller_id: string
+          selected_at?: string
+          claimed_at?: string | null
+          claim_status?: string
+          audit_log?: Json
+        }
+        Update: Partial<Database['public']['Tables']['giveaway_winners']['Insert']>
+      }
+      giveaway_follow_actions: {
+        Row: {
+          id: string
+          giveaway_id: string
+          seller_id: string
+          user_id: string
+          followed_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          giveaway_id: string
+          seller_id: string
+          user_id: string
+          followed_at?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['giveaway_follow_actions']['Insert']>
+      }
+      giveaway_audit_logs: {
+        Row: {
+          id: string
+          giveaway_id: string
+          actor_id: string | null
+          action: string
+          details: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          giveaway_id: string
+          actor_id?: string | null
+          action: string
+          details?: Json
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['giveaway_audit_logs']['Insert']>
       }
       show_events: {
         Row: {

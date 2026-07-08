@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import type { Listing, Order, Profile, SellerWallet } from "@/lib/supabase/types";
+import type { Listing, Order, Profile, SellerWallet, Database } from "@/lib/supabase/types";
 import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
 import { calculateLiveShowInsights, createLiveShowSnapshot, getLiveShow } from "@/lib/live-commerce";
 import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
 import { listLiveShowsBySeller } from "@/lib/live-shows-client";
 import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
 import { recordDeviceSession } from "@/lib/device-security";
+import { uploadImageFile } from "@/lib/uploads";
 
 type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live";
 
@@ -41,6 +42,17 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
 
   const [tab, setTab] = useState<Tab>("overview");
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [sellerRecord, setSellerRecord] = useState<Database["public"]["Tables"]["sellers"]["Row"] | null>(null);
+  const [storeRecord, setStoreRecord] = useState<Database["public"]["Tables"]["seller_stores"]["Row"] | null>(null);
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
+  const [profileBannerUrl, setProfileBannerUrl] = useState<string | null>(null);
+  const [sellerAvatarUrl, setSellerAvatarUrl] = useState<string | null>(null);
+  const [sellerBannerUrl, setSellerBannerUrl] = useState<string | null>(null);
+  const [storeLogoUrl, setStoreLogoUrl] = useState<string | null>(null);
+  const [storeBannerUrl, setStoreBannerUrl] = useState<string | null>(null);
+  const [profileAssetMessage, setProfileAssetMessage] = useState<string | null>(null);
+  const [profileAssetError, setProfileAssetError] = useState<string | null>(null);
+  const [profileAssetUploading, setProfileAssetUploading] = useState<string | null>(null);
   const [wallet, setWallet] = useState<SellerWallet | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [purchases, setPurchases] = useState<DashboardOrder[]>([]);
@@ -59,15 +71,29 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         return;
       }
 
-      const [{ data: profileData }, { data: walletData }, { data: listingData }, { data: purchaseData }, { data: salesData }] = await Promise.all([
+      const [{ data: profileData }, { data: walletData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: sellerData }, { data: storeData }] = await Promise.all([
         client.from("profiles").select("*").eq("id", user.id).single(),
         client.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
         client.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
         client.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
         client.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
+        client.from("sellers").select("*").eq("id", user.id).maybeSingle(),
+        client.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
       ]);
 
-      setProfile(profileData);
+      const profileRow = profileData as Profile | null;
+      const sellerRow = sellerData as Database["public"]["Tables"]["sellers"]["Row"] | null;
+      const storeRow = storeData as Database["public"]["Tables"]["seller_stores"]["Row"] | null;
+
+      setProfile(profileRow);
+      setSellerRecord(sellerRow);
+      setStoreRecord(storeRow);
+      setProfileAvatarUrl(profileRow?.avatar_url ?? null);
+      setProfileBannerUrl(null);
+      setSellerAvatarUrl(sellerRow?.avatar_url ?? null);
+      setSellerBannerUrl(sellerRow?.banner_url ?? null);
+      setStoreLogoUrl(storeRow?.logo_url ?? null);
+      setStoreBannerUrl(storeRow?.banner_url ?? null);
       setWallet(walletData ?? null);
       setListings(listingData ?? []);
       setPurchases((purchaseData ?? []) as DashboardOrder[]);
@@ -114,6 +140,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
 
   const handleDeleteListing = async (id: string) => {
     if (!confirm("Remove this listing?")) return;
+    const res = await fetch(`/api/listings/${id}`, { method: "DELETE" });
+    if (!res.ok) {
+      alert((await res.json()).error ?? "Failed to remove listing.");
+      return;
+    }
     setListings((l) => l.filter((x) => x.id !== id));
   };
 
@@ -149,6 +180,31 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [liveShowSummaryText, setLiveShowSummaryText] = useState("");
   const [liveShowRoomMessage, setLiveShowRoomMessage] = useState<string | null>(null);
   const [liveShowAnalyticsMode, setLiveShowAnalyticsMode] = useState("viewer_count");
+  const [liveShowThumbnailUrl, setLiveShowThumbnailUrl] = useState<string | null>(null);
+  const [liveShowThumbnailUploading, setLiveShowThumbnailUploading] = useState(false);
+  const [liveShowThumbnailError, setLiveShowThumbnailError] = useState<string | null>(null);
+
+  const handleLiveShowThumbnailUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !supabase || !profile?.id) return;
+
+    setLiveShowThumbnailUploading(true);
+    setLiveShowThumbnailError(null);
+
+    try {
+      const uploaded = await uploadImageFile({
+        supabase,
+        target: "live-show",
+        ownerId: profile.id,
+        file,
+      });
+      setLiveShowThumbnailUrl(uploaded.publicUrl);
+    } catch (error) {
+      setLiveShowThumbnailError(error instanceof Error ? error.message : "Unable to upload live show thumbnail.");
+    } finally {
+      setLiveShowThumbnailUploading(false);
+    }
+  };
   const shippingPerformance = useMemo(() => {
     const shipped = sales.filter((order) => order.status === "shipped").length;
     const delivered = sales.filter((order) => order.status === "delivered").length;
@@ -238,6 +294,88 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     }
   };
 
+  const saveSellerAssets = async (updates: {
+    profile?: { avatar_url?: string | null };
+    seller?: { avatar_url?: string | null; banner_url?: string | null };
+    store?: { banner_url?: string | null; logo_url?: string | null };
+  }) => {
+    if (!supabase || !profile) return;
+
+    if (updates.profile) {
+      await (supabase as any).from("profiles").update(updates.profile).eq("id", profile.id);
+    }
+    if (updates.seller) {
+      await (supabase as any).from("sellers").update(updates.seller).eq("id", profile.id);
+      setSellerRecord((current) => (current ? { ...current, ...updates.seller } : current));
+    }
+    if (updates.store) {
+      await (supabase as any).from("seller_stores").update(updates.store).eq("seller_id", profile.id);
+      setStoreRecord((current) => (current ? { ...current, ...updates.store } : current));
+    }
+  };
+
+  const uploadSellerAsset = async (kind: "profileAvatar" | "profileBanner" | "sellerAvatar" | "sellerBanner" | "storeLogo" | "storeBanner", file: File) => {
+    if (!supabase || !profile) return;
+
+    setProfileAssetUploading(kind);
+    setProfileAssetError(null);
+    setProfileAssetMessage(null);
+
+    try {
+      const uploaded = await uploadImageFile({
+        supabase,
+        target: "seller-store",
+        ownerId: profile.id,
+        file,
+        prefix: kind,
+      });
+
+      if (kind === "profileAvatar") {
+        await saveSellerAssets({ profile: { avatar_url: uploaded.publicUrl } });
+        setProfileAvatarUrl(uploaded.publicUrl);
+      } else if (kind === "profileBanner") {
+        await saveSellerAssets({ seller: { banner_url: uploaded.publicUrl } });
+        setProfileBannerUrl(uploaded.publicUrl);
+      } else if (kind === "sellerAvatar") {
+        await saveSellerAssets({ seller: { avatar_url: uploaded.publicUrl } });
+        setSellerAvatarUrl(uploaded.publicUrl);
+      } else if (kind === "sellerBanner") {
+        await saveSellerAssets({ seller: { banner_url: uploaded.publicUrl } });
+        setSellerBannerUrl(uploaded.publicUrl);
+      } else if (kind === "storeLogo") {
+        await saveSellerAssets({ store: { logo_url: uploaded.publicUrl } });
+        setStoreLogoUrl(uploaded.publicUrl);
+      } else {
+        await saveSellerAssets({ store: { banner_url: uploaded.publicUrl } });
+        setStoreBannerUrl(uploaded.publicUrl);
+      }
+
+      setProfileAssetMessage("Asset uploaded and saved.");
+    } catch (error) {
+      setProfileAssetError(error instanceof Error ? error.message : "Unable to upload asset.");
+    } finally {
+      setProfileAssetUploading(null);
+    }
+  };
+
+  const renderUploadCard = (label: string, previewUrl: string | null, kind: "profileAvatar" | "profileBanner" | "sellerAvatar" | "sellerBanner" | "storeLogo" | "storeBanner") => (
+    <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+      <div className="mb-2 text-sm font-semibold text-white">{label}</div>
+      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => {
+        const file = e.target.files?.[0];
+        if (file) void uploadSellerAsset(kind, file);
+      }} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
+      <div className="mt-3 aspect-[16/9] overflow-hidden rounded-xl border border-white/10 bg-black/20">
+        {previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={previewUrl} alt={label} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full items-center justify-center text-xs text-gray-500">No image yet</div>
+        )}
+      </div>
+    </div>
+  );
+
   const TABS: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
     { key: "listings", label: `Listings (${listings.length})` },
@@ -266,7 +404,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       </nav>
 
       <div className="mx-auto max-w-6xl px-4 pb-16 pt-24">
-        <div className="mb-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
+        <div className="mb-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
           <div className="space-y-4">
             <div className="inline-flex rounded-full border border-yellow-400/20 bg-yellow-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-yellow-400">
               Seller dashboard
@@ -285,7 +423,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             </p>
           </div>
 
-          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">
+          <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">
             <div className="flex items-center justify-between gap-3">
               <div>
                 <p className="text-sm uppercase tracking-widest text-yellow-400">Quick action</p>
@@ -298,9 +436,23 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                 {brainCopied ? "Copied" : "Copy"}
               </button>
             </div>
-            <p className="mt-3 text-sm text-gray-400">Grab a clean summary of your store metrics for notes or planning.</p>
+            <p className="text-sm text-gray-400">Grab a clean summary of your store metrics for notes or planning.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {renderUploadCard("Profile avatar", profileAvatarUrl, "profileAvatar")}
+              {renderUploadCard("Profile banner", profileBannerUrl, "profileBanner")}
+              {renderUploadCard("Seller avatar", sellerAvatarUrl, "sellerAvatar")}
+              {renderUploadCard("Seller banner", sellerBannerUrl, "sellerBanner")}
+              {renderUploadCard("Store logo", storeLogoUrl, "storeLogo")}
+              {renderUploadCard("Store banner", storeBannerUrl, "storeBanner")}
+            </div>
+            {profileAssetUploading && <div className="text-xs text-gray-500">Uploading {profileAssetUploading}...</div>}
+            {profileAssetMessage && <div className="rounded-xl border border-green-400/20 bg-green-400/10 px-4 py-3 text-sm text-green-300">{profileAssetMessage}</div>}
+            {profileAssetError && <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{profileAssetError}</div>}
           </div>
         </div>
+
+        {profileAssetUploading && <div className="mb-6 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">Uploading asset...</div>}
+
 
 
 
@@ -649,6 +801,20 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             <div className="grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
               <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                 <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <label className="mb-2 block text-sm text-gray-300">Room thumbnail</label>
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleLiveShowThumbnailUpload} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
+                    <div className="mt-3 aspect-[16/9] overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f1a]">
+                      {liveShowThumbnailUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={liveShowThumbnailUrl} alt="Live show thumbnail preview" className="h-full w-full object-cover" />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-sm text-gray-500">Upload a thumbnail to show in the room preview</div>
+                      )}
+                    </div>
+                    {liveShowThumbnailUploading && <p className="mt-2 text-xs text-gray-500">Uploading thumbnail...</p>}
+                    {liveShowThumbnailError && <p className="mt-2 text-xs text-red-400">{liveShowThumbnailError}</p>}
+                  </div>
                   <div>
                     <label className="mb-2 block text-sm text-gray-300">Show title</label>
                     <input value={liveShowTitle} onChange={(e) => setLiveShowTitle(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
@@ -695,6 +861,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                         viewer_count: 0,
                         peak_viewers: 0,
                         host_permissions: ["host", "moderate_chat", "start_auction", "end_auction"],
+                        thumbnail: liveShowThumbnailUrl,
                         auction_settings: {
                           category: liveShowCategory,
                           product_type: liveShowProductType,

@@ -38,7 +38,7 @@ export async function getHomepageData() {
       .select("id, seller_id, title, description, thumbnail, status, auction_state, scheduled_start, scheduled_end, viewer_count, peak_viewers, auction_settings, created_at")
       .order("viewer_count", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(12),
+      .limit(8),
     admin
       .from("listings")
       .select("id, seller_id, card_name, set_name, card_number, condition, category, price, images, status, created_at")
@@ -49,22 +49,23 @@ export async function getHomepageData() {
       .from("sellers")
       .select("id, display_name, storefront_slug, bio, avatar_url, banner_url, verified, rating, follower_count, sales_count, total_revenue, total_listings, total_live_shows")
       .order("sales_count", { ascending: false })
-      .limit(12),
+      .limit(8),
     admin
       .from("orders")
       .select("id, buyer_id, seller_id, listing_id, status, total_amount, created_at")
       .eq("status", "completed")
       .order("created_at", { ascending: false })
-      .limit(12),
+      .limit(8),
     admin
       .from("seller_followers")
       .select("id, seller_id, follower_id, created_at")
       .order("created_at", { ascending: false })
-      .limit(12),
+      .limit(8),
     admin
       .from("listings")
       .select("category")
-      .eq("status", "active"),
+      .eq("status", "active")
+      .limit(250),
   ]);
 
   const liveShows = (liveShowsResult.data ?? []) as HomepageLiveShow[];
