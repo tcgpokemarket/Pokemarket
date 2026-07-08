@@ -53,6 +53,10 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const [message, setMessage] = useState("");
   const [statusText, setStatusText] = useState("");
   const [auctionOrders, setAuctionOrders] = useState<Array<{ id: string; payment_status: string; payment_deadline: string; winning_bid: number; buyer_id: string; show_products?: { title?: string } | null }>>([]);
+  const [showMode, setShowMode] = useState<"viewer" | "host">("viewer");
+  const [moderatorLog, setModeratorLog] = useState<Array<{ id: string; event_type: string; payload: unknown; created_at: string }>>([]);
+  const [monitorLayout, setMonitorLayout] = useState<"single" | "dual" | "video-only" | "controls-only">("single");
+  const [streamHealth, setStreamHealth] = useState({ connection: "strong", cpu: "stable", network: "stable" });
   const activeAuctionOrder = auctionOrders[0] ?? null;
   const livePaymentStatus = activeAuctionOrder?.payment_status === "paid"
     ? "🟢 Paid — Ready to Ship"
@@ -61,6 +65,13 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       : "🟡 Awaiting Payment";
   const buyerTimer = activeAuctionOrder ? Math.max(0, new Date(activeAuctionOrder.payment_deadline).getTime() - Date.now()) : 0;
   const buyerTimerText = activeAuctionOrder ? `${String(Math.floor(buyerTimer / 60000)).padStart(2, "0")}:${String(Math.floor((buyerTimer % 60000) / 1000)).padStart(2, "0")}` : "15:00";
+  const hostPermissions = Array.isArray((show as any).host_permissions) ? (show as any).host_permissions as string[] : [];
+  const isHost = showMode === "host" && (show.seller_id === initialData.show.seller_id || hostPermissions.length > 0);
+  const activeItem = useMemo(() => getActiveItem(products), [products]);
+  const connectedViewers = Math.max(show.viewer_count, show.peak_viewers);
+  const canShowHostControls = isHost;
+  const showHostPanel = canShowHostControls && monitorLayout !== "video-only";
+  const showViewerPanel = monitorLayout !== "controls-only";
 
   useEffect(() => {
     let mounted = true;
@@ -85,6 +96,35 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const loadModeratorLog = async () => {
+      const response = await fetch(`/api/live/shows/${show.id}/events`);
+      const data = await response.json().catch(() => ({}));
+      if (mounted && response.ok) {
+        setModeratorLog((data.events ?? []) as any);
+      }
+    };
+    void loadModeratorLog();
+    const interval = setInterval(() => void loadModeratorLog(), 8000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [show.id]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const connection = navigator.onLine ? "strong" : "offline";
+      setStreamHealth((current) => ({
+        connection,
+        cpu: current.cpu,
+        network: navigator.onLine ? "stable" : "degraded",
+      }));
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
   const [giveawayStatus, setGiveawayStatus] = useState<string | null>(null);
   const [giveawayBusy, setGiveawayBusy] = useState(false);
   const [entryStatuses, setEntryStatuses] = useState<Record<string, GiveawayEntryState>>({});
@@ -98,7 +138,6 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const swipeLockUntil = useRef(0);
   const swipeResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeTrackRef = useRef<HTMLDivElement | null>(null);
-  const activeItem = useMemo(() => getActiveItem(products), [products]);
   const activeGiveaway = useMemo(() => getActiveGiveaway(giveaways), [giveaways]);
   const roomName = `tcg-poke-market-${show.id}`;
   const swipeHint = activeItem ? `Swipe to bid $${getNextSwipeBid(Number(activeItem.current_bid ?? 0)).toFixed(2)}` : "Swipe to bid";
@@ -106,6 +145,18 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const nextBid = getNextSwipeBid(currentBid);
   const maxBidPreview = Number(maxBidAmount || 0);
   const isSwipeLocked = swipeState === "submitting" || Date.now() < swipeLockUntil.current;
+  const auctionQueue = useMemo(() => [...products].sort((a, b) => Number(a.seconds_left ?? 0) - Number(b.seconds_left ?? 0)), [products]);
+  const bidHistory = useMemo(() => bids.slice(0, 15), [bids]);
+  const recentBidCount = bids.length;
+  const bidderCount = useMemo(() => new Set(bids.map((bid) => bid.username)).size, [bids]);
+  const pendingPayments = auctionOrders.filter((order) => order.payment_status === "payment_pending");
+  const paidOrders = auctionOrders.filter((order) => order.payment_status === "paid");
+  const paymentAlerts = pendingPayments.length;
+  const streamWarnings = useMemo(() => [
+    streamHealth.connection !== "strong" ? "Connection quality degraded" : null,
+    streamHealth.cpu !== "stable" ? "CPU warning" : null,
+    streamHealth.network !== "stable" ? "Network warning" : null,
+  ].filter(Boolean) as string[], [streamHealth]);
 
   useEffect(() => {
     const showChannel = supabase
@@ -189,6 +240,60 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       const data = await response.json().catch(() => ({}));
       setStatusText(data.error ?? "Chat failed");
     }
+  };
+
+  const updateShow = async (payload: Record<string, unknown>) => {
+    const response = await fetch(`/api/live/shows/${show.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setStatusText(data.error ?? "Show update failed");
+      return;
+    }
+
+    setStatusText("Show updated");
+  };
+
+  const fetchLiveEvent = async (eventType: string, payload: Record<string, unknown>) => {
+    await fetch(`/api/live/shows/${show.id}/events`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventType, payload }),
+    });
+  };
+
+  const hostAction = async (action: string, payload: Record<string, unknown> = {}) => {
+    if (!canShowHostControls) return;
+    await fetchLiveEvent(`host_${action}`, payload);
+    setStatusText(`${action.replaceAll("_", " ")} saved`);
+  };
+
+  const removeBidder = async (bidderId: string) => {
+    await hostAction("remove_bidder", { bidderId });
+  };
+
+  const muteUser = async (userId: string) => {
+    await hostAction("mute_user", { userId });
+  };
+
+  const banUser = async (userId: string) => {
+    await hostAction("ban_user", { userId });
+  };
+
+  const confirmWinner = async () => {
+    await hostAction("confirm_winner", { itemId: activeItem?.id ?? null, orderId: activeAuctionOrder?.id ?? null });
+  };
+
+  const requestPayment = async () => {
+    await hostAction("request_payment", { orderId: activeAuctionOrder?.id ?? null });
+  };
+
+  const moveNextItem = async () => {
+    await hostAction("next_item", { itemId: auctionQueue[0]?.id ?? null });
   };
 
   const triggerSwipeBid = async () => {
@@ -299,123 +404,99 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const currentGiveawayState = activeGiveaway ? entryStatuses[activeGiveaway.id] : null;
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] text-white pb-32">
-      <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[1.5fr_0.9fr]">
-        <section className="space-y-6">
-          <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-4">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm uppercase tracking-widest text-yellow-400">Live show</p>
-                <h1 className="text-3xl font-black">{show.title}</h1>
-                <p className="mt-1 text-sm text-gray-400">{show.description ?? "Live auction show"}</p>
-              </div>
-              <div className="text-right text-sm text-gray-300">
-                <div>Status</div>
-                <div className="text-2xl font-black text-yellow-400">{show.status}</div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#0b0b12] text-white">
+      <div className="border-b border-white/10 bg-black/50 px-4 py-3 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 text-sm">
+          <div>
+            <div className="text-xs uppercase tracking-[0.35em] text-yellow-400">Dual-screen live auction</div>
+            <div className="font-semibold text-white">{show.title}</div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => setShowMode("viewer")} className={`rounded-full px-4 py-2 font-semibold ${showMode === "viewer" ? "bg-yellow-400 text-black" : "border border-white/10 bg-white/5"}`}>Viewer mode</button>
+            <button onClick={() => setShowMode("host")} className={`rounded-full px-4 py-2 font-semibold ${showMode === "host" ? "bg-yellow-400 text-black" : "border border-white/10 bg-white/5"}`}>Host mode</button>
+            <button onClick={() => setMonitorLayout("single")} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold">Single</button>
+            <button onClick={() => setMonitorLayout("dual")} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold">Dual</button>
+            <button onClick={() => setMonitorLayout("video-only")} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold">Video only</button>
+            <button onClick={() => setMonitorLayout("controls-only")} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold">Controls only</button>
+          </div>
+        </div>
+      </div>
 
-            {activeGiveaway && (
-              <div className="mb-4 rounded-2xl border border-yellow-400/30 bg-yellow-400/10 p-4">
-              <div className="mb-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm">
-                <div className="text-xs uppercase tracking-[0.3em] text-yellow-200">Payment Status</div>
+      <div className={`mx-auto max-w-7xl gap-6 px-4 py-6 ${monitorLayout === "dual" ? "grid lg:grid-cols-[1.25fr_0.95fr]" : "grid lg:grid-cols-1"}`}>
+        {showViewerPanel && (
+          <section className="space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 to-white/5 p-4">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm uppercase tracking-widest text-yellow-400">Live show</p>
+                  <h1 className="text-3xl font-black">{show.title}</h1>
+                  <p className="mt-1 text-sm text-gray-400">{show.description ?? "Live auction show"}</p>
+                </div>
+                <div className="text-right text-sm text-gray-300">
+                  <div>Status</div>
+                  <div className="text-2xl font-black text-yellow-400">{show.status}</div>
+                  <div className="mt-1 text-xs text-gray-500">Viewer count {connectedViewers}</div>
+                </div>
+              </div>
+
+              <div className="mb-4 rounded-2xl border border-white/10 bg-black/30 p-4 text-sm">
+                <div className="text-xs uppercase tracking-[0.3em] text-yellow-200">Payment status</div>
                 <div className="mt-1 font-black text-white">{livePaymentStatus}</div>
                 <div className="mt-1 text-yellow-100">Buyer payment window: {buyerTimerText}</div>
               </div>
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="space-y-1">
-                    <p className="text-xs uppercase tracking-[0.3em] text-yellow-200">Follow to Enter Giveaway</p>
-                    <h2 className="text-xl font-black text-white">{activeGiveaway.prize_name}</h2>
-                    <p className="text-sm text-yellow-100">
-                      {activeGiveaway.follow_required ? "Follow the seller to enter." : "Enter now while the giveaway is live."}
-                    </p>
-                    <p className="text-xs text-yellow-200/80">Ends {formatClock(activeGiveaway.end_at)}</p>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:items-end">
-                    <button
-                      onClick={() => enterGiveaway(activeGiveaway.id, true)}
-                      disabled={giveawayBusy || Boolean(currentGiveawayState?.entered)}
-                      className="rounded-xl bg-yellow-400 px-4 py-3 font-black text-black disabled:opacity-60"
-                    >
-                      {currentGiveawayState?.entered ? "Entered" : activeGiveaway.follow_required ? "Follow & Enter" : "Enter Giveaway"}
-                    </button>
-                    <button
-                      onClick={() => enterGiveaway(activeGiveaway.id, false)}
-                      disabled={giveawayBusy || currentGiveawayState?.entered === true}
-                      className="text-xs font-semibold text-yellow-100 underline decoration-yellow-200/40 underline-offset-4 disabled:opacity-60"
-                    >
-                      {showFollowPrompt ? "Follow first to enter" : "I already follow this seller"}
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-4 grid gap-3 text-xs text-yellow-50 sm:grid-cols-3">
-                  <div className="rounded-xl bg-black/20 p-3">Entries are recorded server-side.</div>
-                  <div className="rounded-xl bg-black/20 p-3">Duplicate entries are blocked.</div>
-                  <div className="rounded-xl bg-black/20 p-3">Winner selection stays auditable.</div>
-                </div>
-                {giveawayStatus && <div className="mt-3 rounded-xl border border-yellow-400/20 bg-black/20 px-4 py-3 text-sm text-yellow-100">{giveawayStatus}</div>}
-                {currentGiveawayState?.entered && <div className="mt-2 text-xs text-green-300">You’re in the giveaway.</div>}
-              </div>
-            )}
 
-            <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black">
-              <LiveKitStage token={null} roomName={roomName} />
-              <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-4">
-                <div className="rounded-2xl bg-black/70 p-3 text-sm backdrop-blur">
-                  <div className="text-gray-400">Current item</div>
-                  <div className="font-bold">{activeItem?.title ?? "Waiting for auction"}</div>
-                  <div className="text-gray-400">${currentBid.toFixed(2)}</div>
-                </div>
-                <div className="rounded-2xl bg-black/70 p-3 text-right text-sm backdrop-blur">
-                  <div className="text-gray-400">Viewers</div>
-                  <div className="font-bold text-yellow-400">{show.viewer_count}</div>
-                  <div className="text-gray-400">Peak {show.peak_viewers}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
-              <h2 className="font-bold">Auction controls</h2>
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <button onClick={() => void fetch(`/api/live/shows/${show.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "live", auction_state: "live" }) })} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black">Start show</button>
-                <button onClick={() => void fetch(`/api/live/shows/${show.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "ended", auction_state: "ended" }) })} className="rounded-xl border border-white/20 px-4 py-3 font-semibold text-white">End show</button>
-              </div>
-              <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="flex items-center justify-between text-sm text-gray-300">
-                  <span>Current bid</span>
-                  <span className="font-semibold text-white">${currentBid.toFixed(2)}</span>
-                </div>
-                <div className="mt-2 flex items-center justify-between text-sm text-gray-300">
-                  <span>Next swipe bid</span>
-                  <span className="font-semibold text-yellow-400">${nextBid.toFixed(2)}</span>
-                </div>
-                <label className="mt-4 flex items-center gap-3 text-sm text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={maxBidEnabled}
-                    onChange={(event) => setMaxBidEnabled(event.target.checked)}
-                    className="h-4 w-4 rounded border-white/20 bg-transparent text-yellow-400"
-                  />
-                  Max bid active
-                </label>
-                {maxBidEnabled && (
-                  <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                    <input
-                      value={maxBidAmount}
-                      onChange={(event) => setMaxBidAmount(event.target.value)}
-                      inputMode="decimal"
-                      placeholder="Private max bid"
-                      className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-white outline-none"
-                    />
-                    <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-3 py-2 text-sm font-semibold text-yellow-100">
-                      {maxBidPreview > 0 ? `Private max: $${maxBidPreview.toFixed(2)}` : "Set your private max"}
+              {activeGiveaway && (
+                <div className="mb-4 rounded-2xl border border-yellow-400/30 bg-yellow-400/10 p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="space-y-1">
+                      <p className="text-xs uppercase tracking-[0.3em] text-yellow-200">Follow to Enter Giveaway</p>
+                      <h2 className="text-xl font-black text-white">{activeGiveaway.prize_name}</h2>
+                      <p className="text-sm text-yellow-100">{activeGiveaway.follow_required ? "Follow the seller to enter." : "Enter now while the giveaway is live."}</p>
+                      <p className="text-xs text-yellow-200/80">Ends {formatClock(activeGiveaway.end_at)}</p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:items-end">
+                      <button onClick={() => enterGiveaway(activeGiveaway.id, true)} disabled={giveawayBusy || Boolean(currentGiveawayState?.entered)} className="rounded-xl bg-yellow-400 px-4 py-3 font-black text-black disabled:opacity-60">{currentGiveawayState?.entered ? "Entered" : activeGiveaway.follow_required ? "Follow & Enter" : "Enter Giveaway"}</button>
+                      <button onClick={() => enterGiveaway(activeGiveaway.id, false)} disabled={giveawayBusy || currentGiveawayState?.entered === true} className="text-xs font-semibold text-yellow-100 underline decoration-yellow-200/40 underline-offset-4 disabled:opacity-60">{showFollowPrompt ? "Follow first to enter" : "I already follow this seller"}</button>
                     </div>
                   </div>
-                )}
-                <div className="mt-2 text-xs text-gray-400">{swipeHint}</div>
-                <div className="mt-2 text-xs text-gray-500">{maxBidEnabled ? "Only you can see this maximum bid." : "Swipe places a normal $1 increment bid."}</div>
+                  <div className="mt-4 grid gap-3 text-xs text-yellow-50 sm:grid-cols-3">
+                    <div className="rounded-xl bg-black/20 p-3">Entries are recorded server-side.</div>
+                    <div className="rounded-xl bg-black/20 p-3">Duplicate entries are blocked.</div>
+                    <div className="rounded-xl bg-black/20 p-3">Winner selection stays auditable.</div>
+                  </div>
+                  {giveawayStatus && <div className="mt-3 rounded-xl border border-yellow-400/20 bg-black/20 px-4 py-3 text-sm text-yellow-100">{giveawayStatus}</div>}
+                  {currentGiveawayState?.entered && <div className="mt-2 text-xs text-green-300">You’re in the giveaway.</div>}
+                </div>
+              )}
+
+              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black">
+                <LiveKitStage token={null} roomName={roomName} />
+                <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-4">
+                  <div className="rounded-2xl bg-black/70 p-3 text-sm backdrop-blur">
+                    <div className="text-gray-400">Current item</div>
+                    <div className="font-bold">{activeItem?.title ?? "Waiting for auction"}</div>
+                    <div className="text-gray-400">${currentBid.toFixed(2)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-black/70 p-3 text-right text-sm backdrop-blur">
+                    <div className="text-gray-400">Viewers</div>
+                    <div className="font-bold text-yellow-400">{show.viewer_count}</div>
+                    <div className="text-gray-400">Peak {show.peak_viewers}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-[#13131f] p-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-xs uppercase tracking-widest text-gray-500">Card condition</div><div className="mt-1 text-sm font-semibold">{activeItem?.subtitle ?? "Not set"}</div></div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-xs uppercase tracking-widest text-gray-500">Highest bid</div><div className="mt-1 text-sm font-semibold text-yellow-400">${currentBid.toFixed(2)}</div></div>
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3"><div className="text-xs uppercase tracking-widest text-gray-500">Countdown</div><div className="mt-1 text-sm font-semibold">{activeItem ? `${String(Math.floor(Number(activeItem.seconds_left ?? 0) / 60)).padStart(2, "0")}:${String(Math.floor(Number(activeItem.seconds_left ?? 0) % 60)).padStart(2, "0")}` : "00:00"}</div></div>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2 text-sm">
+                  <button className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold">Watchlist</button>
+                  <button className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold">Share</button>
+                  <button className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold">View recent bids</button>
+                  <button className="rounded-full border border-white/10 bg-white/5 px-4 py-2 font-semibold">Payment confirmation</button>
+                </div>
               </div>
             </div>
 
@@ -438,57 +519,169 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
                 ))}
               </div>
             </div>
-          </div>
-        </section>
 
-        <aside className="space-y-4 rounded-3xl border border-white/10 bg-[#13131f] p-4">
-          {LIVE_SUPPORT_CARD}
-          <div>
-            <h2 className="font-bold">Live chat</h2>
-            <p className="text-sm text-gray-400">Real buyers, real moderation, real-time updates.</p>
-          </div>
-          <div className="flex gap-2">
-            <input value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => e.key === "Enter" && void sendChat()} placeholder="Send a message" className="flex-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white outline-none" />
-            <button onClick={() => void sendChat()} className="rounded-xl bg-yellow-400 px-4 py-2 font-bold text-black">Send</button>
-          </div>
-          {statusText && <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">{statusText}</div>}
-          <div className="max-h-[560px] space-y-3 overflow-auto pr-1">
-            {chat.map((entry) => (
-              <div key={entry.id} className={`rounded-2xl border p-3 ${entry.highlighted ? "border-yellow-400/30 bg-yellow-400/10" : "border-white/10 bg-white/5"}`}>
-                <div className="flex items-center justify-between gap-3 text-xs text-gray-400">
-                  <span className="font-semibold text-white">{entry.username}</span>
-                  <span>{formatClock(entry.created_at)}</span>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+                <h2 className="font-bold">Buyer bids</h2>
+                <div className="mt-3 space-y-2 text-sm text-gray-300">
+                  {bidHistory.map((bid) => (
+                    <div key={bid.id} className="flex items-center justify-between rounded-xl border border-white/10 bg-white/5 p-3">
+                      <span>{bid.username}</span>
+                      <span className="font-semibold text-yellow-400">${Number(bid.amount).toFixed(2)}</span>
+                    </div>
+                  ))}
+                  {!bidHistory.length && <div className="rounded-xl border border-white/10 bg-white/5 p-3 text-gray-500">No bids yet.</div>}
                 </div>
-                <p className="mt-1 text-sm text-gray-200">{entry.message}</p>
               </div>
-            ))}
-          </div>
-        </aside>
+              <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+                <h2 className="font-bold">Viewer chat</h2>
+                <div className="mt-3 space-y-2 text-sm text-gray-300">
+                  {chat.slice(-5).map((entry) => (
+                    <div key={entry.id} className="rounded-xl border border-white/10 bg-white/5 p-3">
+                      <div className="flex items-center justify-between gap-3 text-xs text-gray-400"><span className="font-semibold text-white">{entry.username}</span><span>{formatClock(entry.created_at)}</span></div>
+                      <p className="mt-1">{entry.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {showHostPanel && (
+          <aside className="space-y-4 rounded-3xl border border-white/10 bg-[#13131f] p-4">
+            <div className="rounded-2xl border border-white/10 bg-black/30 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs uppercase tracking-[0.3em] text-yellow-400">Host control panel</div>
+                  <div className="font-semibold text-white">Authorized controls only</div>
+                </div>
+                <div className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-100">{showMode}</div>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <button onClick={() => void updateShow({ status: "live", auction_state: "live" })} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black">Start auction</button>
+                <button onClick={() => void updateShow({ status: "live", auction_state: "locked" })} className="rounded-xl border border-white/20 px-4 py-3 font-semibold text-white">Pause auction</button>
+                <button onClick={() => void updateShow({ status: "ended", auction_state: "sold" })} className="rounded-xl border border-white/20 px-4 py-3 font-semibold text-white">End auction</button>
+                <button onClick={() => void moveNextItem()} className="rounded-xl border border-white/20 px-4 py-3 font-semibold text-white">Next item</button>
+              </div>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="text-xs uppercase tracking-widest text-gray-500">Current highest bid</div>
+                <div className="mt-2 text-2xl font-black text-yellow-400">${currentBid.toFixed(2)}</div>
+                <div className="mt-1 text-sm text-gray-400">{bidderCount} bidders · {recentBidCount} bids</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="text-xs uppercase tracking-widest text-gray-500">Pending payment alerts</div>
+                <div className="mt-2 text-2xl font-black text-yellow-400">{paymentAlerts}</div>
+                <div className="mt-1 text-sm text-gray-400">{paidOrders.length} paid</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="text-xs uppercase tracking-widest text-gray-500">Connected viewers</div>
+                <div className="mt-2 text-2xl font-black text-yellow-400">{connectedViewers}</div>
+                <div className="mt-1 text-sm text-gray-400">Peak {show.peak_viewers}</div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="text-xs uppercase tracking-widest text-gray-500">Bidder count</div>
+                <div className="mt-2 text-2xl font-black text-yellow-400">{bidderCount}</div>
+                <div className="mt-1 text-sm text-gray-400">Unique bidders</div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-3 font-bold">Auction queue</div>
+              <div className="space-y-2">
+                {auctionQueue.slice(0, 5).map((item, index) => (
+                  <div key={item.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold">{index + 1}. {item.title}</span>
+                      <span className="text-gray-400">{item.seconds_left}s</span>
+                    </div>
+                    <div className="mt-1 text-xs text-gray-500">{item.subtitle}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-3 font-bold">Stream health</div>
+              <div className="grid gap-2 text-sm text-gray-300">
+                <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3">Connection quality: {streamHealth.connection}</div>
+                <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3">CPU status: {streamHealth.cpu}</div>
+                <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3">Network status: {streamHealth.network}</div>
+                {streamWarnings.length > 0 && streamWarnings.map((warning) => <div key={warning} className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 p-3 text-yellow-100">{warning}</div>)}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-3 font-bold">Moderator actions</div>
+              <div className="space-y-3">
+                {bidHistory.slice(0, 4).map((bid) => (
+                  <div key={bid.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>{bid.username}</span>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => void removeBidder(bid.username)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Remove bidder</button>
+                        <button onClick={() => void muteUser(bid.username)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Mute</button>
+                        <button onClick={() => void banUser(bid.username)} className="rounded-full border border-red-400/20 px-3 py-1 text-xs text-red-200">Ban</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {!bidHistory.length && <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-gray-500">No bidders to moderate yet.</div>}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-3 font-bold">Reserve and winner controls</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">Reserve price indicator: {activeItem?.buy_now_price ? `Enabled at $${Number(activeItem.buy_now_price).toFixed(2)}` : "Not enabled"}</div>
+                <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">Payment status: {livePaymentStatus}</div>
+                <button onClick={() => void confirmWinner()} className="rounded-xl border border-white/20 px-4 py-3 font-semibold text-white">Confirm winner</button>
+                <button onClick={() => void requestPayment()} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black">Request payment</button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-3 font-bold">Sound effects</div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <button onClick={() => void hostAction("sound_effect", { effect: "bid" })} className="rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3">Bid ding</button>
+                <button onClick={() => void hostAction("sound_effect", { effect: "win" })} className="rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3">Win sting</button>
+                <button onClick={() => void hostAction("sound_effect", { effect: "giveaway" })} className="rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3">Giveaway</button>
+                <button onClick={() => void hostAction("sound_effect", { effect: "alert" })} className="rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3">Alert</button>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-3 font-bold">Moderator activity log</div>
+              <div className="max-h-72 space-y-2 overflow-auto">
+                {moderatorLog.map((event) => (
+                  <div key={event.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-white">{event.event_type}</span>
+                      <span className="text-xs text-gray-500">{formatClock(event.created_at)}</span>
+                    </div>
+                    <pre className="mt-2 overflow-x-auto text-xs text-gray-400">{JSON.stringify(event.payload, null, 2)}</pre>
+                  </div>
+                ))}
+                {!moderatorLog.length && <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-gray-500">No moderator actions yet.</div>}
+              </div>
+            </div>
+          </aside>
+        )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-[#0b0b12]/95 px-4 py-4 backdrop-blur">
-        <div
-          ref={swipeTrackRef}
-          className="mx-auto max-w-3xl overflow-hidden rounded-[1.75rem] border border-yellow-400/30 bg-gradient-to-r from-yellow-400/20 via-white/10 to-white/5 p-2 shadow-2xl shadow-black/40"
-          onPointerDown={(event) => handleSwipeStart(event.clientX)}
-          onPointerMove={(event) => handleSwipeMove(event.clientX)}
-          onPointerUp={handleSwipeEnd}
-          onPointerCancel={handleSwipeEnd}
-          onPointerLeave={handleSwipeEnd}
-        >
-          <div className="relative flex items-center gap-3 rounded-[1.4rem] border border-white/10 bg-[#141420] px-3 py-3">
-            <div
-              className={`absolute left-2 top-1/2 flex h-[calc(100%-8px)] w-24 -translate-y-1/2 items-center justify-center rounded-[1.15rem] bg-yellow-400 text-sm font-black text-black transition-all duration-200 ${swipeState === "success" ? "scale-105" : ""}`}
-              style={{ transform: `translateX(${swipeOffset}px) translateY(-50%)` }}
-            >
-              {swipeState === "submitting" ? "Bidding..." : swipeState === "success" ? "Placed" : "Swipe"}
-            </div>
-            <div className="flex-1 pl-28 pr-2 text-center">
-              <div className="text-xs uppercase tracking-[0.3em] text-gray-400">Swipe to bid</div>
-              <div className="text-lg font-black text-white">{swipeHint}</div>
-              <div className="text-xs text-gray-500">Drag the handle all the way right to place the next $1 bid.</div>
-            </div>
-          </div>
+      {!showViewerPanel && !showHostPanel && (
+        <div className="mx-auto max-w-7xl px-4 py-12 text-center text-gray-300">
+          Select a screen layout to begin.
+        </div>
+      )}
+
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-white/10 bg-[#0b0b12]/95 px-4 py-4 backdrop-blur lg:hidden">
+        <div className="mx-auto flex max-w-3xl gap-2 overflow-x-auto">
+          <button onClick={() => setShowMode("viewer")} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold">Stream</button>
+          <button onClick={() => setShowMode("host")} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold">Controls</button>
         </div>
       </div>
     </div>

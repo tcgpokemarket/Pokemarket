@@ -6,6 +6,29 @@ import type { Database } from "@/lib/supabase/types";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordSecurityEvent } from "@/lib/audit-log";
 
+export async function GET(req: Request, { params }: { params: Promise<{ showId: string }> }) {
+  const { showId } = await params;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const admin = createAdminClient();
+  const { data: show } = await (admin as any).from("live_shows").select("seller_id, host_permissions").eq("id", showId).maybeSingle() as { data: { seller_id: string; host_permissions: string[] | null } | null };
+  if (!show || (show.seller_id !== user.id && !(Array.isArray(show.host_permissions) && show.host_permissions.includes(user.id)))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  const { data, error } = await (admin as any).from("show_events").select("id, show_id, event_type, payload, created_by, created_at").eq("show_id", showId).order("created_at", { ascending: false }).limit(50);
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ events: data ?? [] });
+}
+
 export async function POST(req: Request, { params }: { params: Promise<{ showId: string }> }) {
   const { showId } = await params;
   const supabase = await createClient();
