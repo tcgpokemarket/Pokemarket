@@ -14,6 +14,7 @@ const modules = [
   { title: "Giveaways", description: "Review prizes, fraud checks, and seller limits", href: "/live" },
   { title: "Fees", description: "Marketplace fee tiers and overrides", href: "/dashboard/fees" },
   { title: "Email operations", description: "Queue health, delivery logs, and retries", href: "/admin/email" },
+  { title: "Giveaway operations", description: "Entries, winner tracking, and audit logs", href: "/admin/giveaways" },
 ] as const;
 
 const giveawayControls = [

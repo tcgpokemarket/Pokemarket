@@ -4,6 +4,18 @@ import { getPrivacySettings, getProfileByUsername, getSocialCounts } from "@/lib
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
 import type { Listing } from "@/lib/supabase/types";
+import ProfileActions from "./profile-actions";
+import Link from "next/link";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient as createBrowserClient } from "@/lib/supabase/client";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+import { notFound as profileNotFound } from "next/navigation";
+import { headers as nextHeaders } from "next/headers";
+import { cookies as nextCookies } from "next/headers";
+import { NextResponse as ProfileNextResponse } from "next/server";
+import { type as osType } from "os";
+import { getUserFeed } from "@/lib/social-network";
 
 export const dynamic = "force-dynamic";
 export const dynamicParams = true;
@@ -107,12 +119,15 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
 
             {profileRow.full_name && <p className="mt-6 max-w-3xl text-sm leading-6 text-gray-300">{profileRow.full_name}</p>}
 
+            <ProfileActions userId={profileRow.id} />
+            <div className="mt-3 text-xs text-gray-500">Social controls respect blocks and privacy settings.</div>
             <div className="mt-6 flex flex-wrap gap-3 text-sm">
-              <button className="rounded-xl bg-yellow-400 px-4 py-2 font-bold text-black">Follow</button>
-              <button className="rounded-xl border border-white/15 px-4 py-2 font-semibold text-white">Add Friend</button>
-              <button className="rounded-xl border border-white/15 px-4 py-2 font-semibold text-white">Message</button>
-              <button className="rounded-xl border border-white/15 px-4 py-2 font-semibold text-white">Share Profile</button>
+              <Link href={`/messages?recipient=${profileRow.id}`} className="rounded-xl border border-white/15 px-4 py-2 font-semibold text-white">Message</Link>
+              <Link href={`/messages?compose=${profileRow.id}`} className="rounded-xl border border-white/15 px-4 py-2 font-semibold text-white">Open Inbox</Link>
+              <Link href="/social" className="rounded-xl border border-white/15 px-4 py-2 font-semibold text-white">View Feed</Link>
             </div>
+            <div className="mt-3 text-xs text-gray-500">Seller stats and live activity stay visible when allowed by privacy settings.</div>
+            <div className="mt-2 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-400">Privacy: {privacy?.profile_visibility ?? "public"}</div>
           </div>
         </section>
 
