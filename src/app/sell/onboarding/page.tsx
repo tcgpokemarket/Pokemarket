@@ -216,7 +216,7 @@ export default function SellerOnboardingPage() {
             Create accurate listings, keep your storefront current, and manage shipping, orders, and payouts from your dashboard.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
-            <a href="/sell" className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black transition-colors hover:bg-yellow-300">
+            <a href="/listings/create" className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black transition-colors hover:bg-yellow-300">
               Create a Listing
             </a>
             <a href="/dashboard" className="rounded-xl border border-white/20 px-5 py-3 font-semibold text-white transition-colors hover:bg-white/5">

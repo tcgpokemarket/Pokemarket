@@ -181,15 +181,21 @@ export async function getSupportAgentGreeting(role: SupportRole, category: Suppo
 
 export async function getSupportStats() {
   const admin = createAdminClient();
-  const [tickets, escalated, resolved] = await Promise.all([
+  const [tickets, escalated, resolved, open, aiHandling, waitingForUser] = await Promise.all([
     (admin as any).from("support_tickets").select("id", { count: "exact", head: true }),
     (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "escalated"),
     (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "resolved"),
+    (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
+    (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "ai_handling"),
+    (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "waiting_for_user"),
   ]);
 
   return {
     total: tickets.count ?? 0,
     escalated: escalated.count ?? 0,
     resolved: resolved.count ?? 0,
+    open: open.count ?? 0,
+    aiHandling: aiHandling.count ?? 0,
+    waitingForUser: waitingForUser.count ?? 0,
   };
 }

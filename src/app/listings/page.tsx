@@ -48,7 +48,7 @@ export default function ListingsPage() {
           </a>
           <div className="flex items-center gap-4">
             <a href="/listings" className="text-sm font-semibold text-yellow-400">Browse</a>
-            <a href="/sell" className="text-sm font-medium text-gray-300 hover:text-white">Sell</a>
+            <a href="/sell" className="text-sm font-medium text-gray-300 hover:text-white">Sell on TcgPoké Market</a>
             <a href="/dashboard" className="text-sm font-medium text-gray-300 hover:text-white">Dashboard</a>
             <a href="/auth" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition-colors hover:bg-yellow-300">Sign In</a>
           </div>
@@ -93,7 +93,7 @@ export default function ListingsPage() {
           </select>
           <div className="flex gap-2">
             <button type="submit" className="flex-1 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-center text-sm font-semibold text-yellow-400 hover:bg-yellow-400/20">Apply filters</button>
-            <a href="/sell" className="rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 text-center text-sm font-semibold text-white hover:border-yellow-400/30">List</a>
+            <a href="/listings/create" className="rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 text-center text-sm font-semibold text-white hover:border-yellow-400/30">List</a>
           </div>
         </form>
 

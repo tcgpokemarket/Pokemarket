@@ -7,11 +7,46 @@ export const dynamic = "force-dynamic";
 const NAV_LINKS = [
   { label: "Live Shows", href: "/live" },
   { label: "Marketplace", href: "/listings" },
-  { label: "Sellers", href: "/sellers" },
-  { label: "Sell", href: "/sell" },
+  { label: "Sell on TcgPoké Market", href: "/sell" },
   { label: "Dashboard", href: "/dashboard" },
   { label: "Help", href: "/help" },
 ];
+
+const SELLER_BENEFITS = [
+  "Seller onboarding and approval",
+  "Dashboard access for listings, inventory, and payouts",
+  "Live show tools for auctions and community selling",
+  "Storefront exposure to collectors across the marketplace",
+];
+
+function getSellHref() {
+  return "/sell";
+}
+
+function SellHeroCard() {
+  return (
+    <div className="rounded-[2rem] border border-yellow-400/20 bg-yellow-400/10 p-6 text-sm text-gray-300">
+      <div className="text-xs font-semibold uppercase tracking-[0.35em] text-yellow-400">Sell on TcgPoké Market</div>
+      <div className="mt-3 text-xl font-black text-white">One seller destination for onboarding, listings, and live selling.</div>
+      <p className="mt-3 leading-6 text-gray-300">Start selling, manage your storefront, and launch live shows from one streamlined path.</p>
+      <div className="mt-5 grid gap-2">
+        {SELLER_BENEFITS.map((item) => (
+          <div key={item} className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3 text-sm text-gray-300">
+            {item}
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-wrap gap-3">
+        <Link href={getSellHref()} className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black transition hover:bg-yellow-300">
+          Sell on TcgPoké Market
+        </Link>
+        <Link href="/dashboard" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white transition hover:bg-white/5">
+          Seller dashboard
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 const CATEGORY_SHORTCUTS = [
   { label: "Singles", href: "/listings?category=single" },
@@ -264,6 +299,12 @@ export default async function Home() {
                   <Link href="/listings" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white transition hover:bg-white/5">
                     Shop Marketplace
                   </Link>
+                  <Link href="/sell" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white transition hover:bg-white/5">
+                    Sell on TcgPoké Market
+                  </Link>
+                  <Link href="/sell/onboarding" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white transition hover:bg-white/5">
+                    Seller onboarding guide
+                  </Link>
                   <Link href="/sellers" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white transition hover:bg-white/5">
                     Explore Sellers
                   </Link>
@@ -475,9 +516,9 @@ export default async function Home() {
               </div>
             </div>
             <div>
-              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Seller</div>
+              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Sell</div>
               <div className="mt-4 flex flex-col gap-3 text-sm text-gray-400">
-                <a href="/sell" className="hover:text-yellow-400">Seller Resources</a>
+                <a href="/sell" className="hover:text-yellow-400">Sell on TcgPoké Market</a>
                 <a href="/seller-agreement" className="hover:text-yellow-400">Seller Agreement</a>
                 <a href="/shipping-policy" className="hover:text-yellow-400">Shipping Policy</a>
                 <a href="/refund-policy" className="hover:text-yellow-400">Refund Policy</a>

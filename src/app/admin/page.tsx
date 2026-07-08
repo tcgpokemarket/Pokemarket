@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+import { getSupportStats } from "@/lib/support";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "Admin Dashboard",
@@ -24,7 +28,23 @@ const giveawayControls = [
   "Throttle repeated giveaway abuse",
 ] as const;
 
-export default function AdminPage() {
+const supportHighlights = [
+  { label: "Open tickets", valueKey: "open" },
+  { label: "AI handling", valueKey: "aiHandling" },
+  { label: "Waiting on user", valueKey: "waitingForUser" },
+  { label: "Escalated", valueKey: "escalated" },
+  { label: "Resolved", valueKey: "resolved" },
+] as const;
+
+export default async function AdminPage() {
+  let supportStats = { total: 0, escalated: 0, resolved: 0, open: 0, aiHandling: 0, waitingForUser: 0 };
+
+  try {
+    supportStats = await getSupportStats();
+  } catch {
+    supportStats = { total: 0, escalated: 0, resolved: 0, open: 0, aiHandling: 0, waitingForUser: 0 };
+  }
+
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
       <div className="mx-auto max-w-6xl">
@@ -32,7 +52,7 @@ export default function AdminPage() {
           <p className="text-sm uppercase tracking-widest text-yellow-400">Admin dashboard</p>
           <h1 className="mt-3 text-3xl font-black">Operations overview</h1>
           <p className="mt-2 max-w-3xl text-sm text-gray-400">
-            Monitor the marketplace, fulfillment, live commerce, and trust systems from one place.
+            Monitor the marketplace, fulfillment, live commerce, trust systems, and support activity from one place.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -42,6 +62,22 @@ export default function AdminPage() {
                 <p className="mt-2 text-sm text-gray-400">{module.description}</p>
               </a>
             ))}
+          </div>
+
+          <div className="mt-8 rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-6">
+            <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Support analytics</div>
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+                <div className="text-xs uppercase tracking-widest text-gray-500">Tickets total</div>
+                <div className="mt-2 text-2xl font-black text-yellow-400">{supportStats.total}</div>
+              </div>
+              {supportHighlights.map((item) => (
+                <div key={item.label} className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+                  <div className="text-xs uppercase tracking-widest text-gray-500">{item.label}</div>
+                  <div className="mt-2 text-2xl font-black text-yellow-400">{supportStats[item.valueKey]}</div>
+                </div>
+              ))}
+            </div>
           </div>
 
           <div className="mt-8 rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-6">
