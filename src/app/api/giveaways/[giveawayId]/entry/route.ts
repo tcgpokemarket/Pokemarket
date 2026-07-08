@@ -38,10 +38,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ giveawa
     .limit(1)
     .maybeSingle() as { data: { created_at: string } | null };
   if (recentEntry.data) {
-    const lastCreatedAt = new Date(recentEntry.data.created_at).getTime();
-    if (Date.now() - lastCreatedAt < 5000) {
-      return NextResponse.json({ error: "Please wait before trying again." }, { status: 429 });
-    }
+    return NextResponse.json({ error: "Already entered" }, { status: 409 });
   }
   const { data: giveaway, error: giveawayError } = await (admin as any)
     .from("giveaways")

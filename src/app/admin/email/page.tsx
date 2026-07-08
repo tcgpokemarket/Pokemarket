@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -15,9 +16,10 @@ export default async function AdminEmailPage() {
 
 
 
+  const admin = createAdminClient();
   const [{ data: queue }, { data: logs }] = await Promise.all([
-    supabase.from("email_queue").select("id, template_name, recipient_email, status, attempts, next_attempt_at, last_error, created_at").order("created_at", { ascending: false }).limit(50),
-    supabase.from("email_logs").select("id, email_type, template_name, recipient_email, status, provider_message_id, error_message, sent_at, created_at").order("created_at", { ascending: false }).limit(50),
+    admin.from("email_queue").select("id, template_name, recipient_email, status, attempts, next_attempt_at, last_error, created_at").order("created_at", { ascending: false }).limit(50),
+    admin.from("email_logs").select("id, email_type, template_name, recipient_email, status, provider_message_id, error_message, sent_at, created_at").order("created_at", { ascending: false }).limit(50),
   ]);
 
   return (

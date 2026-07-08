@@ -43,7 +43,7 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     }
   }
 
-  const { error: deleteError } = await supabase.from("listings").delete().eq("id", params.id);
+  const { error: deleteError } = await admin.from("listings").delete().eq("id", params.id);
 
   if (deleteError) {
     return NextResponse.json({ error: deleteError.message }, { status: 500 });

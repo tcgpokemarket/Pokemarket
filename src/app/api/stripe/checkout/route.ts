@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { listingId, quantity: rawQuantity = 1, shippingPaidBy: shippingPaidByInput, shippingRateIndex = 0 } = (await req.json()) as { listingId?: string; quantity?: number; shippingPaidBy?: "buyer" | "seller"; shippingRateIndex?: number };
+  const { listingId, quantity: rawQuantity = 1, shippingRateIndex = 0 } = (await req.json()) as { listingId?: string; quantity?: number; shippingRateIndex?: number };
 
   if (!listingId) {
     return NextResponse.json({ error: "Missing listingId" }, { status: 400 });
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
   }
 
-  const shippingPaidBy = shippingPaidByInput === "seller" ? "seller" : listing.shipping_paid_by ?? "buyer";
+  const shippingPaidBy = listing.shipping_paid_by ?? "buyer";
 
   const admin = createAdminClient();
   const [sellerOrdersResult, feeSettingsResult, feeTiersResult, feeOverrideResult] = await Promise.all([

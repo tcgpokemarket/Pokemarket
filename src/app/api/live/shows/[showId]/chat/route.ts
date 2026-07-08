@@ -32,33 +32,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ showId:
   }
 
   const auctionSettings = showRow.auction_settings ?? {};
-  const isHost = user.id === showRow.seller_id;
-  if (body.role === "seller" && !isHost) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
   const blockedWords = Array.isArray(auctionSettings.blocked_words) ? auctionSettings.blocked_words : [];
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 

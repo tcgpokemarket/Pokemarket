@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
@@ -48,6 +49,13 @@ async function getUnpaidAuctions() {
 }
 
 export default async function UnpaidAuctionsPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user || !isAdminUser(user)) {
+    notFound();
+  }
+
   let orders: Array<any> = [];
   try {
     orders = await getUnpaidAuctions();

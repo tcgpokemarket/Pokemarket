@@ -156,11 +156,11 @@ create policy "email preferences are updatable by owner" on public.email_prefere
   for update using (auth.uid() = user_id);
 
 create policy "email templates are readable by admins" on public.email_templates
-  for select using (auth.uid() is not null);
+  for select using (false);
 create policy "email logs are readable by owner or admin" on public.email_logs
-  for select using (auth.uid() = user_id or auth.uid() is not null);
+  for select using (auth.uid() = user_id);
 create policy "email queue is readable by admin" on public.email_queue
-  for select using (auth.uid() is not null);
+  for select using (false);
 
 create policy "conversations are readable by members" on public.conversations
   for select using (exists (select 1 from public.conversation_members where conversation_id = id and user_id = auth.uid()));
@@ -191,11 +191,11 @@ create policy "message recipients are updatable by recipient" on public.message_
   for update using (user_id = auth.uid());
 
 create policy "message reports are readable by reporters or admin" on public.message_reports
-  for select using (reporter_id = auth.uid() or auth.uid() is not null);
+  for select using (reporter_id = auth.uid());
 create policy "message reports are insertable by authenticated users" on public.message_reports
   for insert with check (auth.uid() = reporter_id);
 create policy "message reports are updatable by admin" on public.message_reports
-  for update using (auth.uid() is not null);
+  for update using (false);
 
 create policy "message blocks are readable by blocker" on public.message_blocks
   for select using (blocker_id = auth.uid() or blocked_id = auth.uid());

@@ -51,7 +51,7 @@ export async function POST(req: Request) {
     auction_state: body.auction_state ?? "upcoming",
     scheduled_start: body.scheduled_start ?? null,
     scheduled_end: body.scheduled_end ?? null,
-    host_permissions: body.host_permissions ?? ["host", "moderate_chat", "start_auction", "end_auction"],
+    host_permissions: ["host", "moderate_chat", "start_auction", "end_auction"],
     auction_settings: body.auction_settings ?? { min_increment: 1, anti_snipe_seconds: 10, chat_slow_mode_seconds: 0 },
   };
 

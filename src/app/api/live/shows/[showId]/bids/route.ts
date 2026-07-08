@@ -79,16 +79,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ showId:
   }
 
   const admin = createAdminClient();
-  const showAccess = await (admin as any)
-    .from("live_shows")
-    .select("seller_id, host_permissions")
-    .eq("id", showId)
-    .maybeSingle() as { data: { seller_id: string; host_permissions: string[] | null } | null };
-
-  if (!showAccess.data || (String(showAccess.data.seller_id) !== user.id && !(Array.isArray(showAccess.data.host_permissions) && showAccess.data.host_permissions.includes(user.id)))) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-  }
-
   const increment = Math.max(1, Math.floor(Number(auctionSettings.min_increment ?? LIVE_BID_STEP)));
   const currentLeaderId = product.winner_id ?? null;
   const currentLeaderPreference = currentLeaderId
