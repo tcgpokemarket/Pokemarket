@@ -1244,6 +1244,112 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['dispute_records']['Insert']>
       }
+      support_tickets: {
+        Row: {
+          id: string
+          ticket_number: string
+          user_id: string
+          order_id: string | null
+          listing_id: string | null
+          seller_id: string | null
+          conversation_id: string | null
+          category: string
+          priority: string
+          status: string
+          assigned_ai_agent: string | null
+          assigned_human_agent: string | null
+          issue_summary: string
+          conversation_history: Json
+          resolution_notes: string | null
+          escalated_at: string | null
+          resolved_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_number: string
+          user_id: string
+          order_id?: string | null
+          listing_id?: string | null
+          seller_id?: string | null
+          conversation_id?: string | null
+          category: string
+          priority?: string
+          status?: string
+          assigned_ai_agent?: string | null
+          assigned_human_agent?: string | null
+          issue_summary: string
+          conversation_history?: Json
+          resolution_notes?: string | null
+          escalated_at?: string | null
+          resolved_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['support_tickets']['Insert']>
+      }
+      support_knowledge_sources: {
+        Row: {
+          id: string
+          source_type: string
+          source_name: string
+          source_url: string | null
+          content_summary: string
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          source_type: string
+          source_name: string
+          source_url?: string | null
+          content_summary: string
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['support_knowledge_sources']['Insert']>
+      }
+      support_ai_responses: {
+        Row: {
+          id: string
+          ticket_id: string
+          assistant_role: string
+          response_text: string
+          policy_notes: string | null
+          needs_human: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_id: string
+          assistant_role: string
+          response_text: string
+          policy_notes?: string | null
+          needs_human?: boolean
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['support_ai_responses']['Insert']>
+      }
+      support_ticket_events: {
+        Row: {
+          id: string
+          ticket_id: string
+          event_type: string
+          event_data: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          ticket_id: string
+          event_type: string
+          event_data?: Json
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['support_ticket_events']['Insert']>
+      }
     }
     Views: Record<string, never>
     Functions: Record<string, never>

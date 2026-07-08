@@ -20,7 +20,10 @@ export type EmailNotificationType =
   | "giveaway_entry_confirmed"
   | "giveaway_won"
   | "platform_announcement"
-  | "maintenance_notice";
+  | "maintenance_notice"
+  | "support_ticket_opened"
+  | "support_ticket_escalated"
+  | "support_ticket_resolved";
 
 export async function getEmailPreferences(userId: string) {
   const supabase = await createClient();
@@ -62,4 +65,29 @@ export async function logEmailDelivery(input: { userId?: string | null; recipien
     sent_at: input.status === "sent" ? new Date().toISOString() : null,
   } as any);
   if (error) throw new Error(error.message);
+}
+
+export async function queueSupportEmail(input: { userId?: string | null; recipientEmail: string; ticketNumber: string; subject: string; status: EmailNotificationType; summary: string }) {
+  await queueEmail({
+    userId: input.userId ?? null,
+    recipientEmail: input.recipientEmail,
+    templateName: "support_ticket",
+    emailType: input.status,
+    payload: {
+      ticketNumber: input.ticketNumber,
+      subject: input.subject,
+      summary: input.summary,
+    },
+  });
+}
+
+export async function logSupportEmailDelivery(input: { userId?: string | null; recipientEmail: string; ticketNumber: string; subject: string; status: EmailNotificationType; errorMessage?: string | null }) {
+  await logEmailDelivery({
+    userId: input.userId ?? null,
+    recipientEmail: input.recipientEmail,
+    templateName: `support_ticket_${input.ticketNumber}`,
+    emailType: input.status,
+    status: input.status === "support_ticket_resolved" ? "sent" : input.status === "support_ticket_escalated" ? "queued" : "sent",
+    errorMessage: input.errorMessage ?? null,
+  });
 }

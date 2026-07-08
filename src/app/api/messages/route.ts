@@ -12,6 +12,15 @@ import {
   setConversationMuted,
   updateConversationPrivacyRule,
 } from "@/lib/messaging";
+import {
+  addSupportResponse,
+  appendSupportTicketEvent,
+  createSupportTicket,
+  getSupportAgentGreeting,
+  routeSupportAgent,
+  shouldEscalateSupport,
+  updateSupportTicketStatus,
+} from "@/lib/support";
 
 async function getAuthedUser() {
   const supabase = await createClient();
@@ -115,6 +124,50 @@ export async function POST(req: Request) {
     if (!messageId || !reason) return NextResponse.json({ error: "Missing report data" }, { status: 400 });
     await reportMessage(messageId, user.id, reason, typeof body.details === "string" ? body.details : undefined);
     return NextResponse.json({ ok: true });
+  }
+
+  if (action === "support") {
+    const category = typeof body.category === "string" ? body.category.trim() : "general_question";
+    const issueSummary = typeof body.issueSummary === "string" ? body.issueSummary.trim() : "";
+    const priority = typeof body.priority === "string" ? body.priority.trim() : "normal";
+    const orderId = typeof body.orderId === "string" ? body.orderId.trim() || null : null;
+    const listingId = typeof body.listingId === "string" ? body.listingId.trim() || null : null;
+    const sellerId = typeof body.sellerId === "string" ? body.sellerId.trim() || null : null;
+    const conversationIdInput = typeof body.conversationId === "string" ? body.conversationId.trim() || null : null;
+    if (!issueSummary) return NextResponse.json({ error: "Missing issue summary" }, { status: 400 });
+
+    const assignedAiAgent = routeSupportAgent(category as Parameters<typeof routeSupportAgent>[0]);
+    const ticket = await createSupportTicket({
+      userId: user.id,
+      category: category as Parameters<typeof createSupportTicket>[0]["category"],
+      issueSummary,
+      priority,
+      orderId,
+      listingId,
+      sellerId,
+      conversationId: conversationIdInput,
+      assignedAiAgent,
+    });
+
+    const greeting = await getSupportAgentGreeting(assignedAiAgent, category as Parameters<typeof routeSupportAgent>[0], issueSummary);
+    const needsHuman = shouldEscalateSupport(category as Parameters<typeof routeSupportAgent>[0], priority, issueSummary);
+
+    await addSupportResponse({
+      ticketId: ticket.id,
+      assistantRole: assignedAiAgent,
+      responseText: greeting,
+      policyNotes: needsHuman ? "Escalated due to sensitive category or priority." : "Handled by AI support workflow.",
+      needsHuman,
+    });
+
+    await appendSupportTicketEvent(ticket.id, "created", { category, priority, orderId, listingId, sellerId, conversationId: conversationIdInput });
+    if (needsHuman) {
+      await updateSupportTicketStatus(ticket.id, "escalated", "Escalated to human support.");
+    } else {
+      await updateSupportTicketStatus(ticket.id, "ai_handling");
+    }
+
+    return NextResponse.json({ ok: true, ticketId: ticket.id, ticketNumber: ticket.ticketNumber, assistantRole: assignedAiAgent, needsHuman, message: greeting });
   }
 
   const message = typeof body.message === "string" ? body.message.trim() : "";
