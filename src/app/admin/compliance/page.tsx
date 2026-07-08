@@ -1,4 +1,8 @@
 import type { Metadata } from "next";
+import { getMessageReports, getReportedConversations } from "@/lib/messaging";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export const metadata: Metadata = {
   title: "Compliance Dashboard",
@@ -16,7 +20,12 @@ const modules = [
   { title: "Compliance reports", description: "Export summaries for internal review and counsel" },
 ];
 
-export default function CompliancePage() {
+export default async function CompliancePage() {
+  const [messageReports, reportedConversations] = (await Promise.all([getMessageReports(), getReportedConversations()])) as [
+    Array<{ id: string; message_id: string; reporter_id: string; reason: string; details: string | null; status: string; created_at: string; updated_at: string | null }>,
+    Array<{ id: string; message_id: string; reporter_id: string; reason: string; details: string | null; status: string; created_at: string; messages?: { conversation_id: string; sender_id: string; message: string; created_at: string } | null }>,
+  ];
+
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
       <div className="mx-auto max-w-6xl">
@@ -24,7 +33,7 @@ export default function CompliancePage() {
           <p className="text-sm uppercase tracking-widest text-yellow-400">Admin compliance</p>
           <h1 className="mt-3 text-3xl font-black">Compliance dashboard</h1>
           <p className="mt-2 max-w-3xl text-sm text-gray-400">
-            Track legal document versions, user acceptance logs, seller agreement acceptance, dispute history, moderation actions, fraud investigations, and IP reports in one place.
+            Track legal document versions, user acceptance logs, seller agreement acceptance, dispute history, moderation actions, fraud investigations, and messaging reports in one place.
           </p>
 
           <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -34,6 +43,42 @@ export default function CompliancePage() {
                 <p className="mt-2 text-sm text-gray-400">{module.description}</p>
               </div>
             ))}
+          </div>
+
+          <div className="mt-8 grid gap-6 xl:grid-cols-2">
+            <div className="rounded-2xl border border-white/10 bg-[#13131f] p-5">
+              <h2 className="text-lg font-bold">Message reports</h2>
+              <p className="mt-1 text-sm text-gray-400">Recent user reports on individual messages.</p>
+              <div className="mt-4 space-y-3">
+                {messageReports.length ? messageReports.map((report) => (
+                  <div key={report.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-4 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-white">{report.reason}</span>
+                      <span className="text-xs uppercase tracking-[0.2em] text-gray-500">{report.status}</span>
+                    </div>
+                    <p className="mt-2 text-gray-400">{report.details ?? "No extra details provided."}</p>
+                    <p className="mt-2 text-xs text-gray-500">Message {report.message_id.slice(0, 8)} · Reporter {report.reporter_id.slice(0, 8)}</p>
+                  </div>
+                )) : <p className="text-sm text-gray-400">No message reports yet.</p>}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#13131f] p-5">
+              <h2 className="text-lg font-bold">Reported conversations</h2>
+              <p className="mt-1 text-sm text-gray-400">Messages that need review in context.</p>
+              <div className="mt-4 space-y-3">
+                {reportedConversations.length ? reportedConversations.map((report) => (
+                  <div key={report.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-4 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold text-white">{report.reason}</span>
+                      <span className="text-xs uppercase tracking-[0.2em] text-gray-500">{report.status}</span>
+                    </div>
+                    <p className="mt-2 text-gray-400">{report.messages?.message ?? "Message content unavailable."}</p>
+                    <p className="mt-2 text-xs text-gray-500">Conversation {report.messages?.conversation_id?.slice(0, 8) ?? "n/a"}</p>
+                  </div>
+                )) : <p className="text-sm text-gray-400">No reported conversations yet.</p>}
+              </div>
+            </div>
           </div>
 
           <div className="mt-8 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-6 text-sm text-gray-200">
