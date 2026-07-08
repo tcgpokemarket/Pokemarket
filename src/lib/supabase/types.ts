@@ -966,6 +966,261 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['ip_reports']['Insert']>
       }
+      email_preferences: {
+        Row: {
+          id: string
+          user_id: string
+          notification_type: string
+          enabled: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          notification_type: string
+          enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['email_preferences']['Insert']>
+      }
+      email_templates: {
+        Row: {
+          id: string
+          template_name: string
+          subject: string
+          content: string
+          variables: Json
+          category: string
+          active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          template_name: string
+          subject: string
+          content: string
+          variables?: Json
+          category: string
+          active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['email_templates']['Insert']>
+      }
+      email_logs: {
+        Row: {
+          id: string
+          user_id: string | null
+          email_type: string
+          template_name: string | null
+          recipient_email: string
+          status: string
+          provider_message_id: string | null
+          error_message: string | null
+          sent_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          email_type: string
+          template_name?: string | null
+          recipient_email: string
+          status: string
+          provider_message_id?: string | null
+          error_message?: string | null
+          sent_at?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['email_logs']['Insert']>
+      }
+      email_queue: {
+        Row: {
+          id: string
+          user_id: string | null
+          template_name: string
+          recipient_email: string
+          payload: Json
+          status: 'queued' | 'processing' | 'sent' | 'failed' | 'canceled'
+          attempts: number
+          next_attempt_at: string
+          last_error: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          template_name: string
+          recipient_email: string
+          payload?: Json
+          status?: 'queued' | 'processing' | 'sent' | 'failed' | 'canceled'
+          attempts?: number
+          next_attempt_at?: string
+          last_error?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['email_queue']['Insert']>
+      }
+      conversations: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          last_message_at: string | null
+          last_message_preview: string | null
+          context_type: string | null
+          context_id: string | null
+          is_archived: boolean
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          last_message_at?: string | null
+          last_message_preview?: string | null
+          context_type?: string | null
+          context_id?: string | null
+          is_archived?: boolean
+        }
+        Update: Partial<Database['public']['Tables']['conversations']['Insert']>
+      }
+      conversation_members: {
+        Row: {
+          id: string
+          conversation_id: string
+          user_id: string
+          role: string
+          muted: boolean
+          archived: boolean
+          last_read_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          user_id: string
+          role?: string
+          muted?: boolean
+          archived?: boolean
+          last_read_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['conversation_members']['Insert']>
+      }
+      messages: {
+        Row: {
+          id: string
+          conversation_id: string
+          sender_id: string
+          message: string
+          attachment_url: string | null
+          attachment_type: string | null
+          context: Json
+          read_status: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          sender_id: string
+          message: string
+          attachment_url?: string | null
+          attachment_type?: string | null
+          context?: Json
+          read_status?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['messages']['Insert']>
+      }
+      message_recipients: {
+        Row: {
+          id: string
+          message_id: string
+          user_id: string
+          read_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          user_id: string
+          read_at?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['message_recipients']['Insert']>
+      }
+      message_reports: {
+        Row: {
+          id: string
+          message_id: string
+          reporter_id: string
+          reason: string
+          details: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          message_id: string
+          reporter_id: string
+          reason: string
+          details?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['message_reports']['Insert']>
+      }
+      message_blocks: {
+        Row: {
+          id: string
+          blocker_id: string
+          blocked_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          blocker_id: string
+          blocked_id: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['message_blocks']['Insert']>
+      }
+      message_access_rules: {
+        Row: {
+          id: string
+          user_id: string
+          allow_followers: boolean
+          allow_friends: boolean
+          allow_sellers: boolean
+          allow_buyer_support: boolean
+          allow_admin_messages: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          allow_followers?: boolean
+          allow_friends?: boolean
+          allow_sellers?: boolean
+          allow_buyer_support?: boolean
+          allow_admin_messages?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['message_access_rules']['Insert']>
+      }
       dispute_records: {
         Row: {
           id: string
