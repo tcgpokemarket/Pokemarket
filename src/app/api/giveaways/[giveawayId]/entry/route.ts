@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createShowEvent, isGiveawayActive } from "@/lib/live-shows";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { recordSecurityEvent } from "@/lib/audit-log";
 
 export async function POST(req: Request, { params }: { params: Promise<{ giveawayId: string }> }) {
   const { giveawayId } = await params;
@@ -13,7 +15,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ giveawa
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const limit = checkRateLimit(`giveaway-entry:${giveawayId}:${user.id}`, 6, 60_000);
+  if (!limit.allowed) {
+    recordSecurityEvent({
+      event_type: "security.alert",
+      severity: "medium",
+      actor_id: user.id,
+      ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      user_agent: req.headers.get("user-agent"),
+      details: { route: "/api/giveaways/[giveawayId]/entry", reason: "rate_limited" },
+    });
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   const body = await req.json().catch(() => ({} as { followSeller?: boolean }));
+  const recentEntry = await admin
+    .from("giveaway_entries")
+    .select("id, created_at")
+    .eq("giveaway_id", giveawayId)
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle() as { data: { created_at: string } | null };
+  if (recentEntry.data) {
+    const lastCreatedAt = new Date(recentEntry.data.created_at).getTime();
+    if (Date.now() - lastCreatedAt < 5000) {
+      return NextResponse.json({ error: "Please wait before trying again." }, { status: 429 });
+    }
+  }
   const { data: giveaway, error: giveawayError } = await (admin as any)
     .from("giveaways")
     .select("*")

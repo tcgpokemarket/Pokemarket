@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Listing, Order, Profile, SellerWallet, Database } from "@/lib/supabase/types";
@@ -25,6 +26,27 @@ type DashboardOrder = Order & {
   profiles?: { username?: string | null } | null;
 };
 
+type AuctionOrder = Database["public"]["Tables"]["auction_orders"]["Row"] & {
+  show_products?: { title?: string; subtitle?: string | null; image_url?: string | null } | null;
+  profiles?: { username?: string | null } | null;
+};
+
+function formatTimeRemaining(deadline: string) {
+  const diff = new Date(deadline).getTime() - Date.now();
+  if (diff <= 0) return "00:00";
+  const minutes = Math.floor(diff / 60000);
+  const seconds = Math.floor((diff % 60000) / 1000);
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function paymentStatusLabel(status: AuctionOrder["payment_status"]) {
+  if (status === "paid") return "🟢 Paid — Ready to Ship";
+  if (status === "expired") return "🔴 Payment Failed";
+  if (status === "failed") return "🔴 Payment Failed";
+  if (status === "cancelled") return "⚪ Cancelled";
+  return "🟡 Awaiting Payment";
+}
+
 function groupByTracking(orders: DashboardOrder[]) {
   const groups = new Map<string, DashboardOrder[]>();
   for (const order of orders) {
@@ -43,6 +65,16 @@ function formatGroupTitle(items: DashboardOrder[]) {
 }
 
 export default function DashboardClient({ orderSuccess }: { orderSuccess: boolean }) {
+  const searchParams = useSearchParams();
+  const orderTab = searchParams.get("tab");
+
+  useEffect(() => {
+    if (orderTab === "sales") {
+      setTab("sales");
+    }
+  }, [orderTab]);
+
+
   const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
   const router = useRouter();
 
@@ -63,6 +95,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [listings, setListings] = useState<Listing[]>([]);
   const [purchases, setPurchases] = useState<DashboardOrder[]>([]);
   const [sales, setSales] = useState<DashboardOrder[]>([]);
+  const [auctionOrders, setAuctionOrders] = useState<AuctionOrder[]>([]);
+  const pendingAuctionOrders = useMemo(() => auctionOrders.filter((order) => order.payment_status === "payment_pending"), [auctionOrders]);
+  const paidAuctionOrders = useMemo(() => auctionOrders.filter((order) => order.payment_status === "paid"), [auctionOrders]);
+  const expiredAuctionOrders = useMemo(() => auctionOrders.filter((order) => ["expired", "failed"].includes(order.payment_status)), [auctionOrders]);
+  const sellerPendingPayments = pendingAuctionOrders.length;
+  const notificationCount = sellerPendingPayments;
   const [loading, setLoading] = useState(true);
   const [brainCopied, setBrainCopied] = useState(false);
 
@@ -77,12 +115,13 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         return;
       }
 
-      const [{ data: profileData }, { data: walletData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: sellerData }, { data: storeData }] = await Promise.all([
+      const [{ data: profileData }, { data: walletData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: auctionOrdersData }, { data: sellerData }, { data: storeData }] = await Promise.all([
         client.from("profiles").select("*").eq("id", user.id).single(),
         client.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
         client.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
         client.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
         client.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
+        client.from("auction_orders").select("*, show_products(title, subtitle, image_url), profiles:buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
         client.from("sellers").select("*").eq("id", user.id).maybeSingle(),
         client.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
       ]);
@@ -104,6 +143,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       setListings(listingData ?? []);
       setPurchases((purchaseData ?? []) as DashboardOrder[]);
       setSales((salesData ?? []) as DashboardOrder[]);
+      setAuctionOrders((auctionOrdersData ?? []) as AuctionOrder[]);
       setLoading(false);
     };
 
@@ -424,8 +464,9 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       <div className="mx-auto max-w-6xl px-4 pb-16 pt-24">
         <div className="mb-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
           <div className="space-y-4">
-            <div className="inline-flex rounded-full border border-yellow-400/20 bg-yellow-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-yellow-400">
-              Seller dashboard
+            <div className="inline-flex items-center gap-3 rounded-full border border-yellow-400/20 bg-yellow-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-yellow-400">
+              <span>Seller dashboard</span>
+              <span className="rounded-full bg-yellow-400 px-2 py-0.5 text-[10px] font-black tracking-normal text-black">{notificationCount} pending</span>
             </div>
             <div className="flex items-center gap-4">
               <div className="flex h-14 w-14 items-center justify-center rounded-full bg-yellow-400/20 text-xl font-black text-yellow-400">
@@ -758,58 +799,116 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         )}
 
         {tab === "sales" && (
-          <div>
-            <h2 className="mb-5 text-xl font-bold">My Sales</h2>
-            {sales.length === 0 ? (
-              <div className="py-16 text-center text-gray-400">
-                <div className="mb-3 text-5xl">💰</div>
-                <p>No sales yet. <a href="/listings/create" className="text-yellow-400 hover:underline">Create a listing.</a></p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {groupByTracking(sales).map((group) => {
-                  const first = group.items[0];
-                  const total = group.items.reduce((sum, item) => sum + (item.total_amount ?? 0), 0);
-                  const tracking = first.tracking_number;
-                  return (
-                    <div key={group.key} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="flex items-start justify-between gap-4">
+          <div className="space-y-8">
+            <div>
+              <h2 className="mb-5 text-xl font-bold">Pending Payments ({sellerPendingPayments})</h2>
+              {pendingAuctionOrders.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-gray-400">
+                  <div className="mb-3 text-4xl">🔔</div>
+                  <p>No pending auction payments right now.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingAuctionOrders.map((order) => (
+                    <div key={order.id} className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-semibold">{formatGroupTitle(group.items)}</p>
-                          <p className="text-xs text-gray-400">
-                            {first.profiles?.username ? `Buyer @${first.profiles.username}` : "Buyer"} · {new Date(first.created_at).toLocaleDateString()}
-                          </p>
-                          {tracking && <p className="mt-1 text-xs text-blue-400">Tracking: {tracking}</p>}
+                          <p className="text-sm font-black text-white">{order.show_products?.title ?? "Live auction item"}</p>
+                          <p className="text-xs text-yellow-100">Buyer: {order.profiles?.username ? `@${order.profiles.username}` : order.buyer_id}</p>
+                          <p className="mt-1 text-xs text-yellow-100">Winning Bid: ${Number(order.winning_bid).toFixed(2)}</p>
+                          <p className="text-xs text-yellow-100">Status: Awaiting Payment</p>
+                          <p className="text-xs text-yellow-100">Time Remaining: {formatTimeRemaining(order.payment_deadline)}</p>
+                          <p className="text-xs text-yellow-100">Order ID: {order.id}</p>
                         </div>
-                        <div className="text-right">
-                          <div className="flex flex-wrap justify-end gap-2">
-                            <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{first.status}</span>
-                            <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>payout {first.payout_status ?? "pending"}</span>
-                          </div>
-                          <div className="mt-2 font-black text-green-400">+${total.toFixed(2)}</div>
+                        <div className="flex flex-wrap gap-2 lg:justify-end">
+                          <button className="rounded-xl bg-yellow-400 px-4 py-2 font-bold text-black" onClick={() => router.push(`/dashboard?tab=sales`) }>
+                            View Order
+                          </button>
+                          <button className="rounded-xl border border-white/20 px-4 py-2 font-semibold text-white" onClick={() => router.push(`/messages`) }>
+                            Message Buyer
+                          </button>
+                          <button className="rounded-xl border border-red-400/30 px-4 py-2 font-semibold text-red-200" onClick={() => router.push(`/support`) }>
+                            Report Issue
+                          </button>
                         </div>
                       </div>
-                      <div className="mt-4 grid gap-3 md:grid-cols-2">
-                        {group.items.map((item) => (
-                          <div key={item.id} className="rounded-xl border border-white/10 bg-[#13131f] p-3">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-white/10 text-lg">
-                                {item.listings?.images?.[0] ? <img src={item.listings.images[0]} alt="" className="h-full w-full rounded-lg object-cover" /> : "🃏"}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-sm font-semibold">{item.listings?.card_name ?? "Card"}</p>
-                                <p className="text-xs text-gray-400">${item.total_amount.toFixed(2)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h2 className="mb-5 text-xl font-bold">My Sales</h2>
+              {sales.length === 0 ? (
+                <div className="py-16 text-center text-gray-400">
+                  <div className="mb-3 text-5xl">💰</div>
+                  <p>No sales yet. <a href="/listings/create" className="text-yellow-400 hover:underline">Create a listing.</a></p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {groupByTracking(sales).map((group) => {
+                    const first = group.items[0];
+                    const total = group.items.reduce((sum, item) => sum + (item.total_amount ?? 0), 0);
+                    const tracking = first.tracking_number;
+                    return (
+                      <div key={group.key} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-semibold">{formatGroupTitle(group.items)}</p>
+                            <p className="text-xs text-gray-400">
+                              {first.profiles?.username ? `Buyer @${first.profiles.username}` : "Buyer"} · {new Date(first.created_at).toLocaleDateString()}
+                            </p>
+                            {tracking && <p className="mt-1 text-xs text-blue-400">Tracking: {tracking}</p>}
+                          </div>
+                          <div className="text-right">
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{first.status}</span>
+                              <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>payout {first.payout_status ?? "pending"}</span>
+                            </div>
+                            <div className="mt-2 font-black text-green-400">+${total.toFixed(2)}</div>
+                          </div>
+                        </div>
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                          {group.items.map((item) => (
+                            <div key={item.id} className="rounded-xl border border-white/10 bg-[#13131f] p-3">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-white/10 text-lg">
+                                  {item.listings?.images?.[0] ? <img src={item.listings.images[0]} alt="" className="h-full w-full rounded-lg object-cover" /> : "🃏"}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate text-sm font-semibold">{item.listings?.card_name ?? "Card"}</p>
+                                  <p className="text-xs text-gray-400">${item.total_amount.toFixed(2)}</p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                        <div className="mt-4 text-xs text-gray-500">Shipping, payout, and fulfillment actions are handled through the operations team.</div>
                       </div>
-                      <div className="mt-4 text-xs text-gray-500">Shipping, payout, and fulfillment actions are handled through the operations team.</div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h2 className="mb-5 text-xl font-bold">Auction Payment Status</h2>
+              <div className="grid gap-3 md:grid-cols-3">
+                {paidAuctionOrders.map((order) => (
+                  <div key={order.id} className="rounded-2xl border border-green-400/20 bg-green-400/10 p-4 text-sm text-green-100">
+                    <div className="font-black">{order.show_products?.title ?? "Paid auction"}</div>
+                    <div>{paymentStatusLabel(order.payment_status)}</div>
+                  </div>
+                ))}
+                {expiredAuctionOrders.map((order) => (
+                  <div key={order.id} className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
+                    <div className="font-black">{order.show_products?.title ?? "Expired auction"}</div>
+                    <div>{paymentStatusLabel(order.payment_status)}</div>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
           </div>
         )}
 

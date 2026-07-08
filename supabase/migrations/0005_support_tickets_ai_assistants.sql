@@ -49,6 +49,17 @@ create table if not exists public.support_ticket_events (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.webhook_events (
+  id uuid primary key default gen_random_uuid(),
+  provider text not null,
+  event_id text not null unique,
+  event_type text not null,
+  processed_at timestamptz not null default now(),
+  payload jsonb not null default '{}'::jsonb
+);
+
+create index if not exists idx_webhook_events_provider on public.webhook_events (provider, processed_at desc);
+
 create index if not exists idx_support_tickets_user_id on public.support_tickets (user_id, created_at desc);
 create index if not exists idx_support_tickets_status on public.support_tickets (status, priority, created_at desc);
 create index if not exists idx_support_tickets_conversation_id on public.support_tickets (conversation_id);

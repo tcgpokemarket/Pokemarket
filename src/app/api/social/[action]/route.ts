@@ -46,7 +46,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
 
   if (action === "friend-respond") {
     const status = body.status === "accepted" ? "accepted" : body.status === "blocked" ? "blocked" : "pending";
-    const { error } = await (admin as any).from("friendships").update({ status, updated_at: new Date().toISOString() }).or(`requester_id.eq.${targetUserId},receiver_id.eq.${targetUserId}`).eq("status", "pending");
+    if (status === "pending") {
+      return NextResponse.json({ error: "Invalid status" }, { status: 400 });
+    }
+
+    const { error } = await (admin as any)
+      .from("friendships")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("receiver_id", user.id)
+      .eq("requester_id", targetUserId)
+      .eq("status", "pending");
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }

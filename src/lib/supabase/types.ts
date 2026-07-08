@@ -293,6 +293,56 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['notifications']['Insert']>
       }
+      auction_orders: {
+        Row: {
+          id: string
+          auction_id: string
+          product_id: string
+          buyer_id: string
+          seller_id: string
+          item_id: string | null
+          winning_bid: number
+          payment_status: 'payment_pending' | 'paid' | 'failed' | 'expired' | 'cancelled'
+          payment_deadline: string
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          auction_id: string
+          product_id: string
+          buyer_id: string
+          seller_id: string
+          item_id?: string | null
+          winning_bid: number
+          payment_status?: 'payment_pending' | 'paid' | 'failed' | 'expired' | 'cancelled'
+          payment_deadline: string
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['auction_orders']['Insert']>
+      }
+      payment_events: {
+        Row: {
+          id: string
+          order_id: string
+          stripe_event_id: string
+          status: string
+          timestamp: string
+        }
+        Insert: {
+          id?: string
+          order_id: string
+          stripe_event_id: string
+          status: string
+          timestamp?: string
+        }
+        Update: Partial<Database['public']['Tables']['payment_events']['Insert']>
+      }
       profile_privacy_settings: {
         Row: {
           user_id: string

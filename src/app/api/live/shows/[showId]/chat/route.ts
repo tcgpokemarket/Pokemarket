@@ -27,7 +27,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ showId:
     return NextResponse.json({ error: "Show not found" }, { status: 404 });
   }
 
+  if (showRow.status !== "live") {
+    return NextResponse.json({ error: "Show is not live" }, { status: 409 });
+  }
+
   const auctionSettings = showRow.auction_settings ?? {};
+  const isHost = user.id === showRow.seller_id;
+  if (body.role === "seller" && !isHost) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
   const blockedWords = Array.isArray(auctionSettings.blocked_words) ? auctionSettings.blocked_words : [];
 
 

@@ -52,6 +52,39 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const [giveaways, setGiveaways] = useState<LiveShowGiveaway[]>(initialData.giveaways ?? []);
   const [message, setMessage] = useState("");
   const [statusText, setStatusText] = useState("");
+  const [auctionOrders, setAuctionOrders] = useState<Array<{ id: string; payment_status: string; payment_deadline: string; winning_bid: number; buyer_id: string; show_products?: { title?: string } | null }>>([]);
+  const activeAuctionOrder = auctionOrders[0] ?? null;
+  const livePaymentStatus = activeAuctionOrder?.payment_status === "paid"
+    ? "🟢 Paid — Ready to Ship"
+    : activeAuctionOrder?.payment_status === "expired" || activeAuctionOrder?.payment_status === "failed"
+      ? "🔴 Payment Failed"
+      : "🟡 Awaiting Payment";
+  const buyerTimer = activeAuctionOrder ? Math.max(0, new Date(activeAuctionOrder.payment_deadline).getTime() - Date.now()) : 0;
+  const buyerTimerText = activeAuctionOrder ? `${String(Math.floor(buyerTimer / 60000)).padStart(2, "0")}:${String(Math.floor((buyerTimer % 60000) / 1000)).padStart(2, "0")}` : "15:00";
+
+  useEffect(() => {
+    let mounted = true;
+    const loadAuctionOrders = async () => {
+      const response = await fetch(`/api/live/shows/${show.id}/auction-orders`);
+      const data = await response.json().catch(() => ({}));
+      if (mounted && response.ok) {
+        setAuctionOrders((data.orders ?? []) as any);
+      }
+    };
+    void loadAuctionOrders();
+    const interval = setInterval(() => void loadAuctionOrders(), 5000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, [show.id]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setAuctionOrders((current) => [...current]);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
   const [giveawayStatus, setGiveawayStatus] = useState<string | null>(null);
   const [giveawayBusy, setGiveawayBusy] = useState(false);
   const [entryStatuses, setEntryStatuses] = useState<Record<string, GiveawayEntryState>>({});
@@ -284,6 +317,11 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
 
             {activeGiveaway && (
               <div className="mb-4 rounded-2xl border border-yellow-400/30 bg-yellow-400/10 p-4">
+              <div className="mb-3 rounded-xl border border-white/10 bg-black/20 p-3 text-sm">
+                <div className="text-xs uppercase tracking-[0.3em] text-yellow-200">Payment Status</div>
+                <div className="mt-1 font-black text-white">{livePaymentStatus}</div>
+                <div className="mt-1 text-yellow-100">Buyer payment window: {buyerTimerText}</div>
+              </div>
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="space-y-1">
                     <p className="text-xs uppercase tracking-[0.3em] text-yellow-200">Follow to Enter Giveaway</p>

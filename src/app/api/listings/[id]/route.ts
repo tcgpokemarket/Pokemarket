@@ -14,9 +14,9 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
 
   const { data: listing, error } = await supabase
     .from("listings")
-    .select("id, seller_id, images")
+    .select("id, seller_id, images, status")
     .eq("id", params.id)
-    .single<{ id: string; seller_id: string; images: string[] | null }>();
+    .single<{ id: string; seller_id: string; images: string[] | null; status: string }>();
 
   if (error || !listing) {
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
@@ -24,6 +24,10 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
 
   if (listing.seller_id !== user.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  if (listing.status === "sold") {
+    return NextResponse.json({ error: "Sold listings cannot be deleted" }, { status: 409 });
   }
 
   const admin = createAdminClient();

@@ -14,6 +14,8 @@ import {
 } from "@/lib/live-shows";
 import { getLiveShowDetails } from "@/lib/live-shows-client";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { recordSecurityEvent } from "@/lib/audit-log";
 
 export async function POST(req: Request, { params }: { params: Promise<{ showId: string }> }) {
   const { showId } = await params;
@@ -25,6 +27,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ showId:
   }
 
   const body = await req.json() as { productId?: string; nonce?: string };
+  const limit = checkRateLimit(`live-bid:${showId}:${user.id}`, 8, 60_000);
+  if (!limit.allowed) {
+    recordSecurityEvent({
+      event_type: "security.alert",
+      severity: "medium",
+      actor_id: user.id,
+      ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      user_agent: req.headers.get("user-agent"),
+      details: { route: "/api/live/shows/[showId]/bids", reason: "rate_limited" },
+    });
+    return NextResponse.json({ error: "Too many requests" }, { status: 429 });
+  }
+
   if (!body.productId || !body.nonce) {
     return NextResponse.json({ error: "Missing bid details" }, { status: 400 });
   }
@@ -64,6 +79,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ showId:
   }
 
   const admin = createAdminClient();
+  const showAccess = await (admin as any)
+    .from("live_shows")
+    .select("seller_id, host_permissions")
+    .eq("id", showId)
+    .maybeSingle() as { data: { seller_id: string; host_permissions: string[] | null } | null };
+
+  if (!showAccess.data || (String(showAccess.data.seller_id) !== user.id && !(Array.isArray(showAccess.data.host_permissions) && showAccess.data.host_permissions.includes(user.id)))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const increment = Math.max(1, Math.floor(Number(auctionSettings.min_increment ?? LIVE_BID_STEP)));
   const currentLeaderId = product.winner_id ?? null;
   const currentLeaderPreference = currentLeaderId

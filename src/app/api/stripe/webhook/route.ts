@@ -3,6 +3,28 @@ import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { incrementSellerTotals, incrementTotalSales } from "@/lib/supabase/fees";
 
+async function recordWebhookEvent(
+  supabase: ReturnType<typeof createAdminClient>,
+  event: Stripe.Event,
+) {
+  const { data, error } = await (supabase as any)
+    .from("webhook_events")
+    .insert({
+      provider: "stripe",
+      event_id: event.id,
+      event_type: event.type,
+      payload: event,
+    })
+    .select("id")
+    .maybeSingle();
+
+  if (error && !String(error.message ?? "").includes("duplicate key")) {
+    throw error;
+  }
+
+  return Boolean(data);
+}
+
 export const runtime = "nodejs";
 
 function toNumber(value: unknown, fallback = 0) {
@@ -44,6 +66,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
 
+  if (event.type !== "checkout.session.completed" && event.type !== "checkout.session.async_payment_failed") {
+    return NextResponse.json({ received: true });
+  }
+
+  if (event.type === "checkout.session.async_payment_failed") {
+    const session = event.data.object as Stripe.Checkout.Session;
+    const supabase = createAdminClient();
+    await (supabase as any).from("webhook_events").insert({
+      provider: "stripe",
+      event_id: event.id,
+      event_type: event.type,
+      payload: event,
+    }).select("id").maybeSingle();
+    return NextResponse.json({ received: true });
+  }
+
   if (event.type !== "checkout.session.completed") {
     return NextResponse.json({ received: true });
   }
@@ -51,6 +89,15 @@ export async function POST(req: Request) {
   const session = event.data.object as Stripe.Checkout.Session;
   const supabase = createAdminClient();
   const sessionId = session.id;
+
+  try {
+    const recorded = await recordWebhookEvent(supabase, event);
+    if (!recorded) {
+      return NextResponse.json({ received: true });
+    }
+  } catch {
+    return NextResponse.json({ received: true });
+  }
 
   if (await isProcessed(supabase, sessionId)) {
     return NextResponse.json({ received: true });

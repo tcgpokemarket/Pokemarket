@@ -13,6 +13,7 @@ const modules = [
   { title: "Users", description: "Profiles, seller status, and trust signals", href: "/dashboard" },
   { title: "Listings", description: "Inventory review, moderation, and featured items", href: "/dashboard" },
   { title: "Orders", description: "Checkout, fulfillment, refunds, and payouts", href: "/dashboard" },
+  { title: "Unpaid auctions", description: "Pending buyer payments, deadline extensions, and cancellations", href: "/admin/unpaid-auctions" },
   { title: "Shipping", description: "Rates, labels, shipment groups, and tracking", href: "/dashboard" },
   { title: "Live shows", description: "Auctions, chat, bids, and stream health", href: "/live" },
   { title: "Giveaways", description: "Review prizes, fraud checks, and seller limits", href: "/live" },
