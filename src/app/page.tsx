@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 const NAV_LINKS = [
   { label: "Live Shows", href: "/live" },
   { label: "Marketplace", href: "/listings" },
-  { label: "Sell on TcgPoké Market", href: "/sell" },
+  { label: "Sell", href: "/sell" },
   { label: "Dashboard", href: "/dashboard" },
   { label: "Help", href: "/help" },
 ];
@@ -40,8 +40,8 @@ function SellHeroCard() {
         <Link href={getSellHref()} className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black transition hover:bg-yellow-300">
           Sell on TcgPoké Market
         </Link>
-        <Link href="/dashboard" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white transition hover:bg-white/5">
-          Seller dashboard
+        <Link href="/sell/onboarding" className="rounded-xl border border-white/15 px-5 py-3 font-semibold text-white transition hover:bg-white/5">
+          Seller onboarding guide
         </Link>
       </div>
     </div>
@@ -54,7 +54,6 @@ const CATEGORY_SHORTCUTS = [
   { label: "Sealed Products", href: "/listings?category=sealed" },
   { label: "Accessories", href: "/listings?category=accessory" },
   { label: "Live Auctions", href: "/live" },
-  { label: "Seller Stores", href: "/sellers" },
 ];
 
 const FALLBACK_PROMO = {
