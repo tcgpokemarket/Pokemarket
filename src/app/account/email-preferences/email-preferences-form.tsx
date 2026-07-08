@@ -9,7 +9,16 @@ const options = [
   "auction_alerts",
   "giveaway_alerts",
   "community_notifications",
-];
+] as const;
+
+const OPTION_LABELS: Record<string, string> = {
+  marketing: "Marketplace updates",
+  live_alerts: "Live show reminders",
+  seller_updates: "Seller updates",
+  auction_alerts: "Auction alerts",
+  giveaway_alerts: "Giveaway alerts",
+  community_notifications: "Community notifications",
+};
 
 type Props = {
   initialPreferences: Array<{ notification_type: string; enabled: boolean }>;
@@ -51,7 +60,7 @@ export default function EmailPreferencesForm({ initialPreferences }: Props) {
           const checked = saved[option] ?? enabledDefaults.get(option) ?? true;
           return (
             <label key={option} className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3 text-sm">
-              <span className="capitalize text-white">{option.replace(/_/g, " ")}</span>
+              <span className="text-white">{OPTION_LABELS[option] ?? option.replace(/_/g, " ")}</span>
               <input
                 type="checkbox"
                 checked={checked}

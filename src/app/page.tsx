@@ -8,8 +8,23 @@ const NAV_LINKS = [
   { label: "Live Shows", href: "/live" },
   { label: "Marketplace", href: "/listings" },
   { label: "Sell", href: "/sell" },
+  { label: "Marketing", href: "/marketing" },
+  { label: "Referrals", href: "/referrals" },
   { label: "Dashboard", href: "/dashboard" },
   { label: "Help", href: "/help" },
+];
+
+const FOOTER_LINKS = [
+  { label: "Marketing", href: "/marketing" },
+  { label: "Referrals", href: "/referrals" },
+  { label: "Email preferences", href: "/account/email-preferences" },
+];
+
+const MARKETING_VALUE_POINTS = [
+  "Welcome, auction reminder, cart recovery, seller onboarding, and VIP flows",
+  "Referral rewards with collector-focused incentives",
+  "SEO pages for buyers, sellers, live auctions, and graded cards",
+  "Analytics tracking for every major growth event",
 ];
 
 const SELLER_BENEFITS = [
@@ -57,10 +72,103 @@ const CATEGORY_SHORTCUTS = [
 ];
 
 const FALLBACK_PROMO = {
-  title: "Live marketplace",
-  body: "Browse live shows, auction rooms, and seller storefronts in one place.",
+  title: "Collector-first marketplace",
+  body: "Buy, sell, and bid on Pokémon cards with live auctions, storefronts, and seller trust built in.",
   cta: "Browse live shows",
 };
+
+const MARKETING_BENEFITS = [
+  {
+    title: "Buyer growth",
+    body: "Acquire collectors with live auctions, recommended listings, and beginner-friendly discovery paths.",
+  },
+  {
+    title: "Seller growth",
+    body: "Convert collectors into sellers with onboarding, storefront exposure, and live show tools.",
+  },
+  {
+    title: "Retention",
+    body: "Use reminders, VIP drops, and reactivation emails to bring collectors back consistently.",
+  },
+  {
+    title: "Measurement",
+    body: "Track signup, browse, bid, checkout, and referral events so every campaign can be optimized.",
+  },
+];
+
+const MARKETING_SEGMENTS = [
+  "New collectors",
+  "High-value collectors",
+  "Live auction viewers",
+  "Sellers",
+  "Competitive players",
+  "VIP members",
+];
+
+const MARKETING_EMAILS = [
+  {
+    title: "Welcome series",
+    body: "Introduce the marketplace, explain how to buy and sell, and drive first browsing actions.",
+  },
+  {
+    title: "Auction reminders",
+    body: "Send countdowns, live-now notices, and post-show recaps to lift attendance and bids.",
+  },
+  {
+    title: "Cart recovery",
+    body: "Recover abandoned carts with reminders, urgency, and related item recommendations.",
+  },
+  {
+    title: "Seller onboarding",
+    body: "Guide new sellers through listing setup, live selling, and payout readiness.",
+  },
+];
+
+const MARKETING_CHANNELS = [
+  "Facebook and Instagram ads",
+  "TikTok live auction clips",
+  "YouTube short-form promos",
+  "SEO landing pages",
+  "Referral rewards",
+  "Email automations",
+];
+
+const TRACKING_EVENTS = [
+  "email_signup",
+  "product_view",
+  "save_item",
+  "auction_view",
+  "bid_placed",
+  "checkout_start",
+  "purchase_complete",
+  "seller_signup",
+  "listing_created",
+  "referral_signup",
+];
+
+const SEO_TOPICS = [
+  "Pokémon marketplace",
+  "buy Pokémon cards online",
+  "sell Pokémon cards online",
+  "live Pokémon auctions",
+  "graded Pokémon cards",
+  "sealed products",
+];
+
+const REFERRAL_REWARDS = [
+  "Marketplace credit",
+  "Free shipping credit",
+  "VIP access",
+  "Early drop access",
+];
+
+const MARKETING_POPUP = {
+  title: "Stay in the loop",
+  body: "Get live auction reminders, exclusive drops, and collector updates from TcgPoké Market.",
+  cta: "Join updates",
+};
+
+const CHANNEL_CTA = "Get marketing updates";
 
 function formatTimeRemaining(target?: string | null) {
   if (!target) return "Scheduled";
@@ -343,6 +451,27 @@ export default async function Home() {
                     {!data.featuredLiveShows.length && <div className="text-sm text-gray-400">No live shows are active right now.</div>}
                   </div>
                 </div>
+
+                <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-[0.35em] text-yellow-400">Marketing system</div>
+                  <div className="mt-2 text-lg font-black text-white">Collector growth built into the site</div>
+                  <p className="mt-2 text-sm leading-6 text-gray-300">Email automations, SEO landing pages, referral rewards, paid ads, and tracking events are all part of the launch stack.</p>
+                  <div className="mt-4 grid gap-2 text-sm text-gray-300">
+                    {MARKETING_BENEFITS.slice(0, 2).map((item) => (
+                      <div key={item.title} className="rounded-xl border border-white/10 bg-[#08111f] px-3 py-2">
+                        <div className="font-semibold text-white">{item.title}</div>
+                        <div className="mt-1 text-xs text-gray-400">{item.body}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-4 grid gap-2 text-sm text-gray-300">
+                    {MARKETING_VALUE_POINTS.map((point) => (
+                      <div key={point} className="rounded-xl border border-white/10 bg-[#08111f] px-3 py-2">
+                        {point}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </aside>
             </div>
           </div>
@@ -512,6 +641,14 @@ export default async function Home() {
                 <a href="/policies" className="hover:text-yellow-400">Policies</a>
                 <a href="/terms" className="hover:text-yellow-400">Terms</a>
                 <a href="/privacy" className="hover:text-yellow-400">Privacy</a>
+              </div>
+            </div>
+            <div>
+              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Marketing</div>
+              <div className="mt-4 flex flex-col gap-3 text-sm text-gray-400">
+                {FOOTER_LINKS.map((link) => (
+                  <a key={link.label} href={link.href} className="hover:text-yellow-400">{link.label}</a>
+                ))}
               </div>
             </div>
             <div>
