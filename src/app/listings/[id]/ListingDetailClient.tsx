@@ -6,6 +6,11 @@ import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
 import type { EasyshipRatesResponse } from "@/lib/easyship";
 import MessageSellerButton from "./message-seller-button";
+import SupportInlineCard from "@/components/support/support-inline-card";
+
+const LISTING_SUPPORT_CARD = (
+  <SupportInlineCard title="Need order help?" description="Ask about checkout, shipping, refunds, or seller questions from this listing." href="/support" />
+);
 
 type ListingWithSeller = Listing & {
   profiles?: {
@@ -252,6 +257,8 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
                 <MessageSellerButton sellerId={listing.profiles.id} listingId={listing.id} listingTitle={listing.card_name} />
               ) : null}
             </div>
+
+            <div className="mb-6">{LISTING_SUPPORT_CARD}</div>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
               <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Payout summary</div>

@@ -11,6 +11,12 @@ import { listLiveShowsBySeller } from "@/lib/live-shows-client";
 import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
 import { recordDeviceSession } from "@/lib/device-security";
 import { uploadImageFile } from "@/lib/uploads";
+import SupportInlineCard from "@/components/support/support-inline-card";
+import Link from "next/link";
+
+const SUPPORT_CARD = (
+  <SupportInlineCard title="Need seller support?" description="Get help with listings, fees, payouts, live shows, or seller tools." href="/support" />
+);
 
 type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live";
 
@@ -421,6 +427,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             <p className="max-w-2xl text-lg leading-relaxed text-gray-300">
               Manage listings, review sales, track seller fees, and keep your live auctions moving with a polished control center.
             </p>
+          </div>
+
+          <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">
+            {SUPPORT_CARD}
+            <div className="text-xs text-gray-500">Support questions can also be sent from orders, live shows, or the help center.</div>
           </div>
 
           <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">

@@ -4,6 +4,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Database, LiveShowBid, LiveShowItem, LiveShowMessage, LiveShow } from "@/lib/supabase/types";
 import LiveKitStage from "@/components/LiveKitStage";
+import SupportInlineCard from "@/components/support/support-inline-card";
+
+const LIVE_SUPPORT_CARD = (
+  <SupportInlineCard title="Need live show help?" description="Ask about bidding, giveaways, payouts, or stream issues while you watch." href="/support" />
+);
 
 type LiveShowGiveaway = Database["public"]["Tables"]["giveaways"]["Row"];
 
@@ -399,6 +404,7 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
         </section>
 
         <aside className="space-y-4 rounded-3xl border border-white/10 bg-[#13131f] p-4">
+          {LIVE_SUPPORT_CARD}
           <div>
             <h2 className="font-bold">Live chat</h2>
             <p className="text-sm text-gray-400">Real buyers, real moderation, real-time updates.</p>

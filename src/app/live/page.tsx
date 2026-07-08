@@ -1,6 +1,11 @@
 import Link from "next/link";
+import SupportInlineCard from "@/components/support/support-inline-card";
 import { listActiveLiveShows, listFeaturedLiveShows, listUpcomingLiveShows } from "@/lib/live-shows";
 import type { LiveShowDirectoryItem } from "@/lib/live-shows";
+
+export const dynamic = "force-dynamic";
+
+const SUPPORT_PROMPT = <SupportInlineCard title="Need live auction help?" description="Ask about bidding rules, giveaways, or live show issues anytime." href="/support" />;
 
 function formatState(state?: string | null) {
   return (state ?? "upcoming").replaceAll("_", " ");
@@ -78,6 +83,10 @@ export default async function LivePage({ searchParams }: { searchParams?: Promis
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4"><div className="text-xs uppercase tracking-widest text-gray-500">Upcoming</div><div className="mt-2 text-2xl font-black text-yellow-400">{upcomingShows.length}</div></div>
             <div className="rounded-2xl border border-white/10 bg-black/30 p-4"><div className="text-xs uppercase tracking-widest text-gray-500">Total rooms</div><div className="mt-2 text-2xl font-black text-yellow-400">{filtered.length}</div></div>
           </div>
+        </div>
+
+        <div className="mt-6">
+          {SUPPORT_PROMPT}
         </div>
 
         <form className="mt-6 grid gap-3 rounded-3xl border border-white/10 bg-[#13131f] p-4 md:grid-cols-6">
