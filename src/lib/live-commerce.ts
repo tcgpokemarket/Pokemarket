@@ -205,46 +205,6 @@ export interface LiveShowState {
   giveawaySummary?: LiveShowGiveawaySummary;
 }
 
-export interface LiveShowItem {
-  id: string;
-  listingId?: string;
-  title: string;
-  subtitle?: string;
-  imageUrl?: string;
-  startPrice: number;
-  buyNowPrice?: number | null;
-  currentBid: number;
-  bidCount: number;
-  auctionSeconds: number;
-  secondsLeft: number;
-  pinned: boolean;
-  sold: boolean;
-}
-
-export interface LiveMessage {
-  id: string;
-  user: string;
-  message: string;
-  role?: "viewer" | "seller" | "moderator";
-  highlighted?: boolean;
-  createdAt: string;
-}
-
-export interface LiveShowState {
-  id: string;
-  title: string;
-  format: LiveShowFormat;
-  status: LiveShowStatus;
-  scheduledStart: string;
-  viewerCount: number;
-  peakViewers: number;
-  engagementScore: number;
-  items: LiveShowItem[];
-  chat: LiveMessage[];
-  topBidder?: string;
-  lastWinner?: string;
-}
-
 const LIVE_SHOW_STORAGE_KEY = "tcg-poke-market-live-show";
 
 const DEFAULT_SHOW: LiveShowState = {

@@ -1,8 +1,6 @@
--- =============================================
--- TCG Poke Market — Supabase Database Schema
+-- ======================================-- TCG Poke Market — Supabase Database Schema
 -- Run this in Supabase SQL Editor to set up your database.
--- =============================================
-
+-- ======================================
 -- Profiles (extends auth.users)
 create table public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
@@ -117,6 +115,61 @@ create table public.shipment_groups (
   locked_at timestamptz,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
+);
+
+create table public.live_shows (
+  id uuid default gen_random_uuid() primary key,
+  seller_id uuid references public.profiles(id) on delete cascade not null,
+  title text not null,
+  status text not null default 'scheduled' check (status in ('scheduled', 'live', 'ended')),
+  auction_state text default 'upcoming',
+  viewer_count integer default 0,
+  peak_viewers integer default 0,
+  total_sales_amount numeric(10,2) default 0,
+  total_bidders integer default 0,
+  average_bid_value numeric(10,2) default 0,
+  engagement_score numeric(10,2) default 0,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table public.live_show_items (
+  id uuid default gen_random_uuid() primary key,
+  show_id uuid references public.live_shows(id) on delete cascade not null,
+  listing_id uuid references public.listings(id) on delete set null,
+  title text not null,
+  subtitle text,
+  image_url text,
+  start_price numeric(10,2) not null default 0,
+  buy_now_price numeric(10,2) default 0,
+  current_bid numeric(10,2) not null default 0,
+  bid_count integer default 0,
+  auction_seconds integer default 30,
+  seconds_left integer default 0,
+  pinned boolean default false,
+  sold boolean default false,
+  winner_id uuid references public.profiles(id) on delete set null,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+create table public.live_show_messages (
+  id uuid default gen_random_uuid() primary key,
+  show_id uuid references public.live_shows(id) on delete cascade not null,
+  username text not null,
+  message text not null,
+  role text default 'viewer',
+  highlighted boolean default false,
+  created_at timestamptz default now()
+);
+
+create table public.live_show_bids (
+  id uuid default gen_random_uuid() primary key,
+  show_id uuid references public.live_shows(id) on delete cascade not null,
+  item_id uuid references public.live_show_items(id) on delete cascade not null,
+  username text not null,
+  amount numeric(10,2) not null,
+  created_at timestamptz default now()
 );
 
 -- Seller fee settings
@@ -254,10 +307,8 @@ create index orders_buyer_id_idx on public.orders(buyer_id);
 create index orders_seller_id_idx on public.orders(seller_id);
 create index price_history_card_idx on public.price_history(card_name, set_name);
 
--- =============================================
--- Row Level Security (RLS)
--- =============================================
-
+-- ======================================-- Row Level Security (RLS)
+-- ======================================
 alter table public.profiles enable row level security;
 alter table public.listings enable row level security;
 alter table public.orders enable row level security;
@@ -298,7 +349,6 @@ create policy "price_history_insert" on public.price_history for insert with che
 -- =============================================
 -- Functions & Triggers
 -- =============================================
-
 -- Auto-create profile on signup
 create or replace function public.handle_new_user()
 returns trigger as $$
@@ -340,11 +390,9 @@ begin
 end;
 $$ language plpgsql security definer;
 
--- =============================================
--- Storage Bucket for listing images
+-- ======================================-- Storage Bucket for listing images
 -- Run in Supabase Storage settings or SQL:
--- =============================================
--- insert into storage.buckets (id, name, public) values ('listing-images', 'listing-images', true);
+-- ======================================-- insert into storage.buckets (id, name, public) values ('listing-images', 'listing-images', true);
 -- create policy "listing_images_select" on storage.objects for select using (bucket_id = 'listing-images');
 -- create policy "listing_images_insert" on storage.objects for insert with check (bucket_id = 'listing-images' and auth.role() = 'authenticated');
 -- create policy "listing_images_delete" on storage.objects for delete using (bucket_id = 'listing-images' and auth.uid()::text = (storage.foldername(name))[2]);
