@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
 import type { EasyshipRatesResponse } from "@/lib/easyship";
+import MessageSellerButton from "./message-seller-button";
 
 type ListingWithSeller = Listing & {
   profiles?: {
@@ -239,13 +240,18 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
               )}
             </div>
 
-            <button
-              onClick={handleBuy}
-              disabled={buying || listing.status !== "active" || listing.seller_id === user?.id}
-              className="w-full bg-yellow-400 text-black font-bold py-4 rounded-xl text-lg hover:bg-yellow-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3"
-            >
-              {buying ? "Redirecting to checkout..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}
-            </button>
+            <div className="mb-3 flex gap-3">
+              <button
+                onClick={handleBuy}
+                disabled={buying || listing.status !== "active" || listing.seller_id === user?.id}
+                className="flex-1 rounded-xl bg-yellow-400 py-4 text-lg font-bold text-black transition-all hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {buying ? "Redirecting to checkout..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}
+              </button>
+              {listing.profiles?.id ? (
+                <MessageSellerButton sellerId={listing.profiles.id} listingId={listing.id} listingTitle={listing.card_name} />
+              ) : null}
+            </div>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
               <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Payout summary</div>

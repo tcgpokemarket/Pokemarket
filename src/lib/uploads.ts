@@ -12,6 +12,7 @@ export const GIVEAWAY_ASSET_BUCKET = "giveaway-assets";
 export const ADMIN_ASSET_BUCKET = "admin-assets";
 export const HELP_ASSET_BUCKET = "help-assets";
 export const EMAIL_ASSET_BUCKET = "email-assets";
+export const MESSAGE_ASSET_BUCKET = "message-assets";
 
 export const SUPPORTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"] as const;
 export const MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -27,7 +28,8 @@ export type UploadTarget =
   | "giveaway"
   | "admin"
   | "help"
-  | "email";
+  | "email"
+  | "message";
 
 const BUCKET_BY_TARGET: Record<UploadTarget, string> = {
   listing: LISTING_IMAGE_BUCKET,
@@ -40,6 +42,7 @@ const BUCKET_BY_TARGET: Record<UploadTarget, string> = {
   admin: ADMIN_ASSET_BUCKET,
   help: HELP_ASSET_BUCKET,
   email: EMAIL_ASSET_BUCKET,
+  message: MESSAGE_ASSET_BUCKET,
 };
 
 export function isSupportedImageType(type: string) {
