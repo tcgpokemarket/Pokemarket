@@ -9,20 +9,44 @@ function parseAddress(value: unknown) {
   return value as Record<string, unknown>;
 }
 
+function splitSellerName(legalName: string) {
+  const parts = legalName.split(/\s+/).filter(Boolean);
+  if (!parts.length) return null;
+  return {
+    firstName: parts[0] ?? legalName,
+    lastName: parts.slice(1).join(" ") || parts[0] || legalName,
+  };
+}
+
+function parseResidentialAddress(residentialAddress: string) {
+  const lines = residentialAddress.split(/\n|,/).map((line) => line.trim()).filter(Boolean);
+  if (lines.length < 2) return null;
+
+  const lastLine = lines[lines.length - 1] ?? "";
+  const match = lastLine.match(/^(.+?)\s*,?\s*([A-Z]{2})\s+(\d{5}(?:-\d{4})?)$/i);
+  if (!match) return null;
+
+  return {
+    streetAddress: lines.slice(0, -1).join(", "),
+    city: match[1].trim(),
+    state: match[2].trim().toUpperCase(),
+    ZIPCode: match[3].trim(),
+  };
+}
+
 function sellerAddressFromVerification(verification: Record<string, unknown> | null) {
   if (!verification) return null;
   const legalName = String(verification.legal_name ?? "").trim();
   const residentialAddress = String(verification.residential_address ?? "").trim();
-  const phoneNumber = String(verification.phone_number ?? "").trim();
-  if (!legalName || !residentialAddress || !phoneNumber) return null;
+  if (!legalName || !residentialAddress) return null;
+
+  const name = splitSellerName(legalName);
+  const address = parseResidentialAddress(residentialAddress);
+  if (!name || !address) return null;
 
   return {
-    firstName: legalName.split(" ")[0] ?? legalName,
-    lastName: legalName.split(" ").slice(1).join(" ") || legalName.split(" ")[0] || legalName,
-    streetAddress: residentialAddress,
-    city: String(verification.city ?? verification.address_city ?? "").trim(),
-    state: String(verification.state ?? verification.address_state ?? "").trim(),
-    ZIPCode: String(verification.postal_code ?? verification.zip_code ?? verification.zip ?? "").trim(),
+    ...name,
+    ...address,
   };
 }
 
