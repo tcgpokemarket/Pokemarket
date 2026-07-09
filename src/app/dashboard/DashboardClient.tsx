@@ -205,6 +205,16 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     setListings((l) => l.filter((x) => x.id !== id));
   };
 
+  const handleCreateUSPSLabel = async (orderId: string) => {
+    const res = await fetch(`/api/orders/${orderId}/label`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageWeight: 1, mailClass: "USPS_GROUND_ADVANTAGE" }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      alert(data.error ?? "Unable to create USPS label.");
+      return;
+    }
+    alert(data.label?.trackingNumber ? `Label created: ${data.label.trackingNumber}` : "Label created.");
+  };
+
   const completedSales = useMemo(() => sales.filter((o) => ["paid", "shipped", "delivered", "completed"].includes(o.status)), [sales]);
   const feeConfig = useMemo(() => buildSellerFeeConfig({}), []);
   const sellerSummary = useMemo(() => summarizeSellerEarnings({ orders: completedSales, config: feeConfig }), [completedSales, feeConfig]);
@@ -918,7 +928,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                             </div>
                           ))}
                         </div>
-                        <div className="mt-4 text-xs text-gray-500">Shipping, payout, and fulfillment actions are handled through the operations team.</div>
+                        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                          <span>Shipping, payout, and fulfillment actions are handled through the operations team.</span>
+                          <button type="button" onClick={() => void handleCreateUSPSLabel(first.id)} className="rounded-full border border-yellow-400/40 px-3 py-1.5 font-semibold text-yellow-300 transition hover:bg-yellow-400/10 hover:text-yellow-200">
+                            Create USPS label
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
