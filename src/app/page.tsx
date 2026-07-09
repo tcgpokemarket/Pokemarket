@@ -216,13 +216,13 @@ export default async function Home() {
         <section className="px-4 py-5 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
             <div className="mb-4 grid grid-cols-5 gap-2 overflow-hidden">
-              <div className="flex min-w-0 items-center justify-center gap-2 rounded-[1rem] border-2 border-white bg-yellow-400 px-2 py-2 text-black shadow-lg shadow-yellow-400/20">
+              <Link href="/live" className="flex min-w-0 items-center justify-center gap-2 rounded-[1rem] border-2 border-white bg-yellow-400 px-2 py-2 text-black shadow-lg shadow-yellow-400/20">
                 <span className="text-lg">⚡</span>
                 <div className="min-w-0 text-left">
                   <div className="truncate text-[10px] font-black uppercase leading-none tracking-[0.16em]">For You</div>
                   <div className="truncate text-[10px] font-semibold leading-none">Live</div>
                 </div>
-              </div>
+              </Link>
               {feedChips.slice(1).map((chip: (typeof feedChips)[number]) => (
                 <Link key={chip.label} href={chip.href} className="flex min-w-0 items-center justify-center rounded-[1rem] border border-white/10 bg-[#1a2233] px-2 py-2 text-[10px] font-semibold leading-none text-gray-200 transition hover:border-yellow-400/40 hover:text-white">
                   <span className="truncate text-center">{chip.label}</span>
