@@ -259,16 +259,6 @@ export default async function Home() {
                 </div>
               </div>
 
-              <aside className="rounded-[2rem] border border-white/10 bg-[#121826] p-5 sm:p-6">
-                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Design breakdown</div>
-                <h2 className="mt-2 text-2xl font-black">Feed-first mobile experience</h2>
-                <ul className="mt-4 space-y-3 text-sm text-gray-300">
-                  <li>• Top search bar with horizontal category chips</li>
-                  <li>• Big live cards with bold badges and viewer counts</li>
-                  <li>• Fast visual scanning over long reading blocks</li>
-                  <li>• Bottom nav for Home, Categories, Seller Hub, Activity, and Account</li>
-                </ul>
-              </aside>
             </div>
           </div>
         </section>
