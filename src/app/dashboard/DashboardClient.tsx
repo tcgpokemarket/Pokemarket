@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import type { Listing, Order, Profile, SellerWallet, Database } from "@/lib/supabase/types";
+import { createClient } from "@/lib/supabase/client";
+import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
+import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
 import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
 import { calculateLiveShowInsights, createLiveShowSnapshot, getLiveShow } from "@/lib/live-commerce";
 import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
@@ -13,7 +15,6 @@ import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
 import { recordDeviceSession } from "@/lib/device-security";
 import { uploadImageFile } from "@/lib/uploads";
 import SupportInlineCard from "@/components/support/support-inline-card";
-import Link from "next/link";
 
 const SUPPORT_CARD = (
   <SupportInlineCard title="Need seller support?" description="Get help with listings, fees, payouts, live shows, or seller tools." href="/support" />
@@ -80,6 +81,8 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
 
   const [tab, setTab] = useState<Tab>("overview");
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
+  const [verificationDetails, setVerificationDetails] = useState<Pick<Database["public"]["Tables"]["seller_verifications"]["Row"], "rejection_reason" | "more_information_request" | "verified_at"> | null>(null);
   const [sellerRecord, setSellerRecord] = useState<Database["public"]["Tables"]["sellers"]["Row"] | null>(null);
   const [storeRecord, setStoreRecord] = useState<Database["public"]["Tables"]["seller_stores"]["Row"] | null>(null);
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
@@ -115,9 +118,10 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         return;
       }
 
-      const [{ data: profileData }, { data: walletData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: auctionOrdersData }, { data: sellerData }, { data: storeData }] = await Promise.all([
+      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: auctionOrdersData }, { data: sellerData }, { data: storeData }] = await Promise.all([
         client.from("profiles").select("*").eq("id", user.id).single(),
         client.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
+        client.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
         client.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
         client.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
         client.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
@@ -129,8 +133,15 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       const profileRow = profileData as Profile | null;
       const sellerRow = sellerData as Database["public"]["Tables"]["sellers"]["Row"] | null;
       const storeRow = storeData as Database["public"]["Tables"]["seller_stores"]["Row"] | null;
+      const verificationRow = verificationData as Pick<Database["public"]["Tables"]["seller_verifications"]["Row"], "status" | "rejection_reason" | "more_information_request" | "verified_at"> | null;
 
       setProfile(profileRow);
+      setVerificationStatus(verificationRow?.status ?? profileRow?.verification_status ?? "not_started");
+      setVerificationDetails(verificationRow ? {
+        rejection_reason: verificationRow.rejection_reason,
+        more_information_request: verificationRow.more_information_request,
+        verified_at: verificationRow.verified_at,
+      } : null);
       setSellerRecord(sellerRow);
       setStoreRecord(storeRow);
       setProfileAvatarUrl(profileRow?.avatar_url ?? null);
@@ -286,7 +297,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     let alive = true;
     setLiveShowsLoading(true);
     listLiveShowsBySeller(profile.id)
-      .then((rows) => {
+      .then((rows: LiveShowDirectoryItem[]) => {
         if (!alive) return;
         setSellerLiveShows(rows);
         setActiveLiveShowId((current) => current ?? rows[0]?.id ?? null);
@@ -488,6 +499,19 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             <p className="max-w-2xl text-lg leading-relaxed text-gray-300">
               Manage listings, review sales, track seller fees, and keep your live auctions moving with a polished control center.
             </p>
+            <div className="max-w-2xl">
+              <SellerVerificationStatusCard
+                status={verificationStatus}
+                rejectionReason={verificationDetails?.rejection_reason}
+                moreInfo={verificationDetails?.more_information_request}
+                verifiedAt={verificationDetails?.verified_at}
+              />
+              {!isSellerVerificationApproved(verificationStatus) && (
+                <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
+                  Identity verification is required before you can create listings or start live auctions.
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">
@@ -982,7 +1006,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!supabase || !profile) return;
+                      if (!supabase || !profile || !isSellerVerificationApproved(verificationStatus)) return;
                       const payload = {
                         seller_id: profile.id,
                         title: liveShowTitle,
@@ -991,7 +1015,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                         auction_state: liveShowScheduledOnly ? "upcoming" : "live",
                         scheduled_start: new Date(liveShowStartTime).toISOString(),
                         viewer_count: 0,
-                        peak_viewers: 0,
                         host_permissions: ["host", "moderate_chat", "start_auction", "end_auction"],
                         thumbnail: liveShowThumbnailUrl,
                         auction_settings: {
@@ -1016,9 +1039,10 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                       setSellerLiveShows(rows);
                       setActiveLiveShowId(createdRoom?.id ?? rows[0]?.id ?? null);
                     }}
-                    className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black"
+                    disabled={!isSellerVerificationApproved(verificationStatus)}
+                    className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black disabled:opacity-50"
                   >
-                    Create live room
+                    {isSellerVerificationApproved(verificationStatus) ? "Create live room" : "Verification required"}
                   </button>
                   <button type="button" onClick={() => setLiveShowStatusMessage("Seller rooms load independently by show_id.")} className="rounded-xl border border-white/20 px-4 py-3 text-gray-300 hover:bg-white/5">
                     Room isolation note
@@ -1062,7 +1086,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                               <span>•</span>
                               <span>{room.viewer_count} viewers</span>
                               <span>•</span>
-                              <span>Peak {room.peak_viewers}</span>
+                              <span>Peak {room.viewer_count ?? 0}</span>
                             </div>
                           </div>
                           <a href={`/live/${room.id}`} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5">Open room</a>

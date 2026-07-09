@@ -17,77 +17,6 @@ export type LiveShowHostSettings = {
   blockedWords: string[];
   autoReconnect: boolean;
   aiHostEnabled?: boolean;
-  giveawayBannerEnabled?: boolean;
-};
-
-export type LiveShowGiveawayPrizeType = "booster_pack" | "promo_card" | "sealed_product" | "slab" | "mystery_prize";
-export type LiveShowGiveawayEligibility = "purchase" | "bid" | "watch" | "follow" | "join";
-export type LiveShowGiveawayStatus = "draft" | "scheduled" | "live" | "ended";
-
-export type LiveShowGiveaway = {
-  id: string;
-  title: string;
-  prizeType: LiveShowGiveawayPrizeType;
-  prizeName: string;
-  prizeQuantity: number;
-  winnerCount: number;
-  startAt: string;
-  endAt: string;
-  eligibility: LiveShowGiveawayEligibility[];
-  eligibleUsers: number;
-  claimedWinners: number;
-  liveEntries: number;
-  totalEntries: number;
-  estimatedItemValue: number;
-  platformProcessingFee: number;
-  shippingCost: number;
-  sellerBudget: number;
-  sellerPaysAllFees: boolean;
-  status: LiveShowGiveawayStatus;
-  winnerIds: string[];
-  fraudFlags: number;
-  createdAt: string;
-};
-
-export type LiveShowGiveawayLedgerEntry = {
-  id: string;
-  giveawayId: string;
-  type: "creation_fee" | "prize_cost" | "shipping_cost" | "winner_payout" | "seller_expense";
-  amount: number;
-  createdAt: string;
-};
-
-export type LiveShowGiveawayEntry = {
-  id: string;
-  giveawayId: string;
-  userId: string;
-  username: string;
-  source: LiveShowGiveawayEligibility;
-  qualifiedAt: string;
-  verifiedPurchase: boolean;
-  watchMinutes: number;
-  bidCount: number;
-  followingSeller: boolean;
-  accountAgeDays: number;
-  fraudScore: number;
-  blocked: boolean;
-};
-
-export type LiveShowGiveawaySummary = {
-  activeGiveaways: number;
-  eligibleUsers: number;
-  claimedWinners: number;
-  totalCost: number;
-  platformRevenueProtected: boolean;
-};
-
-export type LiveShowGiveawayRules = {
-  accountAgeDays: number;
-  requirePurchaseVerification: boolean;
-  minWatchMinutes: number;
-  maxEntriesPerUser: number;
-  allowMultipleSources: boolean;
-  fraudThreshold: number;
 };
 
 export type LiveShowTemplate = "one_dollar_start" | "slab_showcase" | "mystery_break" | "pack_opening" | "hit_draft" | "random_slot_break" | "fixed_price_drop";
@@ -198,11 +127,6 @@ export interface LiveShowState {
   template?: LiveShowTemplate;
   auctionState?: LiveAuctionState;
   activeItemId?: string | null;
-  giveaways?: LiveShowGiveaway[];
-  giveawayEntries?: LiveShowGiveawayEntry[];
-  giveawayLedger?: LiveShowGiveawayLedgerEntry[];
-  giveawayRules?: LiveShowGiveawayRules;
-  giveawaySummary?: LiveShowGiveawaySummary;
 }
 
 const LIVE_SHOW_STORAGE_KEY = "tcg-poke-market-live-show";
@@ -218,49 +142,6 @@ const DEFAULT_SHOW: LiveShowState = {
   engagementScore: 82,
   topBidder: "",
   lastWinner: "",
-  giveaways: [
-    {
-      id: "giveaway-1",
-      title: "Collector Boost Giveaway",
-      prizeType: "sealed_product",
-      prizeName: "Scarlet & Violet Booster Bundle",
-      prizeQuantity: 3,
-      winnerCount: 3,
-      startAt: new Date(Date.now() + 1000 * 60 * 5).toISOString(),
-      endAt: new Date(Date.now() + 1000 * 60 * 20).toISOString(),
-      eligibility: ["purchase", "bid", "watch", "join"],
-      eligibleUsers: 42,
-      claimedWinners: 0,
-      liveEntries: 42,
-      totalEntries: 84,
-      estimatedItemValue: 59.97,
-      platformProcessingFee: 0,
-      shippingCost: 12,
-      sellerBudget: 72,
-      sellerPaysAllFees: true,
-      status: "scheduled",
-      winnerIds: [],
-      fraudFlags: 0,
-      createdAt: new Date().toISOString(),
-    },
-  ],
-  giveawayEntries: [],
-  giveawayLedger: [],
-  giveawayRules: {
-    accountAgeDays: 14,
-    requirePurchaseVerification: true,
-    minWatchMinutes: 5,
-    maxEntriesPerUser: 3,
-    allowMultipleSources: true,
-    fraudThreshold: 70,
-  },
-  giveawaySummary: {
-    activeGiveaways: 1,
-    eligibleUsers: 42,
-    claimedWinners: 0,
-    totalCost: 72,
-    platformRevenueProtected: true,
-  },
   items: [
     {
       id: "live-item-1",
@@ -476,46 +357,6 @@ export function createDefaultQueue(items: LiveShowItem[]): LiveShowQueueItem[] {
   }));
 }
 
-export function calculateGiveawaySummary(show: LiveShowState): LiveShowGiveawaySummary {
-  const giveaways = show.giveaways ?? [];
-  const eligibleUsers = giveaways.reduce((sum, giveaway) => sum + giveaway.eligibleUsers, 0);
-  const claimedWinners = giveaways.reduce((sum, giveaway) => sum + giveaway.claimedWinners, 0);
-  const totalCost = giveaways.reduce((sum, giveaway) => sum + giveaway.sellerBudget, 0);
-  return {
-    activeGiveaways: giveaways.filter((giveaway) => giveaway.status !== "ended").length,
-    eligibleUsers,
-    claimedWinners,
-    totalCost,
-    platformRevenueProtected: giveaways.every((giveaway) => giveaway.sellerPaysAllFees),
-  };
-}
-
-export function calculateGiveawayCost(giveaway: LiveShowGiveaway) {
-  return roundToTwo(giveaway.estimatedItemValue + giveaway.platformProcessingFee + giveaway.shippingCost);
-}
-
-export function selectGiveawayWinners(entries: LiveShowGiveawayEntry[], winnerCount: number) {
-  return entries
-    .filter((entry) => !entry.blocked && entry.fraudScore < 70)
-    .sort((a, b) => b.accountAgeDays - a.accountAgeDays || b.watchMinutes - a.watchMinutes || b.bidCount - a.bidCount)
-    .slice(0, winnerCount)
-    .map((entry) => entry.userId);
-}
-
-export function evaluateGiveawayEligibility(entry: Pick<LiveShowGiveawayEntry, "accountAgeDays" | "verifiedPurchase" | "watchMinutes" | "bidCount" | "followingSeller">, rules: LiveShowGiveawayRules) {
-  const meetsAge = entry.accountAgeDays >= rules.accountAgeDays;
-  const meetsPurchase = !rules.requirePurchaseVerification || entry.verifiedPurchase;
-  const meetsWatch = entry.watchMinutes >= rules.minWatchMinutes;
-  const meetsActivity = entry.bidCount > 0 || entry.followingSeller || entry.verifiedPurchase;
-  const fraudScore = Math.max(0, 100 - (entry.accountAgeDays * 2) - (entry.watchMinutes * 4) - (entry.bidCount * 6) - (entry.verifiedPurchase ? 15 : 0));
-
-  return {
-    eligible: meetsAge && meetsPurchase && meetsWatch && meetsActivity && fraudScore < rules.fraudThreshold,
-    fraudScore,
-    blocked: !meetsAge || fraudScore >= rules.fraudThreshold,
-  };
-}
-
 export function createLiveShowSnapshot(show: LiveShowState): LiveShowState {
   const insights = calculateLiveShowInsights(show);
   return {
@@ -523,7 +364,6 @@ export function createLiveShowSnapshot(show: LiveShowState): LiveShowState {
     insights,
     trust: calculateLiveTrustSignals(show),
     notifications: createLiveNotifications(),
-    giveawaySummary: calculateGiveawaySummary(show),
   };
 }
 

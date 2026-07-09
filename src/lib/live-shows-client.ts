@@ -1,56 +1,90 @@
+import type { Database } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
-import type { Database, LiveShow, LiveShowBid, LiveShowItem, LiveShowMessage } from "@/lib/supabase/types";
 
-export type LiveShowDirectoryItem = Pick<LiveShow, "id" | "seller_id" | "title" | "description" | "thumbnail" | "status" | "auction_state" | "scheduled_start" | "scheduled_end" | "viewer_count" | "peak_viewers" | "created_at" | "updated_at" | "auction_settings">;
+export type LiveShowDirectoryItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  viewer_count: number | null;
+  seller_id: string;
+  created_at: string;
+  updated_at: string;
+  thumbnail: string | null;
+  auction_settings: Record<string, unknown> | null;
+};
 
-export async function listLiveShows() {
-  const supabase = createClient();
-  const { data, error } = await supabase
-    .from("live_shows")
-    .select("id, seller_id, title, description, thumbnail, status, auction_state, scheduled_start, scheduled_end, viewer_count, peak_viewers, created_at, updated_at, auction_settings")
-    .order("viewer_count", { ascending: false })
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as LiveShowDirectoryItem[];
+function normalizeRoom(row: Record<string, any>): LiveShowDirectoryItem {
+  const title = row.title ?? row.show_products?.title ?? "Live room";
+  const description = row.description ?? row.show_products?.subtitle ?? null;
+  const createdAt = row.created_at ?? new Date().toISOString();
+  return {
+    id: row.id,
+    title,
+    description,
+    status: row.status ?? "scheduled",
+    viewer_count: row.viewer_count ?? row.viewers ?? 0,
+    seller_id: row.seller_id,
+    created_at: createdAt,
+    updated_at: row.updated_at ?? createdAt,
+    thumbnail: row.thumbnail ?? row.show_products?.image_url ?? null,
+    auction_settings: row.auction_settings ?? { featured: Boolean(row.featured) },
+  };
 }
 
-export async function listLiveShowsBySeller(sellerId: string) {
+async function fetchRoomsForSeller(sellerId: string) {
   const supabase = createClient();
-  const { data, error } = await supabase
-    .from("live_shows")
-    .select("id, seller_id, title, description, thumbnail, status, auction_state, scheduled_start, scheduled_end, viewer_count, peak_viewers, created_at, updated_at, auction_settings")
-    .eq("seller_id", sellerId)
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  if (error) throw new Error(error.message);
-  return (data ?? []) as LiveShowDirectoryItem[];
-}
-
-export async function getLiveShowDetails(showId: string) {
-  const supabase = createClient();
-
-  const [{ data: show, error: showError }, { data: products, error: productsError }, { data: bids, error: bidsError }, { data: chat, error: chatError }, { data: giveaways, error: giveawaysError }] = await Promise.all([
-    supabase.from("live_shows").select("*").eq("id", showId).single(),
-    supabase.from("show_products").select("*").eq("show_id", showId).order("sort_order", { ascending: true }),
-    supabase.from("live_bids").select("*").eq("show_id", showId).order("created_at", { ascending: false }).limit(50),
-    supabase.from("live_chat").select("*").eq("show_id", showId).order("created_at", { ascending: true }).limit(50),
-    supabase.from("giveaways").select("*").eq("show_id", showId).order("created_at", { ascending: false }),
+  const [liveRooms, scheduledRooms, upcomingRooms] = await Promise.all([
+    supabase.from("auction_orders").select("*").eq("seller_id", sellerId).eq("status", "live"),
+    supabase.from("auction_orders").select("*").eq("seller_id", sellerId).eq("status", "scheduled"),
+    supabase.from("auction_orders").select("*").eq("seller_id", sellerId).eq("status", "upcoming"),
   ]);
 
-  if (showError) throw new Error(showError.message);
-  if (productsError) throw new Error(productsError.message);
-  if (bidsError) throw new Error(bidsError.message);
-  if (chatError) throw new Error(chatError.message);
-  if (giveawaysError) throw new Error(giveawaysError.message);
+  const rooms = [
+    ...(liveRooms.data ?? []),
+    ...(scheduledRooms.data ?? []),
+    ...(upcomingRooms.data ?? []),
+  ].map((row) => normalizeRoom(row as Record<string, any>));
 
-  return {
-    show: show as LiveShow,
-    products: (products ?? []) as LiveShowItem[],
-    bids: (bids ?? []) as LiveShowBid[],
-    chat: (chat ?? []) as LiveShowMessage[],
-    giveaways: (giveaways ?? []) as Database["public"]["Tables"]["giveaways"]["Row"][],
-  };
+  return rooms.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+export async function listLiveShowsBySeller(sellerId: string): Promise<LiveShowDirectoryItem[]> {
+  try {
+    return await fetchRoomsForSeller(sellerId);
+  } catch {
+    return [];
+  }
+}
+
+export async function listActiveLiveShows(): Promise<LiveShowDirectoryItem[]> {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase.from("auction_orders").select("*").eq("status", "live").order("created_at", { ascending: false }).limit(12);
+    return (data ?? []).map((row) => normalizeRoom(row as Record<string, any>));
+  } catch {
+    return [];
+  }
+}
+
+export async function listFeaturedLiveShows(): Promise<LiveShowDirectoryItem[]> {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase.from("auction_orders").select("*").order("created_at", { ascending: false }).limit(12);
+    return (data ?? [])
+      .map((row) => normalizeRoom(row as Record<string, any>))
+      .filter((room) => Boolean((room.auction_settings as { featured?: boolean } | null | undefined)?.featured));
+  } catch {
+    return [];
+  }
+}
+
+export async function listUpcomingLiveShows(): Promise<LiveShowDirectoryItem[]> {
+  try {
+    const supabase = createClient();
+    const { data } = await supabase.from("auction_orders").select("*").eq("status", "upcoming").order("created_at", { ascending: false }).limit(12);
+    return (data ?? []).map((row) => normalizeRoom(row as Record<string, any>));
+  } catch {
+    return [];
+  }
 }

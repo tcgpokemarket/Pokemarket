@@ -458,9 +458,105 @@ begin
 end;
 $$ language plpgsql security definer;
 
+create table public.seller_verifications (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null unique,
+  legal_name text not null,
+  date_of_birth date not null,
+  residential_address text not null,
+  phone_number text not null,
+  status text not null default 'not_started' check (status in ('not_started', 'pending_review', 'approved', 'rejected', 'more_information_required', 'suspended')),
+  submitted_at timestamptz,
+  reviewed_at timestamptz,
+  reviewer_id uuid references public.profiles(id),
+  rejection_reason text,
+  more_information_request text,
+  suspension_reason text,
+  admin_notes text,
+  verified_at timestamptz,
+  updated_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+create table public.seller_verification_documents (
+  id uuid default gen_random_uuid() primary key,
+  verification_id uuid references public.seller_verifications(id) on delete cascade not null,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  document_type text not null check (document_type in ('id_front', 'id_back', 'selfie_with_id', 'proof_of_address')),
+  storage_bucket text not null default 'verification-documents',
+  storage_path text not null,
+  mime_type text,
+  file_name text,
+  created_at timestamptz default now()
+);
+
+create table public.seller_verification_history (
+  id uuid default gen_random_uuid() primary key,
+  verification_id uuid references public.seller_verifications(id) on delete cascade not null,
+  actor_id uuid references public.profiles(id),
+  action text not null,
+  previous_status text,
+  next_status text,
+  notes text,
+  created_at timestamptz default now()
+);
+
+create index seller_verifications_status_idx on public.seller_verifications(status);
+create index seller_verification_documents_verification_idx on public.seller_verification_documents(verification_id);
+create index seller_verification_history_verification_idx on public.seller_verification_history(verification_id);
+
+alter table public.seller_verifications enable row level security;
+alter table public.seller_verification_documents enable row level security;
+alter table public.seller_verification_history enable row level security;
+
+create policy "seller_verifications_select_own" on public.seller_verifications for select using (auth.uid() = user_id or exists (select 1 from public.profiles p where p.id = auth.uid() and coalesce(p.is_seller, false) = true));
+create policy "seller_verifications_insert_own" on public.seller_verifications for insert with check (auth.uid() = user_id);
+create policy "seller_verifications_update_own" on public.seller_verifications for update using (auth.uid() = user_id);
+create policy "seller_verification_documents_select_own" on public.seller_verification_documents for select using (auth.uid() = user_id or exists (select 1 from public.seller_verifications v where v.id = verification_id and v.user_id = auth.uid()));
+create policy "seller_verification_documents_insert_own" on public.seller_verification_documents for insert with check (auth.uid() = user_id);
+create policy "seller_verification_history_select" on public.seller_verification_history for select using (auth.uid() = actor_id or exists (select 1 from public.seller_verifications v where v.id = verification_id and v.user_id = auth.uid()));
+
+alter table public.profiles add column if not exists verification_status text default 'not_started' check (verification_status in ('not_started', 'pending_review', 'approved', 'rejected', 'more_information_required', 'suspended'));
+alter table public.profiles add column if not exists verification_submitted_at timestamptz;
+alter table public.profiles add column if not exists verification_reviewed_at timestamptz;
+alter table public.profiles add column if not exists verification_reviewed_by uuid references public.profiles(id);
+alter table public.profiles add column if not exists verification_rejection_reason text;
+alter table public.profiles add column if not exists verification_more_info text;
+alter table public.profiles add column if not exists verification_suspension_reason text;
+alter table public.profiles add column if not exists verified_at timestamptz;
+
+create or replace function public.sync_seller_verification_profile()
+returns trigger as $$
+begin
+  update public.profiles
+  set
+    verification_status = new.status,
+    verification_submitted_at = coalesce(new.submitted_at, verification_submitted_at),
+    verification_reviewed_at = new.reviewed_at,
+    verification_reviewed_by = new.reviewer_id,
+    verification_rejection_reason = new.rejection_reason,
+    verification_more_info = new.more_information_request,
+    verification_suspension_reason = new.suspension_reason,
+    verified_at = new.verified_at,
+    is_seller = case when new.status = 'approved' then true else is_seller end,
+    updated_at = now()
+  where id = new.user_id;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger seller_verifications_sync_profile
+  after insert or update on public.seller_verifications
+  for each row execute procedure public.sync_seller_verification_profile();
+
 -- ======================================-- Storage Bucket for listing images
 -- Run in Supabase Storage settings or SQL:
 -- ======================================-- insert into storage.buckets (id, name, public) values ('listing-images', 'listing-images', true);
 -- create policy "listing_images_select" on storage.objects for select using (bucket_id = 'listing-images');
 -- create policy "listing_images_insert" on storage.objects for insert with check (bucket_id = 'listing-images' and auth.role() = 'authenticated');
 -- create policy "listing_images_delete" on storage.objects for delete using (bucket_id = 'listing-images' and auth.uid()::text = (storage.foldername(name))[2]);
+-- insert into storage.buckets (id, name, public) values ('verification-documents', 'verification-documents', false);
+-- create policy "verification_documents_insert" on storage.objects for insert with check (bucket_id = 'verification-documents' and auth.role() = 'authenticated');
+-- create policy "verification_documents_select_own" on storage.objects for select using (bucket_id = 'verification-documents' and auth.uid()::text = (storage.foldername(name))[2]);
+-- create policy "verification_documents_delete_own" on storage.objects for delete using (bucket_id = 'verification-documents' and auth.uid()::text = (storage.foldername(name))[2]);
+-- create policy "verification_documents_admin_select" on storage.objects for select using (bucket_id = 'verification-documents' and exists (select 1 from public.profiles p where p.id = auth.uid() and coalesce(p.is_seller, false) = true));

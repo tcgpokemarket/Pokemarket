@@ -10,14 +10,6 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 type ListingWithSeller = Listing & {
   profiles?: Pick<Profile, "id" | "username" | "seller_rating" | "total_sales" | "avatar_url"> | null;
-  sellers?: {
-    id: string;
-    display_name: string;
-    storefront_slug: string;
-    rating: number;
-    verified: boolean;
-    avatar_url: string | null;
-  } | null;
 };
 
 export const dynamic = "force-dynamic";
@@ -60,7 +52,7 @@ function buildDescription(listing: ListingWithSeller) {
 async function getListing(id: string) {
   const rows = await fetchPublicRows<ListingWithSeller>(
     "listings",
-    "*,profiles:profiles!seller_id(id,username,seller_rating,total_sales,avatar_url),sellers:seller_id(id,display_name,storefront_slug,rating,verified,avatar_url)",
+    "*,profiles:profiles!seller_id(id,username,seller_rating,total_sales,avatar_url)",
     [["id", `eq.${id}`]],
   );
   return rows[0] ?? null;

@@ -1,4 +1,3 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { applySecurityHeaders } from './headers'
 import { recordAuditEvent, recordSecurityEvent } from './lib/audit-log'
@@ -7,6 +6,13 @@ const authAttempts = new Map<string, { count: number; lockedUntil: number; lastS
 
 function getClientKey(request: NextRequest) {
   return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.ip || 'unknown'
+}
+
+function getAdminEmails() {
+  return (process.env.ADMIN_EMAILS ?? 'tcgpokemarketadmin@gmail.com')
+    .split(',')
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean)
 }
 
 function isLockedOut(key: string) {
@@ -18,7 +24,9 @@ function noteFailure(key: string) {
   const current = authAttempts.get(key) ?? { count: 0, lockedUntil: 0, lastSeen: Date.now() }
   current.count += 1
   current.lastSeen = Date.now()
-  if (current.count >= 8) current.lockedUntil = Date.now() + 10 * 60 * 1000
+  if (current.count >= 8) {
+    current.lockedUntil = Date.now() + 10 * 60 * 1000
+  }
   authAttempts.set(key, current)
 }
 
@@ -30,82 +38,52 @@ function shouldThrottle(pathname: string) {
   return pathname.startsWith('/auth') || pathname.startsWith('/api/')
 }
 
-function buildThrottleResponse() {
+function buildThrottleResponse(request: NextRequest) {
   return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 }
 
 export async function middleware(request: NextRequest) {
   const clientKey = getClientKey(request)
   const pathname = request.nextUrl.pathname
-
+  const adminEmails = getAdminEmails()
   const isProtected = ['/sell', '/dashboard', '/admin', '/api/admin'].some((p) => pathname.startsWith(p))
+  const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/api/admin')
 
   if (shouldThrottle(pathname) && isLockedOut(clientKey)) {
-    return applySecurityHeaders(buildThrottleResponse())
+    return applySecurityHeaders(buildThrottleResponse(request))
   }
 
-  let response = NextResponse.next({
-    request: {
-      headers: request.headers,
-    },
-  })
+  const response = NextResponse.next({ request })
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-  if (supabaseUrl && supabaseKey) {
-    const supabase = createServerClient(
-      supabaseUrl,
-      supabaseKey,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              request.cookies.set(name, value)
-              response.cookies.set(name, value, options)
-            })
-          },
-        },
-      }
-    )
-
-    const { data: { user } } = await supabase.auth.getUser()
-
-    if (isProtected && !user) {
-      if (shouldThrottle(pathname)) noteFailure(clientKey)
-
-      recordAuditEvent({
-        event_type: 'api.denied',
-        actor_id: null,
-        action: 'protected_route_redirect',
-        resource_type: 'route',
-        resource_id: pathname,
-        previous_value: null,
-        new_value: null,
-        ip_address: clientKey,
-        user_agent: request.headers.get('user-agent'),
-      })
-
-      recordSecurityEvent({
-        event_type: 'auth.redirect',
-        severity: 'medium',
-        ip_address: clientKey,
-        user_agent: request.headers.get('user-agent'),
-        details: { pathname },
-      })
-
-      const url = request.nextUrl.clone()
-      url.pathname = '/auth/signin'
-      url.searchParams.set('redirectTo', request.nextUrl.pathname)
-
-      return applySecurityHeaders(NextResponse.redirect(url))
-    }
+  if (shouldThrottle(pathname)) {
+    clearFailures(clientKey)
   }
 
-  if (shouldThrottle(pathname)) clearFailures(clientKey)
+  if (isProtected) {
+    if (shouldThrottle(pathname)) noteFailure(clientKey)
+    recordAuditEvent({
+      event_type: 'api.denied',
+      actor_id: null,
+      action: 'protected_route_redirect',
+      resource_type: 'route',
+      resource_id: pathname,
+      previous_value: null,
+      new_value: null,
+      ip_address: clientKey,
+      user_agent: request.headers.get('user-agent'),
+    })
+    recordSecurityEvent({
+      event_type: 'auth.redirect',
+      severity: 'medium',
+      ip_address: clientKey,
+      user_agent: request.headers.get('user-agent'),
+      details: { pathname },
+    })
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth'
+    url.searchParams.set('redirectTo', request.nextUrl.pathname)
+    return applySecurityHeaders(NextResponse.redirect(url))
+  }
 
   return applySecurityHeaders(response)
 }

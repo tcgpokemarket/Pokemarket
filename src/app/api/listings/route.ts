@@ -1,7 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { isSellerVerificationApproved } from "@/lib/seller-verification";
+import { recordAuditEvent } from "@/lib/audit-log";
 
 const PAGE_SIZE = 24;
+
+async function getVerificationStatus(userId: string) {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("seller_verifications").select("status").eq("user_id", userId).maybeSingle();
+  if (error) throw new Error(error.message);
+  return data?.status ?? "not_started";
+}
 
 export async function GET(req: Request) {
   const supabase = await createClient();
@@ -43,6 +53,22 @@ export async function POST(req: Request) {
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const verificationStatus = await getVerificationStatus(user.id);
+  if (!isSellerVerificationApproved(verificationStatus)) {
+    recordAuditEvent({
+      event_type: "api.denied",
+      actor_id: user.id,
+      action: "create_listing_blocked_verification",
+      resource_type: "listing",
+      resource_id: user.id,
+      previous_value: { verificationStatus },
+      new_value: null,
+      ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      user_agent: req.headers.get("user-agent"),
+    });
+    return NextResponse.json({ error: "Identity verification is required before creating listings." }, { status: 403 });
   }
 
   const body = (await req.json()) as {

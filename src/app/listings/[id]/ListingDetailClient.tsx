@@ -5,12 +5,6 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
 import type { EasyshipRatesResponse } from "@/lib/easyship";
-import MessageSellerButton from "./message-seller-button";
-import SupportInlineCard from "@/components/support/support-inline-card";
-
-const LISTING_SUPPORT_CARD = (
-  <SupportInlineCard title="Need order help?" description="Ask about checkout, shipping, refunds, or seller questions from this listing." href="/support" />
-);
 
 type ListingWithSeller = Listing & {
   profiles?: {
@@ -18,14 +12,6 @@ type ListingWithSeller = Listing & {
     username: string | null;
     seller_rating: number;
     total_sales: number;
-    avatar_url: string | null;
-  } | null;
-  sellers?: {
-    id: string;
-    display_name: string;
-    storefront_slug: string;
-    rating: number;
-    verified: boolean;
     avatar_url: string | null;
   } | null;
 };
@@ -245,20 +231,13 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
               )}
             </div>
 
-            <div className="mb-3 flex gap-3">
-              <button
-                onClick={handleBuy}
-                disabled={buying || listing.status !== "active" || listing.seller_id === user?.id}
-                className="flex-1 rounded-xl bg-yellow-400 py-4 text-lg font-bold text-black transition-all hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {buying ? "Redirecting to checkout..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}
-              </button>
-              {listing.profiles?.id ? (
-                <MessageSellerButton sellerId={listing.profiles.id} listingId={listing.id} listingTitle={listing.card_name} />
-              ) : null}
-            </div>
-
-            <div className="mb-6">{LISTING_SUPPORT_CARD}</div>
+            <button
+              onClick={handleBuy}
+              disabled={buying || listing.status !== "active" || listing.seller_id === user?.id}
+              className="w-full bg-yellow-400 text-black font-bold py-4 rounded-xl text-lg hover:bg-yellow-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3"
+            >
+              {buying ? "Redirecting to checkout..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}
+            </button>
 
             <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
               <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Payout summary</div>
@@ -273,23 +252,16 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
               </p>
             )}
 
-            {(listing.sellers || listing.profiles) && (
-              <div className="mt-6 flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-yellow-400/20 text-lg font-black text-yellow-400">
-                  {listing.sellers?.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={listing.sellers.avatar_url} alt={listing.sellers.display_name} className="h-full w-full object-cover" />
-                  ) : (
-                    (listing.sellers?.display_name ?? listing.profiles?.username ?? "?")[0]?.toUpperCase() ?? "?"
-                  )}
+            {listing.profiles && (
+              <div className="mt-6 bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-yellow-400/20 flex items-center justify-center text-yellow-400 font-black text-lg">
+                  {listing.profiles.username?.[0]?.toUpperCase() ?? "?"}
                 </div>
                 <div>
-                  <p className="text-sm font-semibold">{listing.sellers?.display_name ?? listing.profiles?.username ?? "Seller"}</p>
-                  <div className="mt-0.5 flex items-center gap-3 text-xs text-gray-400">
-                    {listing.sellers?.verified ? <span className="text-yellow-400">Verified seller</span> : listing.profiles && listing.profiles.seller_rating > 0 && <span className="text-yellow-400">★ {listing.profiles.seller_rating.toFixed(1)}</span>}
-                    <a href={listing.sellers?.storefront_slug ? `/sellers/${listing.sellers.storefront_slug}` : `/profile/${listing.profiles?.username ?? ""}`} className="hover:text-yellow-400">
-                      View storefront
-                    </a>
+                  <p className="font-semibold text-sm">{listing.profiles.username ?? "Seller"}</p>
+                  <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
+                    {listing.profiles.seller_rating > 0 && <span className="text-yellow-400">★ {listing.profiles.seller_rating.toFixed(1)}</span>}
+                    <span>{listing.profiles.total_sales} sales</span>
                   </div>
                 </div>
               </div>

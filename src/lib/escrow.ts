@@ -31,8 +31,24 @@ export type EscrowDecision = {
   holdReason: string;
 };
 
+export type SellerPayoutProfile = {
+  completedSalesCount: number;
+  fraudFlag: boolean;
+  instantPayoutEnabled: boolean;
+  highRiskOrder: boolean;
+  disputeOpen: boolean;
+  pendingEscrow: number;
+  sellerHold: boolean;
+};
+
+export type SellerRiskSignals = EscrowRiskSignals;
+
 export function canUseInstantPayout(wallet: Pick<EscrowWalletState, "completed_orders_count" | "instant_payout_enabled" | "fraud_flag">) {
   return (wallet.completed_orders_count ?? 0) >= INSTANT_PAYOUT_COMPLETED_SALES_THRESHOLD && !wallet.fraud_flag && Boolean(wallet.instant_payout_enabled);
+}
+
+export function sellerInstantPayoutUnlocked(completedOrdersCount: number) {
+  return completedOrdersCount >= INSTANT_PAYOUT_COMPLETED_SALES_THRESHOLD;
 }
 
 export function getPayoutTier(completedOrdersCount: number) {
@@ -47,6 +63,10 @@ export function getDeliveryReleaseAt(deliveredAt: string, waitHours = DELIVERY_C
   const date = new Date(deliveredAt);
   date.setHours(date.getHours() + waitHours);
   return date.toISOString();
+}
+
+export function calculateReleaseAt(deliveredAt?: string | null) {
+  return deliveredAt ? getDeliveryReleaseAt(deliveredAt) : null;
 }
 
 export function calculateFraudRisk(signals: EscrowRiskSignals) {
@@ -75,6 +95,20 @@ export function calculateFraudRisk(signals: EscrowRiskSignals) {
     reasons: Array.from(new Set(reasons)),
     requiresManualReview: capped >= 50 || signals.chargebacks > 0 || signals.linkedFraudAccounts > 0,
   };
+}
+
+export function calculateFraudRiskScore(signals: EscrowRiskSignals) {
+  return calculateFraudRisk(signals).score;
+}
+
+export function isHighRiskSeller(score: number) {
+  return score >= 70;
+}
+
+export function getSellerPayoutDisposition(profile: SellerPayoutProfile) {
+  if (profile.fraudFlag || profile.highRiskOrder || profile.disputeOpen || profile.sellerHold) return "frozen";
+  if (profile.instantPayoutEnabled && profile.completedSalesCount >= INSTANT_PAYOUT_COMPLETED_SALES_THRESHOLD) return "instant";
+  return "escrow";
 }
 
 export function decideEscrowFlow(args: {
@@ -113,4 +147,10 @@ export function shouldReleaseFromEscrow(args: {
   const disputeOpen = args.disputeStatus === "open";
   const frozen = args.currentStatus === "frozen" || args.currentStatus === "disputed";
   return !disputeOpen && !frozen && now >= releaseAfter;
+}
+
+export function shouldReleaseEscrow(args: { deliveryConfirmed: boolean; disputeOpen: boolean; releaseAt: string | null; now?: Date }) {
+  if (args.deliveryConfirmed) return true;
+  if (args.disputeOpen) return false;
+  return shouldReleaseFromEscrow({ releaseAfterAt: args.releaseAt, now: args.now?.toISOString() });
 }

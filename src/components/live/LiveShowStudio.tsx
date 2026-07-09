@@ -2,9 +2,6 @@
 
 import { useMemo, useState } from "react";
 import type { Listing } from "@/lib/supabase/types";
-import { createClient } from "@/lib/supabase/client";
-import { uploadImageFile } from "@/lib/uploads";
-import type { LiveShowItem } from "@/lib/supabase/types";
 import {
   applyLiveShowTemplate,
   createDefaultQueue,
@@ -14,7 +11,6 @@ import {
   saveLiveShow,
   type LiveShowState,
   type LiveShowTemplate,
-  type LiveShowGiveaway,
 } from "@/lib/live-commerce";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
@@ -32,18 +28,6 @@ const SHOW_FORMATS: { value: LiveShowTemplate; label: string }[] = [
   { value: "random_slot_break", label: "Random Slot Break" },
   { value: "fixed_price_drop", label: "Fixed Price Drop" },
 ];
-
-const GIVEAWAY_ELIGIBILITY = ["purchase", "bid", "watch", "follow", "join"] as const;
-const GIVEAWAY_PRIZE_TYPES = ["booster_pack", "promo_card", "sealed_product", "slab", "mystery_prize"] as const;
-const GIVEAWAY_FRAUD_RULES = ["account age", "purchase verification", "participation limits", "fraud monitoring"];
-const GIVEAWAY_HISTORY_PREVIEW = [
-  "Giveaway creation fee",
-  "Prize costs",
-  "Shipping costs",
-  "Winner payouts",
-  "Seller expenses",
-];
-
 
 function seedFromListings(listings: Listing[]): LiveShowState {
   const base = getLiveShow();
@@ -94,51 +78,7 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
   const [mutedChat, setMutedChat] = useState(false);
   const [slowModeSeconds, setSlowModeSeconds] = useState(0);
   const [aiHostEnabled, setAiHostEnabled] = useState(false);
-  const [giveawayEnabled, setGiveawayEnabled] = useState(true);
-  const [giveawayTitle, setGiveawayTitle] = useState("Collector Boost Giveaway");
-  const [giveawayPrize, setGiveawayPrize] = useState("Scarlet & Violet Booster Bundle");
-  const [giveawayPrizeType, setGiveawayPrizeType] = useState<LiveShowGiveaway["prizeType"]>("sealed_product");
-  const [giveawayWinners, setGiveawayWinners] = useState(3);
-  const [giveawayBudget, setGiveawayBudget] = useState(72);
-  const [giveawayEligibility, setGiveawayEligibility] = useState<string[]>(["purchase", "bid", "watch", "join"]);
   const [message, setMessage] = useState<string | null>(null);
-  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
-  const [thumbnailUploading, setThumbnailUploading] = useState(false);
-  const [thumbnailError, setThumbnailError] = useState<string | null>(null);
-  const [queueImageUploading, setQueueImageUploading] = useState<string | null>(null);
-  const [queueImageError, setQueueImageError] = useState<string | null>(null);
-  const [supabase] = useState(() => createClient());
-
-  const updateQueueImage = (itemId: string, imageUrl: string) => {
-    setQueue((current) => current.map((item) => (item.id === itemId ? { ...item, imageUrl } : item)));
-  };
-
-  const handleQueueImageUpload = async (itemId: string, event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setQueueImageUploading(itemId);
-    setQueueImageError(null);
-
-    try {
-      const uploaded = await uploadImageFile({
-        supabase,
-        target: "live-show",
-        ownerId: "live-show-studio",
-        file,
-        prefix: `queue-${itemId}`,
-      });
-      updateQueueImage(itemId, uploaded.publicUrl);
-    } catch (error) {
-      setQueueImageError(error instanceof Error ? error.message : "Unable to upload item image.");
-    } finally {
-      setQueueImageUploading(null);
-    }
-  };
-
-  const removeQueueImage = (itemId: string) => {
-    updateQueueImage(itemId, "");
-  };
   const [queue, setQueue] = useState(() => createDefaultQueue(listings.slice(0, 5).map((listing, index) => ({
     id: `listing-${listing.id}`,
     listingId: listing.id,
@@ -162,57 +102,8 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
     setQueue((current) => reorderLiveShowQueue(current, fromIndex, toIndex));
   };
 
-  const handleThumbnailUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setThumbnailUploading(true);
-    setThumbnailError(null);
-
-    try {
-      const uploaded = await uploadImageFile({
-        supabase,
-        target: "live-show",
-        ownerId: "live-show-studio",
-        file,
-      });
-      setThumbnailUrl(uploaded.publicUrl);
-    } catch (error) {
-      setThumbnailError(error instanceof Error ? error.message : "Unable to upload thumbnail.");
-    } finally {
-      setThumbnailUploading(false);
-    }
-  };
-
-  const thumbnailImage = thumbnailUrl ?? queuePreview[0]?.imageUrl ?? null;
-
   const handleSave = () => {
     const base = seedFromListings(listings);
-    const giveaway = giveawayEnabled ? {
-      id: `giveaway-${Date.now()}`,
-      title: giveawayTitle,
-      prizeType: giveawayPrizeType,
-      prizeName: giveawayPrize,
-      prizeQuantity: giveawayWinners,
-      winnerCount: giveawayWinners,
-      startAt: new Date(scheduledStart).toISOString(),
-      endAt: new Date(Date.now() + 1000 * 60 * 20).toISOString(),
-      eligibility: giveawayEligibility as LiveShowGiveaway["eligibility"],
-      eligibleUsers: Math.max(0, Math.floor(listings.length * 2 + giveawayWinners * 4)),
-      claimedWinners: 0,
-      liveEntries: Math.max(0, Math.floor(listings.length * 2 + giveawayWinners * 4)),
-      totalEntries: Math.max(0, Math.floor(listings.length * 3 + giveawayWinners * 8)),
-      estimatedItemValue: Math.max(0, giveawayWinners * 19.99),
-      platformProcessingFee: 0,
-      shippingCost: Math.max(0, giveawayWinners * 4),
-      sellerBudget: giveawayBudget,
-      sellerPaysAllFees: true,
-      status: "scheduled" as const,
-      winnerIds: [],
-      fraudFlags: 0,
-      createdAt: new Date().toISOString(),
-    } : undefined;
-
     const show = createLiveShowSnapshot(
       applyLiveShowTemplate(
         {
@@ -220,22 +111,12 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
           title,
           format: template,
           scheduledStart: new Date(scheduledStart).toISOString(),
-          queue: queue.map((item, index) => index === 0 && thumbnailImage ? { ...item, imageUrl: thumbnailImage } : item),
-          giveaways: giveaway ? [giveaway] : [],
-          giveawayRules: {
-            accountAgeDays: 14,
-            requirePurchaseVerification: true,
-            minWatchMinutes: 5,
-            maxEntriesPerUser: 3,
-            allowMultipleSources: true,
-            fraudThreshold: 70,
-          },
+          queue,
           hostSettings: {
             ...(base.hostSettings ?? { mutedChat: false, slowModeSeconds: 0, bannedUsers: [], blockedWords: [], autoReconnect: true }),
             mutedChat,
             slowModeSeconds,
             aiHostEnabled,
-            giveawayBannerEnabled: giveawayEnabled,
           },
         },
         template
@@ -243,7 +124,7 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
     );
 
     saveLiveShow(show);
-    setMessage("Live show saved.");
+    setMessage("Live show saved and ready to launch.");
   };
 
   return (
@@ -255,20 +136,6 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="md:col-span-2 rounded-2xl border border-white/10 bg-white/5 p-4">
-          <label className="mb-2 block text-sm font-medium text-gray-300">Show thumbnail</label>
-          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleThumbnailUpload} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
-          <div className="mt-3 aspect-[16/9] overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f1a]">
-            {thumbnailImage ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={thumbnailImage} alt="Show thumbnail preview" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full items-center justify-center text-sm text-gray-500">Upload a thumbnail to preview the room</div>
-            )}
-          </div>
-          {thumbnailUploading && <p className="mt-2 text-xs text-gray-500">Uploading thumbnail...</p>}
-          {thumbnailError && <p className="mt-2 text-xs text-red-400">{thumbnailError}</p>}
-        </div>
         <div>
           <label className="mb-2 block text-sm font-medium text-gray-300">Show title</label>
           <input
@@ -286,7 +153,6 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
             className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-white outline-none"
           />
         </div>
-        {queueImageError && <p className="mt-2 text-xs text-red-400">{queueImageError}</p>}
       </div>
 
       <div>
@@ -326,101 +192,6 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
         </label>
       </div>
 
-      <div className="rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-5">
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Giveaway controls</div>
-            <div className="mt-1 text-sm text-gray-300">Seller-funded, buyer-focused giveaways that run inside the live show.</div>
-          </div>
-          <label className="flex items-center gap-3 rounded-full border border-yellow-400/20 bg-black/20 px-3 py-2 text-xs font-semibold text-yellow-300">
-            <input type="checkbox" checked={giveawayEnabled} onChange={(e) => setGiveawayEnabled(e.target.checked)} />
-            Enable giveaway
-          </label>
-        </div>
-
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="block space-y-2 text-sm">
-            <div className="text-gray-200">Giveaway title</div>
-            <input value={giveawayTitle} onChange={(e) => setGiveawayTitle(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
-          </label>
-          <label className="block space-y-2 text-sm">
-            <div className="text-gray-200">Prize item</div>
-            <input value={giveawayPrize} onChange={(e) => setGiveawayPrize(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
-          </label>
-          <label className="block space-y-2 text-sm">
-            <div className="text-gray-200">Prize type</div>
-            <select value={giveawayPrizeType} onChange={(e) => setGiveawayPrizeType(e.target.value as LiveShowGiveaway["prizeType"])} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none">
-              {GIVEAWAY_PRIZE_TYPES.map((type) => <option key={type} value={type}>{type.replaceAll("_", " ")}</option>)}
-            </select>
-          </label>
-          <label className="block space-y-2 text-sm">
-            <div className="text-gray-200">Winner count</div>
-            <input type="number" min="1" value={giveawayWinners} onChange={(e) => setGiveawayWinners(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
-          </label>
-          <label className="block space-y-2 text-sm md:col-span-2">
-            <div className="text-gray-200">Seller giveaway budget</div>
-            <input type="number" min="0" step="0.01" value={giveawayBudget} onChange={(e) => setGiveawayBudget(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
-          </label>
-        </div>
-
-        <div className="mt-4">
-          <div className="mb-2 text-sm text-gray-200">Eligibility rules</div>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            {GIVEAWAY_ELIGIBILITY.map((rule) => (
-              <label key={rule} className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0f0f1a] px-3 py-2 text-sm text-gray-300">
-                <input type="checkbox" checked={giveawayEligibility.includes(rule)} onChange={(e) => setGiveawayEligibility((current) => e.target.checked ? [...current, rule] : current.filter((item) => item !== rule))} />
-                {rule}
-              </label>
-            ))}
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
-          <div className="font-semibold text-white">Anti-abuse rules</div>
-          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-            {GIVEAWAY_FRAUD_RULES.map((rule) => <li key={rule}>• {rule}</li>)}
-          </ul>
-        </div>
-
-        <div className="mt-4 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
-          <div className="font-semibold text-white">Cost tracking</div>
-          <ul className="mt-2 grid gap-2 sm:grid-cols-2">
-            {GIVEAWAY_HISTORY_PREVIEW.map((item) => <li key={item}>• {item}</li>)}
-          </ul>
-          <div className="mt-3 text-yellow-400">Seller funds the full giveaway cost so marketplace revenue stays protected.</div>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="mb-2 font-bold text-white">Buyer experience</div>
-        <div className="grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Eligible giveaways page</div>
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Prize history and claim instructions</div>
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Live giveaway notifications</div>
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Winner announcement and replay history</div>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="mb-2 font-bold text-white">Admin controls</div>
-        <div className="grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Review giveaways and fraud checks</div>
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Refund handling and disputes</div>
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Seller limits and escalation</div>
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Transaction ledger review</div>
-        </div>
-      </div>
-
-      <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-        <div className="mb-2 font-bold text-white">Wallet and ledger impact</div>
-        <div className="grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Giveaway creation fees</div>
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Prize costs and shipping</div>
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Winner payouts</div>
-          <div className="rounded-xl border border-white/10 bg-[#13131f] p-3">Seller expense tracking</div>
-        </div>
-      </div>
-
       <div>
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-bold">Item queue</h3>
@@ -435,18 +206,10 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{index + 1}. {item.title}</div>
                 <div className="text-xs text-gray-400">{item.subtitle}</div>
-                <div className="mt-2 flex gap-2 text-xs">
-                  <label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 hover:bg-white/5">
-                    Replace image
-                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => void handleQueueImageUpload(item.id, e)} className="hidden" />
-                  </label>
-                  {item.imageUrl && <button type="button" onClick={() => removeQueueImage(item.id)} className="rounded-lg border border-red-400/20 px-2 py-1 text-red-300 hover:bg-red-400/10">Clear</button>}
-                </div>
               </div>
               <div className="text-right text-sm text-gray-300">
                 <div>${item.buyNowPrice?.toFixed(2) ?? item.startPrice.toFixed(2)}</div>
                 <div className="text-xs text-gray-500">{item.auctionSeconds}s</div>
-                {queueImageUploading === item.id && <div className="mt-1 text-xs text-gray-500">Uploading...</div>}
               </div>
               <div className="flex flex-col gap-2">
                 <button type="button" onClick={() => handleMoveQueue(index, Math.max(0, index - 1))} className="rounded-lg border border-white/10 px-2 py-1 text-xs hover:bg-white/5">

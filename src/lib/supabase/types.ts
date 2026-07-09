@@ -12,6 +12,14 @@ export interface Database {
           is_seller: boolean
           seller_rating: number
           total_sales: number
+          verification_status: 'not_started' | 'pending_review' | 'approved' | 'rejected' | 'more_information_required' | 'suspended' | null
+          verification_submitted_at: string | null
+          verification_reviewed_at: string | null
+          verification_reviewed_by: string | null
+          verification_rejection_reason: string | null
+          verification_more_info: string | null
+          verification_suspension_reason: string | null
+          verified_at: string | null
           created_at: string
         }
         Insert: {
@@ -22,6 +30,14 @@ export interface Database {
           is_seller?: boolean
           seller_rating?: number
           total_sales?: number
+          verification_status?: 'not_started' | 'pending_review' | 'approved' | 'rejected' | 'more_information_required' | 'suspended' | null
+          verification_submitted_at?: string | null
+          verification_reviewed_at?: string | null
+          verification_reviewed_by?: string | null
+          verification_rejection_reason?: string | null
+          verification_more_info?: string | null
+          verification_suspension_reason?: string | null
+          verified_at?: string | null
           created_at?: string
         }
         Update: {
@@ -32,6 +48,14 @@ export interface Database {
           is_seller?: boolean
           seller_rating?: number
           total_sales?: number
+          verification_status?: 'not_started' | 'pending_review' | 'approved' | 'rejected' | 'more_information_required' | 'suspended' | null
+          verification_submitted_at?: string | null
+          verification_reviewed_at?: string | null
+          verification_reviewed_by?: string | null
+          verification_rejection_reason?: string | null
+          verification_more_info?: string | null
+          verification_suspension_reason?: string | null
+          verified_at?: string | null
           created_at?: string
         }
       }
@@ -487,6 +511,95 @@ export interface Database {
           updated_at?: string | null
         }
         Update: Partial<Database['public']['Tables']['shipment_groups']['Insert']>
+      }
+      seller_verifications: {
+        Row: {
+          id: string
+          user_id: string
+          legal_name: string
+          date_of_birth: string
+          residential_address: string
+          phone_number: string
+          status: 'not_started' | 'pending_review' | 'approved' | 'rejected' | 'more_information_required' | 'suspended'
+          submitted_at: string | null
+          reviewed_at: string | null
+          reviewer_id: string | null
+          rejection_reason: string | null
+          more_information_request: string | null
+          suspension_reason: string | null
+          admin_notes: string | null
+          verified_at: string | null
+          updated_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          legal_name: string
+          date_of_birth: string
+          residential_address: string
+          phone_number: string
+          status?: 'not_started' | 'pending_review' | 'approved' | 'rejected' | 'more_information_required' | 'suspended'
+          submitted_at?: string | null
+          reviewed_at?: string | null
+          reviewer_id?: string | null
+          rejection_reason?: string | null
+          more_information_request?: string | null
+          suspension_reason?: string | null
+          admin_notes?: string | null
+          verified_at?: string | null
+          updated_at?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['seller_verifications']['Insert']>
+      }
+      seller_verification_documents: {
+        Row: {
+          id: string
+          verification_id: string
+          user_id: string
+          document_type: 'id_front' | 'id_back' | 'selfie_with_id' | 'proof_of_address'
+          storage_bucket: string
+          storage_path: string
+          mime_type: string | null
+          file_name: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          verification_id: string
+          user_id: string
+          document_type: 'id_front' | 'id_back' | 'selfie_with_id' | 'proof_of_address'
+          storage_bucket?: string
+          storage_path: string
+          mime_type?: string | null
+          file_name?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['seller_verification_documents']['Insert']>
+      }
+      seller_verification_history: {
+        Row: {
+          id: string
+          verification_id: string
+          actor_id: string | null
+          action: string
+          previous_status: string | null
+          next_status: string | null
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          verification_id: string
+          actor_id?: string | null
+          action: string
+          previous_status?: string | null
+          next_status?: string | null
+          notes?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['seller_verification_history']['Insert']>
       }
       live_shows: {
         Row: {
