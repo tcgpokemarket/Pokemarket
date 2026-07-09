@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import SiteShell from "@/components/site-shell";
 
 const BASE_URL = "https://tcg-poke-market.sintra.site";
 const OG_IMAGE = "https://cdn.sintra.ai/img/pGq7RIJGMDuiejauByatqWc9HGCgpqvSJyf9_1fzpMA/f:jpg/rs:fit:800/czM6Ly9zaW50cmEtYnJhaW5haS1tZWRpYS9rbm93bGVkZ2UtcHJvZmlsZXMvZTE4YTEyMGUtMjk0Yy00N2UyLWIyZTctNTBjMzI3ZjY4YjY1L2Fzc2V0cy8wN2FkYmJhOC0xNWY5LTRkYzEtYjk1OS03MzczMmJkNzgzN2QvNDMucG5n";
@@ -84,7 +85,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body style={{ fontFamily: "'Inter', sans-serif" }}>{children}</body>
+      <body style={{ fontFamily: "'Inter', sans-serif" }}>
+        <SiteShell>{children}</SiteShell>
+      </body>
     </html>
   );
 }

@@ -17,7 +17,7 @@ const modules = [
 
 export default function AdminPage() {
   return (
-    <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
+    <div className="px-4 py-10 text-white">
       <div className="mx-auto max-w-6xl">
         <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
           <p className="text-sm uppercase tracking-widest text-yellow-400">Admin dashboard</p>

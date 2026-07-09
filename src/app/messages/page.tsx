@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import SupportInlineCard from "@/components/support/support-inline-card";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +68,12 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
             <p className="text-sm text-gray-400">{unreadCount ?? 0} unread messages</p>
           </div>
           <div className="grid gap-3 md:max-w-md">
-            <SupportInlineCard title="Need help now?" description="Open an AI support ticket for orders, seller help, live auctions, or safety questions." href="/support" />
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
+              <div className="text-xs uppercase tracking-[0.3em] text-yellow-400">Support</div>
+              <div className="mt-2 text-lg font-black text-white">Need help now?</div>
+              <p className="mt-2 text-sm leading-6 text-gray-300">Open an AI support ticket for orders, seller help, live auctions, or safety questions.</p>
+              <Link href="/support" className="mt-4 inline-flex text-sm font-semibold text-yellow-400">Open support →</Link>
+            </div>
             <form className="flex gap-2" action="/messages" method="get">
               <input name="q" defaultValue={query} placeholder="Search messages" className="min-w-64 rounded-xl border border-white/10 bg-[#13131f] px-4 py-2 text-sm text-white outline-none" />
               <button className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Search</button>

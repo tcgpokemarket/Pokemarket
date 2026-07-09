@@ -1,7 +1,4 @@
 import Link from "next/link";
-import SupportInlineCard from "@/components/support/support-inline-card";
-
-const SUPPORT_PROMPT = <SupportInlineCard title="Need live auction help?" description="Ask about bidding rules, giveaways, or live show issues anytime." href="/support" />;
 
 const categories = ["Pokémon", "Sealed", "Singles", "Graded", "Accessories"];
 
@@ -19,20 +16,6 @@ function formatState(state?: string | null) {
 export default function LivePage() {
   return (
     <div className="min-h-screen bg-[#08111f] text-white">
-      <nav className="sticky top-0 z-50 border-b border-yellow-400/15 bg-[#08111f]/90 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <Link href="/" className="flex items-center gap-2 text-xl font-black tracking-tight">
-            <span className="text-2xl">⚡</span>
-            <span className="text-white">TCG</span><span className="text-yellow-400">Poke</span><span className="text-white">Market</span>
-          </Link>
-          <div className="flex items-center gap-4 text-sm text-gray-300">
-            <Link href="/listings" className="hover:text-white">Listings</Link>
-            <Link href="/dashboard" className="hover:text-white">Dashboard</Link>
-            <Link href="/support" className="hover:text-white">Support</Link>
-          </div>
-        </div>
-      </nav>
-
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr]">
           <div>
@@ -48,7 +31,10 @@ export default function LivePage() {
             </div>
           </div>
           <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            {SUPPORT_PROMPT}
+            <div className="text-xs uppercase tracking-[0.3em] text-yellow-400">Support</div>
+            <div className="mt-2 text-lg font-black text-white">Need live auction help?</div>
+            <p className="mt-2 text-sm leading-6 text-gray-300">Ask about bidding rules, giveaways, or live show issues anytime.</p>
+            <Link href="/support" className="mt-4 inline-flex text-sm font-semibold text-yellow-400">Open support →</Link>
           </div>
         </div>
 
