@@ -201,6 +201,40 @@ export async function addSellerVerificationHistory(input: {
   if (error) throw new Error(error.message);
 }
 
+function slugifySeller(input: string, fallbackId: string) {
+  const base = input
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return base || `seller-${fallbackId.slice(0, 8)}`;
+}
+
+export async function ensureSellerStorefront(input: { sellerId: string; displayName: string; avatarUrl?: string | null; bannerUrl?: string | null; verified?: boolean }) {
+  const admin = createAdminClient();
+  const slugBase = slugifySeller(input.displayName, input.sellerId);
+  const { data: existing } = await admin
+    .from("seller_stores")
+    .select("slug")
+    .eq("seller_id", input.sellerId)
+    .maybeSingle<{ slug: string }>();
+
+  const slug = existing?.slug ?? slugBase;
+  const { error } = await (admin as any).from("seller_stores").upsert({
+    seller_id: input.sellerId,
+    name: input.displayName,
+    slug,
+    description: null,
+    banner_url: input.bannerUrl ?? null,
+    logo_url: input.avatarUrl ?? null,
+    theme: { accent: "#e22400", secondary: "#ffab01", highlight: "#fefb41" },
+    verified: Boolean(input.verified),
+    featured: Boolean(input.verified),
+  }, { onConflict: "seller_id" });
+
+  if (error) throw new Error(error.message);
+  return { slug };
+}
+
 export async function reviewSellerVerification(input: {
   verificationId: string;
   reviewerId: string;
@@ -213,13 +247,16 @@ export async function reviewSellerVerification(input: {
   const admin = createAdminClient();
   const { data: current, error: currentError } = await admin
     .from("seller_verifications")
-    .select("*")
+    .select("*, profiles:user_id(id, username, full_name, avatar_url, created_at)")
     .eq("id", input.verificationId)
     .maybeSingle();
 
   if (currentError) throw new Error(currentError.message);
   if (!current) throw new Error("Verification request not found");
-  const currentRow = current as SellerVerificationRow;
+  const currentRow = current as SellerVerificationRow & { profiles?: { id: string; username: string | null; full_name: string | null; avatar_url: string | null } | null };
+
+  const displayName = currentRow.profiles?.full_name ?? currentRow.legal_name ?? currentRow.profiles?.username ?? currentRow.user_id;
+  const storeSlug = slugifySeller(currentRow.profiles?.username ?? displayName, currentRow.user_id);
 
   const nextValue = {
     reviewed_at: new Date().toISOString(),
@@ -240,6 +277,31 @@ export async function reviewSellerVerification(input: {
     .eq("id", input.verificationId);
 
   if (error) throw new Error(error.message);
+
+  if (input.status === "approved") {
+    await (admin as any).from("profiles").update({ is_seller: true, verification_status: "approved", verified_at: nextValue.verified_at }).eq("id", currentRow.user_id);
+    await ensureSellerStorefront({
+      sellerId: currentRow.user_id,
+      displayName,
+      avatarUrl: currentRow.profiles?.avatar_url ?? null,
+      verified: true,
+    });
+    await (admin as any).from("sellers").upsert({
+      id: currentRow.user_id,
+      display_name: displayName,
+      storefront_slug: storeSlug,
+      bio: currentRow.legal_name ? `Seller identity verified for ${currentRow.legal_name}.` : null,
+      avatar_url: currentRow.profiles?.avatar_url ?? null,
+      banner_url: null,
+      verified: true,
+      rating: 0,
+      follower_count: 0,
+      sales_count: 0,
+      total_revenue: 0,
+      total_listings: 0,
+      total_live_shows: 0,
+    }, { onConflict: "id" });
+  }
 
   await addSellerVerificationHistory({
     verificationId: input.verificationId,
