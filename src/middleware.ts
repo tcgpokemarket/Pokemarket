@@ -1,91 +1,20 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { applySecurityHeaders } from './headers'
-import { recordAuditEvent, recordSecurityEvent } from './lib/audit-log'
-
-const authAttempts = new Map<string, { count: number; lockedUntil: number; lastSeen: number }>()
-
-function getClientKey(request: NextRequest) {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.ip || 'unknown'
-}
-
-function getAdminEmails() {
-  return (process.env.ADMIN_EMAILS ?? 'tcgpokemarketadmin@gmail.com')
-    .split(',')
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean)
-}
-
-function isLockedOut(key: string) {
-  const entry = authAttempts.get(key)
-  return Boolean(entry && entry.lockedUntil > Date.now())
-}
-
-function noteFailure(key: string) {
-  const current = authAttempts.get(key) ?? { count: 0, lockedUntil: 0, lastSeen: Date.now() }
-  current.count += 1
-  current.lastSeen = Date.now()
-  if (current.count >= 8) {
-    current.lockedUntil = Date.now() + 10 * 60 * 1000
-  }
-  authAttempts.set(key, current)
-}
-
-function clearFailures(key: string) {
-  authAttempts.delete(key)
-}
 
 function shouldThrottle(pathname: string) {
   return pathname.startsWith('/auth') || pathname.startsWith('/api/')
 }
 
-function buildThrottleResponse(request: NextRequest) {
+function buildThrottleResponse() {
   return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
 }
 
 export async function middleware(request: NextRequest) {
-  const clientKey = getClientKey(request)
-  const pathname = request.nextUrl.pathname
-  const adminEmails = getAdminEmails()
-  const isProtected = ['/sell', '/dashboard', '/admin', '/api/admin'].some((p) => pathname.startsWith(p))
-  const isAdminPath = pathname.startsWith('/admin') || pathname.startsWith('/api/admin')
-
-  if (shouldThrottle(pathname) && isLockedOut(clientKey)) {
-    return applySecurityHeaders(buildThrottleResponse(request))
+  if (shouldThrottle(request.nextUrl.pathname)) {
+    return applySecurityHeaders(buildThrottleResponse())
   }
 
-  const response = NextResponse.next({ request })
-
-  if (shouldThrottle(pathname)) {
-    clearFailures(clientKey)
-  }
-
-  if (isProtected) {
-    if (shouldThrottle(pathname)) noteFailure(clientKey)
-    recordAuditEvent({
-      event_type: 'api.denied',
-      actor_id: null,
-      action: 'protected_route_redirect',
-      resource_type: 'route',
-      resource_id: pathname,
-      previous_value: null,
-      new_value: null,
-      ip_address: clientKey,
-      user_agent: request.headers.get('user-agent'),
-    })
-    recordSecurityEvent({
-      event_type: 'auth.redirect',
-      severity: 'medium',
-      ip_address: clientKey,
-      user_agent: request.headers.get('user-agent'),
-      details: { pathname },
-    })
-    const url = request.nextUrl.clone()
-    url.pathname = '/auth'
-    url.searchParams.set('redirectTo', request.nextUrl.pathname)
-    return applySecurityHeaders(NextResponse.redirect(url))
-  }
-
-  return applySecurityHeaders(response)
+  return applySecurityHeaders(NextResponse.next({ request }))
 }
 
 export const config = {

@@ -1,11 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export default function SignIn() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectTo = searchParams.get('redirectTo') ?? '/dashboard'
+  const callbackUrl = `/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -21,13 +24,13 @@ export default function SignIn() {
       const supabase = createClient()
 
       if (isSignUp) {
-        const result = await supabase.auth.signUp({ email, password })
+        const result = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: callbackUrl } })
         if (result.error) throw result.error
-        setError('Check your email for a confirmation link')
+        router.push(callbackUrl)
       } else {
         const result = await supabase.auth.signInWithPassword({ email, password })
         if (result.error) throw result.error
-        router.push('/dashboard')
+        router.push(redirectTo)
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Auth error')

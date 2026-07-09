@@ -21,9 +21,9 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
         <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
           <h1 className="text-3xl font-black">Messages</h1>
           <p className="mt-3 text-gray-400">Sign in to access your inbox, buyer and seller conversations, and support messages.</p>
-          <a href="/auth/signin" className="mt-6 inline-flex rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">
+          <Link href="/auth/signin?redirectTo=/messages" className="mt-6 inline-flex rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">
             Sign in
-          </a>
+          </Link>
         </div>
       </div>
     );
