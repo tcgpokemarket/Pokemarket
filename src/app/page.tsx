@@ -33,7 +33,7 @@ export const metadata = {
 
 const feedChips = [
   { label: "For You", href: "/live", active: true },
-  { label: "Followed Hosts", href: "/sellers" },
+  { label: "Followed Hosts", href: "/social" },
   { label: "Pokémon Cards", href: "/listings?category=single" },
   { label: "Trading Card Games", href: "/listings?category=sealed" },
   { label: "Slabs", href: "/listings?category=graded" },
