@@ -12,6 +12,13 @@ export interface Database {
           is_seller: boolean
           seller_rating: number
           total_sales: number
+          referral_code: string | null
+          referral_code_created_at: string | null
+          referral_source: string | null
+          referral_source_user_id: string | null
+          referral_source_code: string | null
+          referral_source_confirmed_at: string | null
+          referral_locked_at: string | null
           verification_status: 'not_started' | 'pending_review' | 'approved' | 'rejected' | 'more_information_required' | 'suspended' | null
           verification_submitted_at: string | null
           verification_reviewed_at: string | null
@@ -30,6 +37,13 @@ export interface Database {
           is_seller?: boolean
           seller_rating?: number
           total_sales?: number
+          referral_code?: string | null
+          referral_code_created_at?: string | null
+          referral_source?: string | null
+          referral_source_user_id?: string | null
+          referral_source_code?: string | null
+          referral_source_confirmed_at?: string | null
+          referral_locked_at?: string | null
           verification_status?: 'not_started' | 'pending_review' | 'approved' | 'rejected' | 'more_information_required' | 'suspended' | null
           verification_submitted_at?: string | null
           verification_reviewed_at?: string | null
@@ -48,6 +62,13 @@ export interface Database {
           is_seller?: boolean
           seller_rating?: number
           total_sales?: number
+          referral_code?: string | null
+          referral_code_created_at?: string | null
+          referral_source?: string | null
+          referral_source_user_id?: string | null
+          referral_source_code?: string | null
+          referral_source_confirmed_at?: string | null
+          referral_locked_at?: string | null
           verification_status?: 'not_started' | 'pending_review' | 'approved' | 'rejected' | 'more_information_required' | 'suspended' | null
           verification_submitted_at?: string | null
           verification_reviewed_at?: string | null
@@ -130,6 +151,14 @@ export interface Database {
           platform_revenue_amount: number | null
           marketplace_fee_percent: number | null
           seller_tier_name: string | null
+          buyer_referral_source: string | null
+          seller_referral_source: string | null
+          creator_referral_source: string | null
+          referral_commission_amount: number | null
+          referral_commission_status: string | null
+          referral_source_code: string | null
+          referral_source_user_id: string | null
+          referral_attribution_id: string | null
           status: 'pending' | 'paid' | 'escrow' | 'released' | 'frozen' | 'disputed' | 'shipped' | 'delivered' | 'cancelled' | 'refunded' | 'completed'
           escrow_status: 'held' | 'released' | 'frozen' | 'disputed' | 'refunded' | null
           escrow_held_at: string | null
@@ -143,6 +172,9 @@ export interface Database {
           buyer_address: Json | null
           payout_status: 'pending' | 'held' | 'released' | 'paid' | 'failed' | 'frozen' | null
           completed_at: string | null
+          first_transaction_at: string | null
+          total_revenue_generated: number | null
+          total_rewards_earned: number | null
           created_at: string
           updated_at: string
         }
@@ -163,6 +195,14 @@ export interface Database {
           platform_revenue_amount?: number | null
           marketplace_fee_percent?: number | null
           seller_tier_name?: string | null
+          buyer_referral_source?: string | null
+          seller_referral_source?: string | null
+          creator_referral_source?: string | null
+          referral_commission_amount?: number | null
+          referral_commission_status?: string | null
+          referral_source_code?: string | null
+          referral_source_user_id?: string | null
+          referral_attribution_id?: string | null
           status?: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled' | 'refunded' | 'completed'
           stripe_payment_intent_id?: string | null
           stripe_checkout_session_id?: string | null
@@ -176,6 +216,9 @@ export interface Database {
           escrow_released_at?: string | null
           escrow_frozen_at?: string | null
           completed_at?: string | null
+          first_transaction_at?: string | null
+          total_revenue_generated?: number | null
+          total_rewards_earned?: number | null
           created_at?: string
           updated_at?: string
         }

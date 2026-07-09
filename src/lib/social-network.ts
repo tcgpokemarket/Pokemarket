@@ -1,11 +1,28 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/types";
+type FollowRow = {
+  following_id: string;
+  created_at: string;
+};
 
-export type FollowRow = Database["public"]["Tables"]["follows"]["Row"];
-export type FriendshipRow = Database["public"]["Tables"]["friendships"]["Row"];
-export type BlockRow = Database["public"]["Tables"]["blocks"]["Row"];
-export type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
-export type PrivacySettingsRow = Database["public"]["Tables"]["profile_privacy_settings"]["Row"];
+type FriendshipRow = {
+  requester_id: string;
+  receiver_id: string;
+  status: string;
+  created_at: string;
+};
+
+type NotificationRow = {
+  id: string;
+  user_id: string;
+  type: string;
+  created_at: string;
+};
+
+type PrivacySettingsRow = {
+  user_id: string;
+  profile_visibility?: string | null;
+  allow_messages?: boolean | null;
+};
 
 export async function getProfileByUsername(username: string) {
   const supabase = await createClient();

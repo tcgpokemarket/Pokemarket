@@ -1,5 +1,28 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/lib/supabase/types";
+type CardLibraryRow = {
+  card_id: string;
+  card_name: string;
+  set_name: string;
+  card_number: string | null;
+  rarity: string | null;
+  image_url: string | null;
+  price: number | null;
+  source: string;
+  added_at: string;
+};
+
+type CardLibraryInsert = {
+  user_id: string;
+  list_key: LibraryKey;
+  card_id: string;
+  card_name: string;
+  set_name: string;
+  card_number: string | null;
+  rarity: string | null;
+  image_url: string | null;
+  price: number | null;
+  source: string;
+};
 
 export type SavedCardRecord = {
   id: string;
@@ -15,8 +38,6 @@ export type SavedCardRecord = {
 
 type LibraryKey = "collection" | "wishlist" | "deck";
 
-type CardLibraryRow = Database["public"]["Tables"]["card_library_items"]["Row"];
-type CardLibraryInsert = Database["public"]["Tables"]["card_library_items"]["Insert"];
 
 function mapRow(row: CardLibraryRow): SavedCardRecord {
   return {

@@ -3,7 +3,24 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import type { Listing, Order, Profile, SellerWallet, Database } from "@/lib/supabase/types";
+import type { Listing, Order, Profile, SellerWallet } from "@/lib/supabase/types";
+
+type SellerRow = {
+  avatar_url?: string | null;
+  banner_url?: string | null;
+};
+
+type StoreRow = {
+  logo_url?: string | null;
+  banner_url?: string | null;
+};
+
+type VerificationRow = {
+  status?: SellerVerificationStatus | null;
+  rejection_reason?: string | null;
+  more_information_request?: string | null;
+  verified_at?: string | null;
+};
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
 import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
@@ -27,7 +44,16 @@ type DashboardOrder = Order & {
   profiles?: { username?: string | null } | null;
 };
 
-type AuctionOrder = Database["public"]["Tables"]["auction_orders"]["Row"] & {
+type AuctionOrder = {
+  id: string;
+  seller_id: string;
+  buyer_id: string | null;
+  item_id: string | null;
+  winning_bid: number;
+  payment_status: "payment_pending" | "paid" | "expired" | "failed" | "cancelled" | string;
+  payment_deadline?: string | null;
+  created_at: string;
+  updated_at: string;
   show_products?: { title?: string; subtitle?: string | null; image_url?: string | null } | null;
   profiles?: { username?: string | null } | null;
 };
@@ -82,9 +108,9 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [tab, setTab] = useState<Tab>("overview");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
-  const [verificationDetails, setVerificationDetails] = useState<Pick<Database["public"]["Tables"]["seller_verifications"]["Row"], "rejection_reason" | "more_information_request" | "verified_at"> | null>(null);
-  const [sellerRecord, setSellerRecord] = useState<Database["public"]["Tables"]["sellers"]["Row"] | null>(null);
-  const [storeRecord, setStoreRecord] = useState<Database["public"]["Tables"]["seller_stores"]["Row"] | null>(null);
+  const [verificationDetails, setVerificationDetails] = useState<VerificationRow | null>(null);
+  const [sellerRecord, setSellerRecord] = useState<SellerRow | null>(null);
+  const [storeRecord, setStoreRecord] = useState<StoreRow | null>(null);
   const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
   const [profileBannerUrl, setProfileBannerUrl] = useState<string | null>(null);
   const [sellerAvatarUrl, setSellerAvatarUrl] = useState<string | null>(null);
@@ -131,9 +157,9 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       ]);
 
       const profileRow = profileData as Profile | null;
-      const sellerRow = sellerData as Database["public"]["Tables"]["sellers"]["Row"] | null;
-      const storeRow = storeData as Database["public"]["Tables"]["seller_stores"]["Row"] | null;
-      const verificationRow = verificationData as Pick<Database["public"]["Tables"]["seller_verifications"]["Row"], "status" | "rejection_reason" | "more_information_request" | "verified_at"> | null;
+      const sellerRow = sellerData as SellerRow | null;
+      const storeRow = storeData as StoreRow | null;
+      const verificationRow = verificationData as VerificationRow | null;
 
       setProfile(profileRow);
       setVerificationStatus(verificationRow?.status ?? profileRow?.verification_status ?? "not_started");
@@ -206,6 +232,29 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   };
 
   const [labelStatus, setLabelStatus] = useState<string | null>(null);
+  const [manualReferralLookup, setManualReferralLookup] = useState("");
+  const [referralStatus, setReferralStatus] = useState<string | null>(null);
+  const referralCode = profile?.referral_code ?? null;
+  const referralLink = typeof window === "undefined" || !referralCode ? "" : `${window.location.origin}/auth?mode=signup&ref=${encodeURIComponent(referralCode)}`;
+  const referralQrUrl = referralLink ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(referralLink)}` : "";
+
+  const copyReferralValue = async (value: string, label: string) => {
+    if (!value || typeof navigator === "undefined") return;
+    await navigator.clipboard.writeText(value);
+    setReferralStatus(`${label} copied.`);
+  };
+
+  const handleManualReferralConfirm = async () => {
+    if (!supabase || !profile || !manualReferralLookup.trim()) return;
+    const code = manualReferralLookup.trim().toUpperCase();
+    const { data: referrer } = await supabase.from("profiles").select("id, referral_code, referral_locked_at").eq("referral_code", code).maybeSingle() as { data: { id: string; referral_code: string | null; referral_locked_at: string | null } | null };
+    if (!referrer?.id) {
+      setReferralStatus("No referral code matched that entry.");
+      return;
+    }
+    const { error } = await (supabase as any).from("profiles").update({ referral_source_user_id: referrer.id, referral_source: "manual signup", referral_source_code: code, referral_source_confirmed_at: new Date().toISOString(), referral_locked_at: new Date().toISOString() }).eq("id", profile.id).is("referral_source_user_id", null);
+    setReferralStatus(error ? error.message : "Referral source locked.");
+  };
 
   const handleCreateUSPSLabel = async (orderId: string) => {
     setLabelStatus(null);
@@ -644,8 +693,31 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                   <div className="flex items-center justify-between"><span>Creator reward</span><span>{formatPercent(20)}</span></div>
                   <div className="flex items-center justify-between"><span>Minimum profit margin</span><span>60%</span></div>
                 </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <button onClick={() => copyReferralValue(referralLink, "Referral link")} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white hover:border-yellow-400/40">Copy referral link</button>
+                  <button onClick={() => copyReferralValue(referralCode ?? "", "Referral code")} className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white hover:border-yellow-400/40">Copy referral code</button>
+                </div>
+                {referralQrUrl && (
+                  <div className="mt-4 flex items-center gap-4 rounded-xl border border-white/10 bg-[#13131f] p-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={referralQrUrl} alt="Referral QR code" className="h-24 w-24 rounded-lg bg-white p-2" />
+                    <div className="text-sm text-gray-300">
+                      <div className="font-semibold text-white">QR code</div>
+                      <p className="mt-1 text-gray-400">Share this code when someone wants to scan and sign up fast.</p>
+                    </div>
+                  </div>
+                )}
                 <div className="mt-4 rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 text-xs text-gray-400">
                   Rewards are held until the order clears and are only approved when the margin stays healthy.
+                </div>
+                <div className="mt-4 space-y-3 rounded-2xl border border-white/10 bg-[#11111c] p-4">
+                  <div className="text-sm font-semibold text-white">Fallback referral lookup</div>
+                  <p className="text-xs text-gray-400">If tracking fails, enter the referred user’s code here within 30 days of signup to lock the source permanently.</p>
+                  <div className="flex gap-2">
+                    <input value={manualReferralLookup} onChange={(e) => setManualReferralLookup(e.target.value)} placeholder="Enter referral code" className="min-w-0 flex-1 rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none" />
+                    <button onClick={handleManualReferralConfirm} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black">Confirm</button>
+                  </div>
+                  {referralStatus && <div className="text-xs text-gray-300">{referralStatus}</div>}
                 </div>
               </div>
             </div>
@@ -688,6 +760,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                   <div className="flex items-center justify-between"><span>Auction health</span><span>{auctionHealth}%</span></div>
                 </div>
               </div>
+            </div>
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/10 via-red-500/10 to-blue-500/10 p-6">
@@ -917,7 +990,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                           <p className="text-xs text-yellow-100">Buyer: {order.profiles?.username ? `@${order.profiles.username}` : order.buyer_id}</p>
                           <p className="mt-1 text-xs text-yellow-100">Winning Bid: ${Number(order.winning_bid).toFixed(2)}</p>
                           <p className="text-xs text-yellow-100">Status: Awaiting Payment</p>
-                          <p className="text-xs text-yellow-100">Time Remaining: {formatTimeRemaining(order.payment_deadline)}</p>
+                          <p className="text-xs text-yellow-100">Time Remaining: {formatTimeRemaining(order.payment_deadline ?? "")}</p>
                           <p className="text-xs text-yellow-100">Order ID: {order.id}</p>
                         </div>
                         <div className="flex flex-wrap gap-2 lg:justify-end">

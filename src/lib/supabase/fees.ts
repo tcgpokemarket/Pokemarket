@@ -1,6 +1,9 @@
-import type { Database } from "./types";
+type ProfileTotalsRow = {
+  total_sales: number;
+};
 
-export function incrementTotalSales(profile: Database["public"]["Tables"]["profiles"]["Row"], quantity = 1) {
+
+export function incrementTotalSales(profile: ProfileTotalsRow, quantity = 1) {
   return {
     total_sales: profile.total_sales + quantity,
   };

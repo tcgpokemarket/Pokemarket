@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/client";
-import type { Database } from "@/lib/supabase/types";
 import { LEGAL_DOCS, type LegalDocumentSlug } from "@/lib/legal-docs";
 
 export type LegalAcceptanceInput = {
@@ -29,7 +28,7 @@ export async function recordLegalAcceptance({ slug, source, acceptedIp, accepted
   }
 
   const doc = getLegalDocument(slug);
-  const payload: Database["public"]["Tables"]["legal_acceptances"]["Insert"] = {
+  const payload = {
     user_id: user.id,
     document_slug: doc.slug,
     document_version: doc.version,

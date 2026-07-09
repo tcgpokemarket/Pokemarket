@@ -2,7 +2,17 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import type { Database, LiveShowBid, LiveShowItem, LiveShowMessage, LiveShow } from "@/lib/supabase/types";
+import type { LiveShowBid, LiveShowItem, LiveShowMessage, LiveShow } from "@/lib/supabase/types";
+
+type LiveShowGiveaway = {
+  id: string;
+  status: string;
+  prize_name?: string | null;
+  start_at: string;
+  end_at: string;
+  follow_required?: boolean | null;
+  winner_id?: string | null;
+};
 import LiveKitStage from "@/components/LiveKitStage";
 import SupportInlineCard from "@/components/support/support-inline-card";
 
@@ -10,7 +20,6 @@ const LIVE_SUPPORT_CARD = (
   <SupportInlineCard title="Need live show help?" description="Ask about bidding, giveaways, payouts, or stream issues while you watch." href="/support" />
 );
 
-type LiveShowGiveaway = Database["public"]["Tables"]["giveaways"]["Row"];
 
 type GiveawayEntryState = {
   entered: boolean;

@@ -1,10 +1,32 @@
-import type { Database, Order, SellerWallet } from "@/lib/supabase/types";
+import type { Order, SellerWallet } from "@/lib/supabase/types";
 
 export type ReferralProgramType = "buyer" | "seller" | "creator" | "tiered";
 
-export type ReferralProgramSettings = Database["public"]["Tables"]["referral_program_settings"]["Row"];
-export type ReferralProgram = Database["public"]["Tables"]["referral_programs"]["Row"];
-export type ReferralAttribution = Database["public"]["Tables"]["referral_attributions"]["Row"];
+export type ReferralSignupSource =
+  | "referral link"
+  | "referral code"
+  | "invite code"
+  | "qr code"
+  | "creator/affiliate link"
+  | "manual signup";
+
+export type ReferralSourceCandidate = {
+  code?: string | null;
+  userId?: string | null;
+  source: ReferralSignupSource;
+};
+
+export type ReferralOwnership = {
+  referrerUserId: string;
+  referredUserId: string;
+  referralCode: string;
+  signupSource: ReferralSignupSource;
+  createdAt: string;
+  firstTransactionAt: string | null;
+  totalRevenueGenerated: number;
+  totalRewardsEarned: number;
+  status: "pending" | "held" | "available" | "paid" | "rejected" | "adjusted";
+};
 
 export type ReferralFraudSignals = {
   sameDevice: boolean;
@@ -37,6 +59,55 @@ export type ReferralRewardDecision = {
   reason: string | null;
 };
 
+type ReferralProgramSettings = {
+  id: string;
+  buyer_reward_credit: number;
+  buyer_first_purchase_threshold: number;
+  buyer_credit_expiry_days: number;
+  buyer_reward_fee_share_percent: number;
+  buyer_reward_max_payout: number;
+  seller_reward_fee_share_percent: number;
+  seller_reward_max_payout: number;
+  creator_tier1_fee_share_percent: number;
+  creator_tier1_duration_days: number;
+  creator_tier1_max_payout: number;
+  creator_tier2_fee_share_percent: number;
+  creator_tier2_duration_days: number;
+  creator_tier2_max_payout: number;
+  min_profit_margin_percent: number;
+  referral_hold_days: number;
+  minimum_withdrawal_amount: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type ReferralProgram = {
+  id: string;
+  code: string;
+};
+
+type ReferralAttribution = {
+  id: string;
+  referral_code: string;
+  signup_source: string;
+  referrer_user_id: string;
+  referred_user_id: string;
+  order_id: string;
+  referral_program_id: string | null;
+  program_type: ReferralProgramType;
+  fee_basis: number;
+  reward_rate: number;
+  reward_amount: number;
+  company_kept_amount: number;
+  hold_until: string;
+  status: string;
+  fraud_flag: boolean;
+  fraud_reason: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+};
+
 const DEFAULT_SETTINGS: ReferralProgramSettings = {
   id: "default",
   buyer_reward_credit: 5,
@@ -51,12 +122,72 @@ const DEFAULT_SETTINGS: ReferralProgramSettings = {
   creator_tier1_max_payout: 500,
   creator_tier2_fee_share_percent: 25,
   creator_tier2_duration_days: 365,
+  creator_tier2_max_payout: 750,
   min_profit_margin_percent: 60,
   referral_hold_days: 14,
   minimum_withdrawal_amount: 25,
   created_at: new Date(0).toISOString(),
   updated_at: new Date(0).toISOString(),
 };
+
+export function lockReferralOwnership(candidates: ReferralSourceCandidate[]) {
+  return candidates.find((candidate) => candidate.code || candidate.userId) ?? null;
+}
+
+export function buildReferralOwnership(input: {
+  referrerUserId: string;
+  referredUserId: string;
+  referralCode: string;
+  signupSource: ReferralSignupSource;
+  createdAt: string;
+  firstTransactionAt?: string | null;
+  totalRevenueGenerated?: number;
+  totalRewardsEarned?: number;
+  status?: ReferralOwnership["status"];
+}): ReferralOwnership {
+  return {
+    referrerUserId: input.referrerUserId,
+    referredUserId: input.referredUserId,
+    referralCode: input.referralCode,
+    signupSource: input.signupSource,
+    createdAt: input.createdAt,
+    firstTransactionAt: input.firstTransactionAt ?? null,
+    totalRevenueGenerated: input.totalRevenueGenerated ?? 0,
+    totalRewardsEarned: input.totalRewardsEarned ?? 0,
+    status: input.status ?? "pending",
+  };
+}
+
+export function getReferralSignupSource(metadata: Record<string, unknown> | null | undefined): ReferralSignupSource | null {
+  if (!metadata) return null;
+  if (metadata.referral_user_id || metadata.referralCode || metadata.referral_code || metadata.referred_by) return "referral code";
+  if (metadata.invite_code) return "invite code";
+  if (metadata.creator_code) return "creator/affiliate link";
+  if (metadata.qr_code) return "qr code";
+  if (metadata.referral_link) return "referral link";
+  return null;
+}
+
+export function getReferralDisplayFields(ownership: ReferralOwnership | null) {
+  if (!ownership) return null;
+  return {
+    referrerUserId: ownership.referrerUserId,
+    referredUserId: ownership.referredUserId,
+    referralCode: ownership.referralCode,
+    createdAt: ownership.createdAt,
+    signupSource: ownership.signupSource,
+    firstTransactionAt: ownership.firstTransactionAt,
+    totalRevenueGenerated: ownership.totalRevenueGenerated,
+    totalRewardsEarned: ownership.totalRewardsEarned,
+    status: ownership.status,
+  };
+}
+
+export function canManuallyAssignReferral(createdAt: string, confirmedAt: string | null) {
+  if (confirmedAt) return false;
+  const ageDays = (Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24);
+  return ageDays <= 30;
+}
 
 export function getDefaultReferralSettings(): ReferralProgramSettings {
   return { ...DEFAULT_SETTINGS };
@@ -127,19 +258,23 @@ export function buildReferralAttribution(input: {
   metadata?: Record<string, unknown>;
 }): ReferralAttribution {
   const settings = input.settings ?? DEFAULT_SETTINGS;
-  const rewardAmount = Math.min(input.order.marketplace_fee_amount * (input.rewardRate / 100), input.maxPayout ?? Number.POSITIVE_INFINITY);
-  const profit = Math.max(input.order.marketplace_fee_amount - rewardAmount - input.order.processing_fee_amount, 0);
+  const marketplaceFeeAmount = Number(input.order.marketplace_fee_amount ?? 0);
+  const processingFeeAmount = Number(input.order.processing_fee_amount ?? 0);
+  const rewardAmount = Math.min(marketplaceFeeAmount * (input.rewardRate / 100), input.maxPayout ?? Number.POSITIVE_INFINITY);
+  const profit = Math.max(marketplaceFeeAmount - rewardAmount - processingFeeAmount, 0);
   const holdUntil = getReferralHoldUntil(input.order.created_at, settings);
   const fraudFlag = input.fraudSignals ? isReferralFraud(input.fraudSignals) : false;
 
   return {
     id: `${input.order.id}-referral`,
-    referred_user_id: input.referredUserId,
+    referral_code: input.metadata?.referral_code ? String(input.metadata.referral_code) : "",
+    signup_source: String(input.metadata?.signup_source ?? input.metadata?.source ?? "manual signup"),
     referrer_user_id: input.referrerUserId,
+    referred_user_id: input.referredUserId,
     order_id: input.order.id,
     referral_program_id: null,
     program_type: input.programType,
-    fee_basis: Number(input.order.marketplace_fee_amount.toFixed(2)),
+    fee_basis: Number(marketplaceFeeAmount.toFixed(2)),
     reward_rate: input.rewardRate,
     reward_amount: Number(rewardAmount.toFixed(2)),
     company_kept_amount: Number(profit.toFixed(2)),
@@ -150,7 +285,7 @@ export function buildReferralAttribution(input: {
     metadata: input.metadata ?? {},
     created_at: input.order.created_at,
     updated_at: input.order.created_at,
-  } as ReferralAttribution;
+  };
 }
 
 export function canWithdrawReferralEarnings(amount: number, availableAt: string | null, minimumWithdrawal: number) {

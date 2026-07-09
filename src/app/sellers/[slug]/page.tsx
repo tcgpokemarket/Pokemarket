@@ -4,7 +4,10 @@ import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
 import type { Listing } from "@/lib/supabase/types";
 import { getSocialCounts } from "@/lib/social-network";
-import type { Database } from "@/lib/supabase/types";
+type ProfileRow = {
+  username: string | null;
+  full_name: string | null;
+};
 
 export const dynamic = "force-dynamic";
 export const dynamicParams = true;
@@ -70,8 +73,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
   }>;
   const profile = profileResult.data as { username: string | null; full_name: string | null } | null;
   const socialCounts = await getSocialCounts(sellerData.id).catch(() => ({ followers: sellerData.follower_count, following: 0, friends: 0 }));
-  const activeProfile = profile as (Database["public"]["Tables"]["profiles"]["Row"] & { username: string | null; full_name: string | null }) | null;
-
+  const activeProfile = profile as ProfileRow | null;
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
       <nav className="border-b border-white/10 bg-[#0f0f1a]/90 backdrop-blur-sm">

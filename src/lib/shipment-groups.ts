@@ -1,7 +1,35 @@
-import type { Database } from "@/lib/supabase/types";
+export type ShipmentGroupRow = {
+  id: string;
+  buyer_id: string;
+  seller_id: string;
+  shipping_profile_id: string | null;
+  status: string;
+  total_weight: number;
+  total_length: number;
+  total_width: number;
+  total_height: number;
+  package_type: string;
+  tracking_number: string | null;
+  shipping_carrier: string | null;
+  label_url: string | null;
+  locked_at: string | null;
+};
 
-export type ShipmentGroupRow = Database["public"]["Tables"]["shipment_groups"]["Row"];
-export type ShipmentGroupInsert = Database["public"]["Tables"]["shipment_groups"]["Insert"];
+export type ShipmentGroupInsert = {
+  buyer_id: string;
+  seller_id: string;
+  shipping_profile_id: string | null;
+  status: string;
+  total_weight: number;
+  total_length: number;
+  total_width: number;
+  total_height: number;
+  package_type: string;
+  tracking_number: string | null;
+  shipping_carrier: string | null;
+  label_url: string | null;
+  locked_at: string | null;
+};
 
 export type ShipmentGroupCandidate = {
   id: string;

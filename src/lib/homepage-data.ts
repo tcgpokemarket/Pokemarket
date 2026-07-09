@@ -1,14 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Database, Listing, Profile } from "@/lib/supabase/types";
+import type { Listing, Profile } from "@/lib/supabase/types";
 
-export type HomepageListing = Pick<Listing, "id" | "card_name" | "set_name" | "price" | "category" | "images">;
-export type HomepageSeller = Pick<Profile, "id" | "full_name" | "username" | "avatar_url" | "seller_rating" | "total_sales"> & {
+type ListingRow = Pick<Listing, "id" | "card_name" | "set_name" | "price" | "category" | "images">;
+type SellerRow = Pick<Profile, "id" | "full_name" | "username" | "avatar_url" | "seller_rating" | "total_sales"> & {
   display_name: string;
   storefront_slug: string;
   verified: boolean;
   rating: number;
   sales_count: number;
 };
+
+export type HomepageListing = ListingRow;
+export type HomepageSeller = SellerRow;
 export type HomepageLiveShow = {
   id: string;
   title: string;
@@ -67,11 +70,11 @@ const DEFAULT_ACTIVITY: HomepageActivity[] = [
   { type: "listing", title: "Fresh sealed product added", subtitle: "151 booster bundle just dropped" },
 ];
 
-function mapListing(listing: Database["public"]["Tables"]["listings"]["Row"]): HomepageListing {
+function mapListing(listing: ListingRow): HomepageListing {
   return { id: listing.id, card_name: listing.card_name, set_name: listing.set_name, price: listing.price, category: listing.category, images: listing.images ?? [] };
 }
 
-function mapSeller(seller: Database["public"]["Tables"]["sellers"]["Row"] | null | undefined): HomepageSeller | null {
+function mapSeller(seller: SellerRow | null | undefined): HomepageSeller | null {
   if (!seller) return null;
   return {
     id: seller.id,
@@ -101,7 +104,7 @@ export async function getHomepageData(): Promise<HomepageData> {
     ]);
 
     const trendingMarketplace = (listingsResult.data ?? []).map(mapListing);
-    const featuredSellers = (sellersResult.data ?? []).map((seller) => mapSeller(seller as Database["public"]["Tables"]["sellers"]["Row"])) .filter(Boolean) as HomepageSeller[];
+    const featuredSellers = (sellersResult.data ?? []).map((seller) => mapSeller(seller as SellerRow)).filter(Boolean) as HomepageSeller[];
     const liveShows = fallbackLiveShows();
 
     return {

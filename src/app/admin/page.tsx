@@ -13,6 +13,7 @@ const modules = [
   { title: "Shipping", description: "Rates, labels, shipment groups, and tracking", href: "/dashboard" },
   { title: "Live shows", description: "Auctions, chat, bids, and stream health", href: "/live" },
   { title: "Fees", description: "Marketplace fee tiers and overrides", href: "/dashboard/fees" },
+  { title: "Referral tools", description: "Search referral sources and correct attribution", href: "/admin/referrals" },
 ] as const;
 
 export default function AdminPage() {

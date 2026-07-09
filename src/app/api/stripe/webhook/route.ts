@@ -132,6 +132,16 @@ export async function POST(req: Request) {
     platform_revenue_amount: toNumber(session.metadata?.platformRevenueAmount, order.platform_revenue_amount ?? 0),
     marketplace_fee_percent: toNumber(session.metadata?.marketplaceFeePercent, order.marketplace_fee_percent ?? 0),
     seller_tier_name: session.metadata?.sellerTierName ?? order.seller_tier_name,
+    buyer_referral_source: session.metadata?.referralSource ?? order.buyer_referral_source,
+    seller_referral_source: order.seller_referral_source,
+    creator_referral_source: session.metadata?.referralSource === "creator/affiliate link" ? session.metadata?.referralSource : order.creator_referral_source,
+    referral_commission_amount: toNumber(session.metadata?.referralCommissionAmount, order.referral_commission_amount ?? 0),
+    referral_commission_status: session.metadata?.referralCommissionStatus ?? order.referral_commission_status,
+    referral_source_code: session.metadata?.referralSourceCode ?? order.referral_source_code,
+    referral_source_user_id: session.metadata?.referralSourceUserId || order.referral_source_user_id,
+    total_revenue_generated: toNumber(session.metadata?.platformRevenueAmount, order.total_revenue_generated ?? order.platform_revenue_amount ?? 0),
+    total_rewards_earned: toNumber(session.metadata?.referralCommissionAmount, order.total_rewards_earned ?? 0),
+    first_transaction_at: order.first_transaction_at ?? now,
   } as const;
 
   await (supabase as any)

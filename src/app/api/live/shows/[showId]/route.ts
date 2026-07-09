@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordSecurityEvent } from "@/lib/audit-log";
 import { LIVE_MAX_CHAT_LENGTH } from "@/lib/live-shows";
-import type { Database } from "@/lib/supabase/types";
+import type { Json } from "@/lib/supabase/types";
 
 function toNumber(value: unknown, fallback = 0) {
   const parsed = typeof value === "string" || typeof value === "number" ? Number(value) : NaN;
@@ -35,7 +35,7 @@ async function createAuctionOrder(input: {
       updated_at: new Date().toISOString(),
     }, { onConflict: "auction_id,product_id" })
     .select("*")
-    .maybeSingle() as { data: Database["public"]["Tables"]["auction_orders"]["Row"] | null; error: { message: string } | null };
+    .maybeSingle() as { data: { id: string; [key: string]: Json } | null; error: { message: string } | null };
 
   if (error) throw new Error(error.message);
   return data;

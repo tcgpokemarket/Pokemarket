@@ -10,6 +10,13 @@ create table public.profiles (
   is_seller boolean default false,
   seller_rating numeric(3,2) default 0,
   total_sales integer default 0,
+  referral_code text unique,
+  referral_code_created_at timestamptz,
+  referral_source text,
+  referral_source_user_id uuid references auth.users(id),
+  referral_source_code text,
+  referral_source_confirmed_at timestamptz,
+  referral_locked_at timestamptz,
   created_at timestamptz default now()
 );
 
@@ -288,6 +295,8 @@ create table public.referral_attributions (
   id uuid default gen_random_uuid() primary key,
   referred_user_id uuid references auth.users(id) on delete cascade not null,
   referrer_user_id uuid references auth.users(id) on delete cascade not null,
+  referral_code text not null,
+  signup_source text not null,
   order_id uuid references public.orders(id) on delete cascade,
   referral_program_id uuid references public.referral_programs(id) on delete set null,
   program_type text not null check (program_type in ('buyer', 'seller', 'creator', 'tiered')),
@@ -295,11 +304,14 @@ create table public.referral_attributions (
   reward_rate numeric(5,2) not null default 0,
   reward_amount numeric(10,2) not null default 0,
   company_kept_amount numeric(10,2) not null default 0,
+  total_revenue_generated numeric(10,2) not null default 0,
+  total_rewards_earned numeric(10,2) not null default 0,
   hold_until timestamptz,
   status text not null default 'pending' check (status in ('pending', 'held', 'available', 'paid', 'rejected', 'adjusted')),
   fraud_flag boolean not null default false,
   fraud_reason text,
   metadata jsonb not null default '{}'::jsonb,
+  first_transaction_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -311,6 +323,182 @@ create table public.referral_events (
   details jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now()
 );
+
+create index idx_referral_attributions_referrer on public.referral_attributions(referrer_user_id, status);
+create index idx_referral_attributions_referred on public.referral_attributions(referred_user_id, status);
+create index idx_referral_attributions_hold_until on public.referral_attributions(hold_until);
+create index idx_referral_attributions_code on public.referral_attributions(referral_code);
+create index idx_referral_programs_code on public.referral_programs(code);
+create index idx_profiles_referral_code on public.profiles(referral_code);
+
+alter table public.referral_program_settings enable row level security;
+alter table public.referral_programs enable row level security;
+alter table public.referral_attributions enable row level security;
+alter table public.referral_events enable row level security;
+
+create policy "referral settings readable by authenticated users" on public.referral_program_settings
+  for select using (auth.uid() is not null);
+create policy "referral programs readable by authenticated users" on public.referral_programs
+  for select using (auth.uid() is not null);
+create policy "referral attributions readable by participants" on public.referral_attributions
+  for select using (auth.uid() = referrer_user_id or auth.uid() = referred_user_id);
+create policy "referral events readable by participants" on public.referral_events
+  for select using (exists (select 1 from public.referral_attributions where id = referral_attribution_id and (referrer_user_id = auth.uid() or referred_user_id = auth.uid())));
+
+create or replace function public.ensure_referral_code()
+returns trigger as $$
+declare
+  base_code text;
+  candidate_code text;
+  suffix integer := 0;
+begin
+  if new.referral_code is not null and new.referral_code <> '' then
+    return new;
+  end if;
+
+  base_code := upper(left(regexp_replace(coalesce(new.username, coalesce(new.full_name, 'TCG')), '[^A-Za-z0-9]', '', 'g'), 8));
+  if base_code = '' then
+    base_code := 'TCG';
+  end if;
+  candidate_code := base_code;
+
+  while exists (select 1 from public.profiles where referral_code = candidate_code) loop
+    suffix := suffix + 1;
+    candidate_code := base_code || suffix::text;
+  end loop;
+
+  new.referral_code := candidate_code;
+  new.referral_code_created_at := now();
+  new.referral_locked_at := now();
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger set_referral_code_on_profile
+  before insert on public.profiles
+  for each row execute procedure public.ensure_referral_code();
+
+create or replace function public.capture_referral_source()
+returns trigger as $$
+declare
+  referral_referrer uuid;
+  referral_code_value text;
+  referral_source_value text;
+begin
+  referral_referrer := null;
+  referral_code_value := null;
+  referral_source_value := null;
+
+  if new.raw_user_meta_data ? 'referral_user_id' then
+    referral_referrer := nullif(new.raw_user_meta_data->>'referral_user_id', '')::uuid;
+    referral_source_value := 'referral link';
+  elsif new.raw_user_meta_data ? 'referral_code' then
+    referral_code_value := upper(trim(new.raw_user_meta_data->>'referral_code'));
+    select id into referral_referrer from public.profiles where referral_code = referral_code_value limit 1;
+    referral_source_value := 'referral code';
+  elsif new.raw_user_meta_data ? 'invite_code' then
+    referral_code_value := upper(trim(new.raw_user_meta_data->>'invite_code'));
+    select id into referral_referrer from public.profiles where referral_code = referral_code_value limit 1;
+    referral_source_value := 'invite code';
+  elsif new.raw_user_meta_data ? 'creator_code' then
+    referral_code_value := upper(trim(new.raw_user_meta_data->>'creator_code'));
+    select id into referral_referrer from public.profiles where referral_code = referral_code_value limit 1;
+    referral_source_value := 'creator/affiliate link';
+  elsif new.raw_user_meta_data ? 'referred_by' then
+    referral_code_value := upper(trim(new.raw_user_meta_data->>'referred_by'));
+    select id into referral_referrer from public.profiles where referral_code = referral_code_value limit 1;
+    referral_source_value := 'manual signup';
+  end if;
+
+  if referral_referrer is not null and referral_referrer <> new.id then
+    update public.profiles
+      set referral_source_user_id = referral_referrer,
+          referral_source = referral_source_value,
+          referral_source_code = referral_code_value,
+          referral_source_confirmed_at = now(),
+          referral_locked_at = coalesce(referral_locked_at, now())
+      where id = new.id
+        and referral_source_user_id is null;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger capture_referral_source_on_profile
+  after insert on auth.users
+  for each row execute procedure public.capture_referral_source();
+
+create or replace function public.lock_referral_on_order()
+returns trigger as $$
+declare
+  current_referrer uuid;
+  current_code text;
+begin
+  select referral_source_user_id, referral_source_code into current_referrer, current_code
+  from public.profiles
+  where id = new.buyer_id;
+
+  if current_referrer is not null then
+    insert into public.referral_attributions (
+      referred_user_id,
+      referrer_user_id,
+      referral_code,
+      signup_source,
+      order_id,
+      referral_program_id,
+      program_type,
+      fee_basis,
+      reward_rate,
+      reward_amount,
+      company_kept_amount,
+      total_revenue_generated,
+      total_rewards_earned,
+      status,
+      metadata,
+      first_transaction_at
+    )
+    values (
+      new.buyer_id,
+      current_referrer,
+      coalesce(current_code, ''),
+      coalesce((select referral_source from public.profiles where id = new.buyer_id), 'manual signup'),
+      new.id,
+      null,
+      'buyer',
+      coalesce(new.marketplace_fee_amount, 0),
+      0,
+      0,
+      coalesce(new.marketplace_fee_amount, 0),
+      0,
+      'held',
+      jsonb_build_object('source', 'order trigger'),
+      new.created_at
+    )
+    on conflict do nothing;
+  end if;
+
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger lock_referral_on_order_insert
+  after insert on public.orders
+  for each row execute procedure public.lock_referral_on_order();
+
+create or replace function public.prevent_referral_changes()
+returns trigger as $$
+begin
+  if old.referral_source_user_id is distinct from new.referral_source_user_id then
+    raise exception 'Referral ownership is locked';
+  end if;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+create trigger prevent_referral_source_change
+  before update on public.profiles
+  for each row execute procedure public.prevent_referral_changes();
 
 -- Price history cache
 create table public.price_history (

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import type { Database } from "@/lib/supabase/types";
+import type { Json } from "@/lib/supabase/types";
 
 export async function GET() {
   const supabase = await createClient();
@@ -25,7 +25,7 @@ type CreateShowBody = {
   scheduled_end?: string | null;
   status?: string;
   auction_state?: string | null;
-  auction_settings?: Database["public"]["Tables"]["live_shows"]["Insert"]["auction_settings"];
+  auction_settings?: Json;
   host_permissions?: string[] | null;
 };
 
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
   }
 
-  const payload: Database["public"]["Tables"]["live_shows"]["Insert"] = {
+  const payload = {
     seller_id: user.id,
     title: body.title,
     description: body.description ?? null,

@@ -11,12 +11,13 @@ function getRedirectTarget(value: string | null) {
 export default function AuthClient() {
   const searchParams = useSearchParams();
   const redirectTo = getRedirectTarget(searchParams.get("redirectTo"));
+  const initialMode = searchParams.get("mode") === "signup" ? "signup" : "login";
 
   const supabase = createClient();
   const router = useRouter();
 
 
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [mode, setMode] = useState<"login" | "signup">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -39,7 +40,15 @@ export default function AuthClient() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName, referral_code: referralCode.trim() || undefined } },
+        options: {
+          data: {
+            full_name: fullName,
+            referral_code: referralCode.trim() || undefined,
+            invite_code: referralCode.trim() || undefined,
+            referred_by: referralCode.trim() || undefined,
+            referral_link: typeof window === "undefined" ? undefined : window.location.href,
+          },
+        },
       });
       if (error) setMessage({ type: "error", text: error.message });
       else setMessage({ type: "success", text: "Check your email to confirm your account." });

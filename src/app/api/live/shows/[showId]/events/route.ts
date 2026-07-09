@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createShowEvent } from "@/lib/live-shows";
-import type { Database } from "@/lib/supabase/types";
+import type { Json } from "@/lib/supabase/types";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordSecurityEvent } from "@/lib/audit-log";
 
@@ -65,7 +65,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ showId:
   await createShowEvent({
     show_id: showId,
     event_type: body.eventType,
-    payload: (body.payload ?? {}) as Database["public"]["Tables"]["show_events"]["Insert"]["payload"],
+    payload: (body.payload ?? {}) as Json,
     created_by: user.id,
   });
 

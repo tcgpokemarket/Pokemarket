@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { buildSellerFeeConfig, calculateFeeBreakdown } from "@/lib/seller-fees";
 import { decideEscrowFlow, getDeliveryReleaseAt, calculateFraudRisk } from "@/lib/escrow";
 import { getRecommendedShippingOptions, loadShippingRules } from "@/lib/shipping-rules";
+import { buildReferralOwnership, getReferralSignupSource, lockReferralOwnership } from "@/lib/referrals";
 import type { Json } from "@/lib/supabase/types";
 
 function toWeightOz(value: unknown) {
@@ -49,6 +50,16 @@ export async function POST(req: Request) {
     .eq("id", listingId)
     .eq("status", "active")
     .single();
+
+  const buyerProfileResult = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+  const buyerProfile = buyerProfileResult.data as any;
+  const referralSource = getReferralSignupSource(buyerProfile?.raw_user_meta_data ?? null) ?? buyerProfile?.referral_source ?? "manual signup";
+  const referralCandidate = lockReferralOwnership([
+    buyerProfile?.referral_source_code ? { code: String(buyerProfile.referral_source_code), source: referralSource } : null,
+    buyerProfile?.referral_source_user_id ? { userId: String(buyerProfile.referral_source_user_id), source: referralSource } : null,
+  ].filter(Boolean) as any);
+  const referralSourceUserId = referralCandidate?.userId ?? buyerProfile?.referral_source_user_id ?? null;
+  const referralSourceCode = referralCandidate?.code ?? buyerProfile?.referral_source_code ?? null;
 
   const listing = listingResult.data as any;
   if (listingResult.error || !listing) {
@@ -168,6 +179,11 @@ export async function POST(req: Request) {
       platformRevenueAmount: feeBreakdown.platformRevenue.toFixed(2),
       marketplaceFeePercent: feeBreakdown.marketplaceFeePercent.toFixed(2),
       sellerTierName: feeBreakdown.tierName,
+      referralSource,
+      referralSourceUserId: referralSourceUserId ?? "",
+      referralSourceCode: referralSourceCode ?? "",
+      referralCommissionAmount: "0",
+      referralCommissionStatus: referralSourceUserId ? "held" : "none",
       escrowStatus: escrowDecision.requiresEscrowHold ? "held" : "released",
       escrowRiskScore: String(escrowSignals.score),
       escrowRiskReason: escrowSignals.reasons.join("; "),
@@ -193,6 +209,17 @@ export async function POST(req: Request) {
     platform_revenue_amount: feeBreakdown.platformRevenue,
     marketplace_fee_percent: feeBreakdown.marketplaceFeePercent,
     seller_tier_name: feeBreakdown.tierName,
+    buyer_referral_source: referralSource,
+    seller_referral_source: null,
+    creator_referral_source: referralSource === "creator/affiliate link" ? referralSource : null,
+    referral_commission_amount: 0,
+    referral_commission_status: referralSourceUserId ? "held" : "none",
+    referral_source_code: referralSourceCode,
+    referral_source_user_id: referralSourceUserId,
+    referral_attribution_id: referralSourceUserId ? `${user.id}:${referralSourceUserId}:${listingId}` : null,
+    total_revenue_generated: feeBreakdown.platformRevenue,
+    total_rewards_earned: 0,
+    first_transaction_at: heldAt,
     status: escrowDecision.requiresEscrowHold ? "escrow" : "paid",
     stripe_checkout_session_id: checkoutSession.id,
     payout_status: escrowDecision.requiresEscrowHold ? "held" : "released",

@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
 import type { SellerVerificationStatus } from "@/lib/seller-verification";
-import type { Database } from "@/lib/supabase/types";
+type VerificationRow = {
+  status?: SellerVerificationStatus | null;
+  rejection_reason?: string | null;
+  more_information_request?: string | null;
+  verified_at?: string | null;
+};
 
 const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"];
 const CATEGORIES = [
@@ -24,7 +29,7 @@ export default function SellPage() {
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
-  const [verificationData, setVerificationData] = useState<Pick<Database["public"]["Tables"]["seller_verifications"]["Row"], "rejection_reason" | "more_information_request" | "verified_at"> | null>(null);
+  const [verificationData, setVerificationData] = useState<VerificationRow | null>(null);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [priceGuideLoading, setPriceGuideLoading] = useState(false);
@@ -64,7 +69,7 @@ export default function SellPage() {
 
       setUserId(user.id);
       const { data } = await client.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle();
-      const verification = data as Pick<Database["public"]["Tables"]["seller_verifications"]["Row"], "status" | "rejection_reason" | "more_information_request" | "verified_at"> | null;
+      const verification = data as VerificationRow | null;
       setVerificationStatus(verification?.status ?? "not_started");
       setVerificationData(verification ? {
         rejection_reason: verification.rejection_reason,

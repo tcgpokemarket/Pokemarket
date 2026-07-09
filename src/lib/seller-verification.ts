@@ -1,13 +1,55 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import type { Database } from "@/lib/supabase/types";
 
-type SellerVerificationRow = Database["public"]["Tables"]["seller_verifications"]["Row"];
-type SellerVerificationInsert = Database["public"]["Tables"]["seller_verifications"]["Insert"];
-type SellerVerificationDocumentInsert = Database["public"]["Tables"]["seller_verification_documents"]["Insert"];
-type SellerVerificationHistoryInsert = Database["public"]["Tables"]["seller_verification_history"]["Insert"];
+type SellerVerificationStatus = "not_started" | "pending_review" | "approved" | "rejected" | "more_information_required" | "suspended";
+export type { SellerVerificationStatus };
+export type SellerVerificationDocumentType = string;
 
-export type SellerVerificationStatus = Database["public"]["Tables"]["seller_verifications"]["Row"]["status"];
-export type SellerVerificationDocumentType = Database["public"]["Tables"]["seller_verification_documents"]["Row"]["document_type"];
+type SellerVerificationRow = {
+  id: string;
+  user_id: string;
+  legal_name: string | null;
+  date_of_birth: string | null;
+  residential_address: string | null;
+  phone_number: string | null;
+  status: SellerVerificationStatus;
+  verified_at: string | null;
+  submitted_at: string | null;
+  reviewed_at: string | null;
+  reviewer_id: string | null;
+  rejection_reason: string | null;
+  more_information_request: string | null;
+  suspension_reason: string | null;
+  admin_notes: string | null;
+}
+
+type SellerVerificationInsert = {
+  user_id: string;
+  legal_name: string;
+  date_of_birth: string;
+  residential_address: string;
+  phone_number: string;
+  status: SellerVerificationStatus;
+  submitted_at: string;
+};
+
+type SellerVerificationDocumentInsert = {
+  verification_id: string;
+  user_id: string;
+  document_type: string;
+  storage_bucket: string;
+  storage_path: string;
+  mime_type: string | null;
+  file_name: string | null;
+};
+
+type SellerVerificationHistoryInsert = {
+  verification_id: string;
+  actor_id: string | null;
+  action: string;
+  previous_status: SellerVerificationStatus | null;
+  next_status: SellerVerificationStatus | null;
+  notes: string | null;
+};
 
 export const SELLER_VERIFICATION_REQUIRED_FOR_SELLING = true;
 
