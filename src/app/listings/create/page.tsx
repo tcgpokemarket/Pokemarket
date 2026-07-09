@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { MAX_IMAGE_SIZE_BYTES, uploadImageFile } from "@/lib/uploads";
@@ -16,7 +16,7 @@ const GRADE_COMPANIES = ["", "PSA", "BGS", "CGC"];
 
 export default function CreateListingPage() {
   const router = useRouter();
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
@@ -50,13 +50,11 @@ export default function CreateListingPage() {
   ] as const;
 
   useEffect(() => {
-    const client = createClient();
-    setSupabase(client);
-    client.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) router.push("/auth?redirectTo=/listings/create");
       else setUserId(user.id);
     });
-  }, [router]);
+  }, [router, supabase]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));

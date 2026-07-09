@@ -24,10 +24,12 @@ export async function generateMetadata({ params }: { params: Promise<{ showId: s
 export default async function LiveShowPage({ params }: { params: Promise<{ showId: string }> }) {
   const { showId } = await params;
 
+  let data;
   try {
-    const data = await getLiveShowDetails(showId);
-    return <LiveShowClient initialData={data} />;
+    data = await getLiveShowDetails(showId);
   } catch {
     notFound();
   }
+
+  return <LiveShowClient initialData={data} />;
 }

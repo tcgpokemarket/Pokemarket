@@ -66,13 +66,14 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const [moderatorLog, setModeratorLog] = useState<Array<{ id: string; event_type: string; payload: unknown; created_at: string }>>([]);
   const [monitorLayout, setMonitorLayout] = useState<"single" | "dual" | "video-only" | "controls-only">("single");
   const [streamHealth, setStreamHealth] = useState({ connection: "strong", cpu: "stable", network: "stable" });
+  const [now, setNow] = useState(() => Date.now());
   const activeAuctionOrder = auctionOrders[0] ?? null;
   const livePaymentStatus = activeAuctionOrder?.payment_status === "paid"
     ? "🟢 Paid — Ready to Ship"
     : activeAuctionOrder?.payment_status === "expired" || activeAuctionOrder?.payment_status === "failed"
       ? "🔴 Payment Failed"
       : "🟡 Awaiting Payment";
-  const buyerTimer = activeAuctionOrder ? Math.max(0, new Date(activeAuctionOrder.payment_deadline).getTime() - Date.now()) : 0;
+  const buyerTimer = activeAuctionOrder ? Math.max(0, new Date(activeAuctionOrder.payment_deadline).getTime() - now) : 0;
   const buyerTimerText = activeAuctionOrder ? `${String(Math.floor(buyerTimer / 60000)).padStart(2, "0")}:${String(Math.floor((buyerTimer % 60000) / 1000)).padStart(2, "0")}` : "15:00";
   const hostPermissions = Array.isArray((show as any).host_permissions) ? (show as any).host_permissions as string[] : [];
   const isHost = showMode === "host" && (show.seller_id === initialData.show.seller_id || hostPermissions.length > 0);
@@ -101,7 +102,7 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setAuctionOrders((current) => [...current]);
+      setNow(Date.now());
     }, 1000);
     return () => clearInterval(interval);
   }, []);
@@ -153,7 +154,8 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const currentBid = Number(activeItem?.current_bid ?? 0);
   const nextBid = getNextSwipeBid(currentBid);
   const maxBidPreview = Number(maxBidAmount || 0);
-  const isSwipeLocked = swipeState === "submitting" || Date.now() < swipeLockUntil.current;
+  const [swipeLockActive, setSwipeLockActive] = useState(false);
+  const isSwipeLocked = swipeState === "submitting" || swipeLockActive;
   const auctionQueue = useMemo(() => [...products].sort((a, b) => Number(a.seconds_left ?? 0) - Number(b.seconds_left ?? 0)), [products]);
   const bidHistory = useMemo(() => bids.slice(0, 15), [bids]);
   const recentBidCount = bids.length;
@@ -219,7 +221,12 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   }, [activeGiveaway?.follow_required, show.id, supabase]);
 
   useEffect(() => {
-    setSwipeOffset(0);
+    queueMicrotask(() => {
+      setSwipeOffset(0);
+      setSwipeLockActive(false);
+      const timer = window.setTimeout(() => setSwipeLockActive(Date.now() < swipeLockUntil.current), 0);
+      return () => window.clearTimeout(timer);
+    });
   }, [activeItem?.id]);
 
   useEffect(() => {

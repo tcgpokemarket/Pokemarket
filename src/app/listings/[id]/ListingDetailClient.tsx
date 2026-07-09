@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
@@ -26,27 +26,22 @@ const CONDITION_COLORS: Record<string, string> = {
 
 export default function ListingDetailClient({ id, initialListing }: { id: string; initialListing: ListingWithSeller | null }) {
   const router = useRouter();
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
 
   const [listing, setListing] = useState<ListingWithSeller | null>(initialListing);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialListing);
   const [buying, setBuying] = useState(false);
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
 
   useEffect(() => {
-    const client = createClient();
-    setSupabase(client);
-    client.auth.getUser().then(({ data: { user } }) => setUser(user));
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
 
     if (initialListing) {
-      setLoading(false);
       import("@/lib/prices")
         .then(({ fetchCardPrice }) => fetchCardPrice(initialListing.card_name, initialListing.set_name))
         .then((price) => setMarketPrice(price.marketPrice));
-    } else {
-      setLoading(false);
     }
 
     // Shipping pricing is handled at checkout.

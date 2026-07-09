@@ -79,7 +79,6 @@ function ListingCard({ listing }: { listing: HomepageListing }) {
     <Link href={`/listings/${listing.id}`} className="group overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#121826] transition hover:-translate-y-1 hover:border-yellow-400/40">
       <div className="relative aspect-[4/5] bg-white/5">
         {image ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={image} alt={listing.card_name} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full items-center justify-center text-5xl">🃏</div>
@@ -108,7 +107,6 @@ function LiveCard({ show }: { show: HomepageLiveShow }) {
     <Link href={`/live/${show.id}`} className="group overflow-hidden rounded-[2rem] border border-white/10 bg-[#121826] transition hover:-translate-y-1 hover:border-yellow-400/40">
       <div className="relative aspect-[4/5] bg-gradient-to-br from-yellow-400/20 via-fuchsia-500/10 to-cyan-500/10">
         {thumbnail ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={thumbnail} alt={show.title} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full items-center justify-center text-6xl">🎴</div>
@@ -144,8 +142,7 @@ function SellerCard({ seller }: { seller: HomepageSeller }) {
       <div className="flex items-center gap-3">
         <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
           {seller.avatar_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={seller.avatar_url} alt={seller.display_name} className="h-full w-full object-cover" />
+              <img src={seller.avatar_url} alt={seller.display_name} className="h-full w-full object-cover" />
           ) : (
             <span className="text-xl">⚡</span>
           )}
@@ -387,8 +384,7 @@ export default async function Home() {
                 <Link key={show.id} href={`/live/${show.id}`} className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#121826] transition hover:border-yellow-400/40">
                   <div className="aspect-[4/3] bg-gradient-to-r from-yellow-400/20 via-red-500/10 to-blue-500/10">
                     {show.thumbnail ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={show.thumbnail} alt={show.title} className="h-full w-full object-cover" />
+                                  <img src={show.thumbnail} alt={show.title} className="h-full w-full object-cover" />
                     ) : null}
                   </div>
                   <div className="p-4">

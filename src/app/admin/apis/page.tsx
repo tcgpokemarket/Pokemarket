@@ -1,14 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { getIntegrationHealth, setIntegrationEnabled } from "@/lib/api-integrations";
 
 export default function ApiManagementPage() {
   const [health, setHealth] = useState(getIntegrationHealth());
 
-  useEffect(() => {
-    setHealth(getIntegrationHealth());
-  }, []);
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-10 text-white">

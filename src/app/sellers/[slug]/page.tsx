@@ -100,7 +100,6 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               <div className="flex items-end gap-5">
                 <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-[#13131f] text-4xl font-black text-yellow-400 shadow-2xl shadow-black/30">
                   {sellerData.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={sellerData.avatar_url} alt={sellerData.display_name} className="h-full w-full object-cover" />
                   ) : (
                     sellerData.display_name[0]?.toUpperCase() ?? "S"

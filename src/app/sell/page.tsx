@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
@@ -23,7 +23,7 @@ const GRADE_COMPANIES = ["", "PSA", "BGS", "CGC"];
 
 export default function SellPage() {
   const router = useRouter();
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
@@ -59,16 +59,14 @@ export default function SellPage() {
   ] as const;
 
   useEffect(() => {
-    const client = createClient();
-    setSupabase(client);
-    client.auth.getUser().then(async ({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
         router.push("/auth?redirectTo=/sell");
         return;
       }
 
       setUserId(user.id);
-      const { data } = await client.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle();
+      const { data } = await supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle();
       const verification = data as VerificationRow | null;
       setVerificationStatus(verification?.status ?? "not_started");
       setVerificationData(verification ? {
@@ -77,7 +75,7 @@ export default function SellPage() {
         verified_at: verification.verified_at,
       } : null);
     });
-  }, [router]);
+  }, [router, supabase]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     setForm((f) => ({ ...f, [e.target.name]: e.target.value }));

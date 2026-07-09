@@ -74,7 +74,7 @@ function seedFromListings(listings: Listing[]): LiveShowState {
 export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
   const [title, setTitle] = useState("Collector Live Drop");
   const [template, setTemplate] = useState<LiveShowTemplate>("fixed_price_drop");
-  const [scheduledStart, setScheduledStart] = useState(new Date(Date.now() + 1000 * 60 * 30).toISOString().slice(0, 16));
+  const [scheduledStart, setScheduledStart] = useState(() => new Date(Date.now() + 1000 * 60 * 30).toISOString().slice(0, 16));
   const [mutedChat, setMutedChat] = useState(false);
   const [slowModeSeconds, setSlowModeSeconds] = useState(0);
   const [aiHostEnabled, setAiHostEnabled] = useState(false);

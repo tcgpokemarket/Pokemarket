@@ -165,8 +165,10 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    setOpen(false);
-    setAccountOpen(false);
+    queueMicrotask(() => {
+      setOpen(false);
+      setAccountOpen(false);
+    });
   }, [pathname, searchParams]);
 
   const breadcrumbs = useMemo(() => getBreadcrumbs(pathname), [pathname]);

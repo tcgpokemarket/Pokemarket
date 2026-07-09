@@ -28,19 +28,17 @@ export default function CardsPage() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [saveTarget, setSaveTarget] = useState<SaveTarget>("collection");
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    const client = createClient();
-    setSupabase(client);
-    client.auth.getUser().then(({ data: { user } }) => setIsSignedIn(Boolean(user)));
+    supabase.auth.getUser().then(({ data: { user } }) => setIsSignedIn(Boolean(user)));
 
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange((_event, session) => setIsSignedIn(Boolean(session?.user)));
+    } = supabase.auth.onAuthStateChange((_event, session) => setIsSignedIn(Boolean(session?.user)));
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -66,10 +64,7 @@ export default function CardsPage() {
   }, [cardName]);
 
   useEffect(() => {
-    if (!cardName.trim()) {
-      setHistory([]);
-      return;
-    }
+    if (!cardName.trim()) return;
 
     if (!supabase) return;
     supabase
@@ -81,10 +76,11 @@ export default function CardsPage() {
       .then(({ data }) => setHistory((data ?? []) as PriceHistory[]));
   }, [cardName, supabase]);
 
-  const hasHistory = history.length > 0;
+  const visibleHistory = cardName.trim() ? history : [];
+  const hasHistory = visibleHistory.length > 0;
   const chartPoints = useMemo(() => {
-    if (!history.length) return [];
-    const prices = history.map((entry) => entry.price).reverse();
+    if (!visibleHistory.length) return [];
+    const prices = visibleHistory.map((entry) => entry.price).reverse();
     const max = Math.max(...prices);
     return prices.map((value) => ({ value, height: max ? Math.max(12, (value / max) * 100) : 12 }));
   }, [history]);

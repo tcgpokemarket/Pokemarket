@@ -4,6 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Listing, Order, Profile, SellerWallet } from "@/lib/supabase/types";
+import { createClient } from "@/lib/supabase/client";
+import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
+import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
+import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
+import { calculateLiveShowInsights, createLiveShowSnapshot, getLiveShow } from "@/lib/live-commerce";
+import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
+import { listLiveShowsBySeller } from "@/lib/live-shows-client";
+import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
+import { recordDeviceSession } from "@/lib/device-security";
+import { uploadImageFile } from "@/lib/uploads";
+import SupportInlineCard from "@/components/support/support-inline-card";
+
 
 type SellerRow = {
   avatar_url?: string | null;
@@ -21,17 +33,6 @@ type VerificationRow = {
   more_information_request?: string | null;
   verified_at?: string | null;
 };
-import { createClient } from "@/lib/supabase/client";
-import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
-import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
-import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
-import { calculateLiveShowInsights, createLiveShowSnapshot, getLiveShow } from "@/lib/live-commerce";
-import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
-import { listLiveShowsBySeller } from "@/lib/live-shows-client";
-import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
-import { recordDeviceSession } from "@/lib/device-security";
-import { uploadImageFile } from "@/lib/uploads";
-import SupportInlineCard from "@/components/support/support-inline-card";
 
 const SUPPORT_CARD = (
   <SupportInlineCard title="Need seller support?" description="Get help with listings, fees, payouts, live shows, or seller tools." href="/support" />
@@ -95,17 +96,10 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const searchParams = useSearchParams();
   const orderTab = searchParams.get("tab");
 
-  useEffect(() => {
-    if (orderTab === "sales") {
-      setTab("sales");
-    }
-  }, [orderTab]);
-
-
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
 
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useState<Tab>(orderTab === "sales" ? "sales" : "overview");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
   const [verificationDetails, setVerificationDetails] = useState<VerificationRow | null>(null);
@@ -134,26 +128,23 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [brainCopied, setBrainCopied] = useState(false);
 
   useEffect(() => {
-    const client = createClient();
-    setSupabase(client);
-
     const init = async () => {
-      const { data: { user } } = await client.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push("/auth?redirectTo=/dashboard");
         return;
       }
 
       const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: auctionOrdersData }, { data: sellerData }, { data: storeData }] = await Promise.all([
-        client.from("profiles").select("*").eq("id", user.id).single(),
-        client.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
-        client.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
-        client.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
-        client.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-        client.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
-        client.from("auction_orders").select("*, show_products(title, subtitle, image_url), profiles:buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
-        client.from("sellers").select("*").eq("id", user.id).maybeSingle(),
-        client.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
+        supabase.from("profiles").select("*").eq("id", user.id).single(),
+        supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
+        supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
+        supabase.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("auction_orders").select("*, show_products(title, subtitle, image_url), profiles:buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("sellers").select("*").eq("id", user.id).maybeSingle(),
+        supabase.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
       ]);
 
       const profileRow = profileData as Profile | null;
@@ -189,7 +180,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     if (orderSuccess) {
       setTimeout(() => router.replace("/dashboard"), 100);
     }
-  }, [orderSuccess, router]);
+  }, [orderSuccess, router, supabase]);
 
   const handleSignOut = async () => {
     if (!supabase) return;
@@ -290,7 +281,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [liveShowTitle, setLiveShowTitle] = useState("New live show");
   const [liveShowDescription, setLiveShowDescription] = useState("Run a separate live room for this drop.");
   const [liveShowStatusMessage, setLiveShowStatusMessage] = useState<string | null>(null);
-  const [liveShowStartTime, setLiveShowStartTime] = useState(new Date(Date.now() + 1000 * 60 * 30).toISOString().slice(0, 16));
+  const [liveShowStartTime, setLiveShowStartTime] = useState(() => new Date(Date.now() + 1000 * 60 * 30).toISOString().slice(0, 16));
   const [liveShowFeatured, setLiveShowFeatured] = useState(false);
   const [liveShowProductsCount, setLiveShowProductsCount] = useState(0);
   const [liveShowFilter, setLiveShowFilter] = useState("all");
@@ -367,7 +358,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   useEffect(() => {
     if (!supabase || !profile?.id) return;
     let alive = true;
-    setLiveShowsLoading(true);
+    Promise.resolve().then(() => setLiveShowsLoading(true));
     listLiveShowsBySeller(profile.id)
       .then((rows: LiveShowDirectoryItem[]) => {
         if (!alive) return;
@@ -516,7 +507,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       }} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
       <div className="mt-3 aspect-[16/9] overflow-hidden rounded-xl border border-white/10 bg-black/20">
         {previewUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={previewUrl} alt={label} className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full items-center justify-center text-xs text-gray-500">No image yet</div>
@@ -699,7 +689,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                 </div>
                 {referralQrUrl && (
                   <div className="mt-4 flex items-center gap-4 rounded-xl border border-white/10 bg-[#13131f] p-4">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={referralQrUrl} alt="Referral QR code" className="h-24 w-24 rounded-lg bg-white p-2" />
                     <div className="text-sm text-gray-300">
                       <div className="font-semibold text-white">QR code</div>
@@ -1110,8 +1099,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                     <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleLiveShowThumbnailUpload} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
                     <div className="mt-3 aspect-[16/9] overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f1a]">
                       {liveShowThumbnailUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={liveShowThumbnailUrl} alt="Live show thumbnail preview" className="h-full w-full object-cover" />
+                                      <img src={liveShowThumbnailUrl} alt="Live show thumbnail preview" className="h-full w-full object-cover" />
                       ) : (
                         <div className="flex h-full items-center justify-center text-sm text-gray-500">Upload a thumbnail to show in the room preview</div>
                       )}

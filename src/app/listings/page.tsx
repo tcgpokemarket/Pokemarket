@@ -11,12 +11,10 @@ export default function ListingsPage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [condition, setCondition] = useState("all");
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    const client = createClient();
-    setSupabase(client);
-    client
+    supabase
       .from("listings")
       .select("*, profiles:seller_id(username, seller_rating)")
       .eq("status", "active")
@@ -25,7 +23,7 @@ export default function ListingsPage() {
         setListings((data ?? []) as Listing[]);
         setLoading(false);
       });
-  }, []);
+  }, [supabase]);
 
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase();

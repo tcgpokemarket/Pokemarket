@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getSavedCards, removeSavedCard, type SavedCardRecord } from "@/lib/card-storage";
 
@@ -16,27 +16,22 @@ export default function CollectionPage() {
   const [view, setView] = useState<ViewKey>("collection");
   const [cards, setCards] = useState<SavedCardRecord[]>([]);
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    const client = createClient();
-    setSupabase(client);
-    client.auth.getUser().then(({ data: { user } }) => setIsSignedIn(Boolean(user)));
+    supabase.auth.getUser().then(({ data: { user } }) => setIsSignedIn(Boolean(user)));
 
     const {
       data: { subscription },
-    } = client.auth.onAuthStateChange((_event, session) => setIsSignedIn(Boolean(session?.user)));
+    } = supabase.auth.onAuthStateChange((_event, session) => setIsSignedIn(Boolean(session?.user)));
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
-    if (!isSignedIn || !supabase) {
-      setCards([]);
-      return;
-    }
+    if (!isSignedIn) return;
     getSavedCards(view).then(setCards);
-  }, [view, isSignedIn, supabase]);
+  }, [view, isSignedIn]);
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">

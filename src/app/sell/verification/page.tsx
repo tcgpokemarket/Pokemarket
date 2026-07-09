@@ -28,7 +28,7 @@ const DOCUMENT_FIELDS: Array<{ key: UploadField; label: string; helper: string; 
 
 export default function SellerVerificationPage() {
   const router = useRouter();
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const supabase = useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingField, setUploadingField] = useState<UploadField | null>(null);
@@ -52,19 +52,16 @@ export default function SellerVerificationPage() {
   });
 
   useEffect(() => {
-    const client = createClient();
-    setSupabase(client);
-
     const init = async () => {
-      const { data: { user } } = await client.auth.getUser();
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push("/auth?redirectTo=/sell/verification");
         return;
       }
 
       const [{ data: verification }, { data: profileData }] = await Promise.all([
-        client.from("seller_verifications").select("*").eq("user_id", user.id).maybeSingle(),
-        client.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+        supabase.from("seller_verifications").select("*").eq("user_id", user.id).maybeSingle(),
+        supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
       ]);
       const profile = profileData as { full_name?: string | null } | null;
 
@@ -94,7 +91,7 @@ export default function SellerVerificationPage() {
           verifiedAt: currentVerification.verified_at,
         }));
 
-        const { data: docs } = await client
+        const { data: docs } = await supabase
           .from("seller_verification_documents")
           .select("document_type, storage_path")
           .eq("verification_id", currentVerification.id);
@@ -113,7 +110,7 @@ export default function SellerVerificationPage() {
     };
 
     init();
-  }, [router]);
+  }, [router, supabase]);
 
   const label = useMemo(() => sellerVerificationLabel(status ?? "not_started"), [status]);
 
