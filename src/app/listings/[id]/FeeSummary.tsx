@@ -1,26 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { buildSellerFeeConfig, calculateFeeBreakdown } from "@/lib/seller-fees";
-import { getEasyshipRates, DEFAULT_DESTINATION_COUNTRY, type EasyshipRatesResponse } from "@/lib/easyship";
 import type { Order } from "@/lib/supabase/types";
 
 export default function FeeSummary({ listingPrice, sellerOrders, shippingPaidBy = "buyer" }: { listingPrice: number; sellerOrders: Order[]; shippingPaidBy?: "buyer" | "seller" }) {
-  const [shippingRates, setShippingRates] = useState<EasyshipRatesResponse | null>(null);
   const feeConfig = useMemo(() => buildSellerFeeConfig({}), []);
-
-  useEffect(() => {
-    getEasyshipRates(DEFAULT_DESTINATION_COUNTRY)
-      .then(setShippingRates)
-      .catch(() => setShippingRates(null));
-  }, []);
-
-  const shipping = shippingPaidBy === "seller" ? 0 : shippingRates?.cheapestRate?.total_charge ?? 0;
-  const shippingLabel = shippingPaidBy === "seller"
-    ? "Seller pays shipping"
-    : shippingRates?.cheapestRate
-      ? `${shippingRates.cheapestRate.courier_name} · ${shippingRates.cheapestRate.courier_service_name}`
-      : "Standard shipping";
+  const shipping = shippingPaidBy === "seller" ? 0 : 0;
+  const shippingLabel = "USPS shipping";
   const shippingNote = shippingPaidBy === "seller" ? "Seller covered" : "Buyer paid";
 
   const summary = calculateFeeBreakdown({

@@ -3,7 +3,6 @@ import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildSellerFeeConfig, calculateFeeBreakdown } from "@/lib/seller-fees";
-import { DEFAULT_DESTINATION_COUNTRY, getEasyshipRates } from "@/lib/easyship";
 import { decideEscrowFlow, getDeliveryReleaseAt, calculateFraudRisk } from "@/lib/escrow";
 
 const DEFAULT_ESCROW_SIGNAL_BASE = {
@@ -26,7 +25,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { listingId, quantity: rawQuantity = 1, shippingRateIndex = 0 } = (await req.json()) as { listingId?: string; quantity?: number; shippingRateIndex?: number };
+  const { listingId, quantity: rawQuantity = 1 } = (await req.json()) as { listingId?: string; quantity?: number };
 
   if (!listingId) {
     return NextResponse.json({ error: "Missing listingId" }, { status: 400 });
@@ -45,7 +44,6 @@ export async function POST(req: Request) {
     .single();
 
   const listing = listingResult.data as any;
-
   if (listingResult.error || !listing) {
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
   }
@@ -59,7 +57,24 @@ export async function POST(req: Request) {
     admin.from("seller_fee_overrides").select("*").eq("seller_id", listing.seller_id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
 
-  const sellerFeeOrders = ((sellerOrdersResult.data ?? []) as Array<{ seller_id: string; status: string; created_at?: string | null; completed_at?: string | null; quantity?: number | null; unit_price?: number | null; total_amount?: number | null; item_subtotal?: number | null; shipping_amount?: number | null; sales_tax_amount?: number | null; processing_fee_amount?: number | null; marketplace_fee_amount?: number | null; seller_payout_amount?: number | null; platform_revenue_amount?: number | null; payout_status?: string | null }>).filter((order) => order.seller_id === listing.seller_id);
+  const sellerFeeOrders = ((sellerOrdersResult.data ?? []) as Array<{
+    seller_id: string;
+    status: string;
+    created_at?: string | null;
+    completed_at?: string | null;
+    quantity?: number | null;
+    unit_price?: number | null;
+    total_amount?: number | null;
+    item_subtotal?: number | null;
+    shipping_amount?: number | null;
+    sales_tax_amount?: number | null;
+    processing_fee_amount?: number | null;
+    marketplace_fee_amount?: number | null;
+    seller_payout_amount?: number | null;
+    platform_revenue_amount?: number | null;
+    payout_status?: string | null;
+  }>).filter((order) => order.seller_id === listing.seller_id);
+
   const feeConfig = buildSellerFeeConfig({ settings: feeSettingsResult.data, tiers: feeTiersResult.data ?? undefined });
   const feeOverrideRow = feeOverrideResult.data as any;
   const feeOverride = feeOverrideRow
@@ -71,20 +86,8 @@ export async function POST(req: Request) {
     : null;
 
   const itemSubtotal = Number(listing.price) * quantity;
+  const shipping = shippingPaidBy === "seller" ? 0 : 0;
   const salesTax = 0;
-
-  let shipping = 0;
-  let shippingRateLabel = "Standard shipping";
-  try {
-    const shippingRates = await getEasyshipRates(DEFAULT_DESTINATION_COUNTRY);
-    const selectedRate = shippingRates.rates?.[Math.max(0, Math.min(shippingRateIndex, (shippingRates.rates?.length ?? 1) - 1))] ?? shippingRates.cheapestRate;
-    shipping = shippingPaidBy === "seller" ? 0 : selectedRate?.total_charge ?? 0;
-    shippingRateLabel = selectedRate
-      ? `${selectedRate.courier_name} · ${selectedRate.courier_service_name}`
-      : shippingRateLabel;
-  } catch {
-    shipping = 0;
-  }
 
   const feeBreakdown = calculateFeeBreakdown({
     itemSubtotal,
@@ -138,7 +141,7 @@ export async function POST(req: Request) {
       quantity: String(quantity),
       itemSubtotal: feeBreakdown.itemSubtotal.toFixed(2),
       shippingAmount: feeBreakdown.shipping.toFixed(2),
-      shippingRateLabel,
+      shippingRateLabel: "USPS shipping",
       shippingPaidBy,
       salesTaxAmount: feeBreakdown.salesTax.toFixed(2),
       processingFeeAmount: feeBreakdown.paymentProcessingFee.toFixed(2),
@@ -180,7 +183,6 @@ export async function POST(req: Request) {
   } as const;
 
   const { error: orderError } = await supabase.from("orders").insert(orderPayload as any);
-
   if (orderError) {
     return NextResponse.json({ error: orderError.message }, { status: 500 });
   }

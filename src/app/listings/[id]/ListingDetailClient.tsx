@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
-import type { EasyshipRatesResponse } from "@/lib/easyship";
 
 type ListingWithSeller = Listing & {
   profiles?: {
@@ -35,9 +34,6 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [shippingRates, setShippingRates] = useState<EasyshipRatesResponse | null>(null);
-  const [shippingLoading, setShippingLoading] = useState(true);
-  const [selectedShippingIndex, setSelectedShippingIndex] = useState(0);
   const [shippingPaidBy, setShippingPaidBy] = useState<"buyer" | "seller">(initialListing?.shipping_paid_by ?? "buyer");
   const [shippingChoiceApplied, setShippingChoiceApplied] = useState(false);
 
@@ -55,20 +51,9 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       setLoading(false);
     }
 
-    fetch(`/api/shipping/rates?country=US`)
-      .then((r) => r.json())
-      .then((data) => setShippingRates(data))
-      .catch(() => setShippingRates(null))
-      .finally(() => setShippingLoading(false));
+    // Shipping pricing is handled at checkout.
   }, [id, initialListing]);
 
-  useEffect(() => {
-    if (!shippingRates?.rates?.length) return;
-    const selectedIndex = Math.min(selectedShippingIndex, shippingRates.rates.length - 1);
-    if (selectedIndex !== selectedShippingIndex) {
-      setSelectedShippingIndex(selectedIndex);
-    }
-  }, [selectedShippingIndex, shippingRates]);
 
   useEffect(() => {
     if (!shippingChoiceApplied && initialListing) {
@@ -88,7 +73,6 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
         listingId: id,
         quantity: 1,
         shippingPaidBy,
-        shippingRateIndex: selectedShippingIndex,
       }),
     });
     const data = await res.json();
@@ -118,7 +102,6 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
 
   const conditionColor = CONDITION_COLORS[listing.condition] ?? "text-gray-400";
   const priceDiff = marketPrice ? ((listing.price - marketPrice) / marketPrice) * 100 : null;
-  const cheapestShipping = shippingRates?.cheapestRate;
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -203,32 +186,10 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
             </div>
 
             <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Shipping estimate</div>
+              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Shipping</div>
               <p className="mt-1 text-xs text-gray-500">
-                Shipping is set by the seller for this listing and shown at checkout.
+                USPS shipping is calculated during checkout.
               </p>
-              {shippingLoading ? (
-                <p className="mt-3 text-sm text-gray-400">Loading live rates...</p>
-              ) : shippingRates?.rates?.length ? (
-                <div className="mt-3 space-y-3 text-sm text-gray-300">
-                  {shippingRates.rates.slice(0, 3).map((rate, index) => (
-                    <button
-                      key={`${rate.courier_name}-${rate.courier_service_name}-${index}`}
-                      type="button"
-                      onClick={() => setSelectedShippingIndex(index)}
-                      className={`w-full rounded-xl border px-4 py-3 text-left transition-colors ${selectedShippingIndex === index ? "border-yellow-400 bg-yellow-400/10" : "border-white/10 bg-[#13131f] hover:border-white/20"}`}
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-medium">{rate.courier_name} · {rate.courier_service_name}</span>
-                        <span className="font-semibold">${rate.total_charge.toFixed(2)} {rate.currency}</span>
-                      </div>
-                    </button>
-                  ))}
-                  <p className="text-xs text-gray-500">Live Easyship rates for U.S. shipping estimates. Final shipping can vary by destination and parcel details.</p>
-                </div>
-              ) : (
-                <p className="mt-3 text-sm text-gray-400">Shipping rates will be shown at checkout.</p>
-              )}
             </div>
 
             <button

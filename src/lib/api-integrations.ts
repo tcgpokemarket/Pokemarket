@@ -40,7 +40,7 @@ export type IntegrationHealth = {
   errors: string[];
 };
 
-type ProviderName = "pokemon" | "scryfall" | "ygopro" | "ctcgx" | "tcgplayer" | "pricecharting" | "cardmarket" | "ebay" | "shippo" | "stripe" | "livekit" | "openai" | "cloudinary";
+type ProviderName = "pokemon" | "scryfall" | "ygopro" | "ctcgx" | "tcgplayer" | "pricecharting" | "cardmarket" | "ebay" | "stripe" | "livekit" | "openai" | "cloudinary";
 
 type ProviderConfig = {
   key: ProviderName;
@@ -62,7 +62,6 @@ const health: Record<ProviderName, ProviderConfig> = {
   pricecharting: { key: "pricecharting", name: "PriceCharting", enabled: false, status: "unavailable", lastSync: null, requestCount: 0, rateLimit: "unknown", errors: [] },
   cardmarket: { key: "cardmarket", name: "Cardmarket", enabled: false, status: "unavailable", lastSync: null, requestCount: 0, rateLimit: "unknown", errors: [] },
   ebay: { key: "ebay", name: "eBay Browse API", enabled: Boolean(process.env.EBAY_APP_ID), status: process.env.EBAY_APP_ID ? "enabled" : "disabled", lastSync: null, requestCount: 0, rateLimit: "keyed", errors: [] },
-  shippo: { key: "shippo", name: "Shippo", enabled: Boolean(process.env.SHIPPO_API_KEY), status: process.env.SHIPPO_API_KEY ? "enabled" : "disabled", lastSync: null, requestCount: 0, rateLimit: "keyed", errors: [] },
   stripe: { key: "stripe", name: "Stripe Connect", enabled: Boolean(process.env.STRIPE_SECRET_KEY), status: process.env.STRIPE_SECRET_KEY ? "enabled" : "disabled", lastSync: null, requestCount: 0, rateLimit: "keyed", errors: [] },
   livekit: { key: "livekit", name: "LiveKit", enabled: Boolean(process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET && process.env.NEXT_PUBLIC_LIVEKIT_URL), status: process.env.LIVEKIT_API_KEY && process.env.LIVEKIT_API_SECRET ? "enabled" : "disabled", lastSync: null, requestCount: 0, rateLimit: "keyed", errors: [] },
   openai: { key: "openai", name: "OpenAI", enabled: Boolean(process.env.OPENAI_API_KEY), status: process.env.OPENAI_API_KEY ? "enabled" : "disabled", lastSync: null, requestCount: 0, rateLimit: "keyed", errors: [] },
