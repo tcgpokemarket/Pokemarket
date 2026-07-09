@@ -4,25 +4,25 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminUser } from "@/lib/admin-access";
 import { buildUSPSLabelRequest, createUSPSLabel } from "@/lib/usps-labels";
 
-function sellerAddressFromProfile(profile: Record<string, unknown> | null) {
-  if (!profile) return null;
-  const fullName = String(profile.full_name ?? profile.username ?? "").trim();
-  const [firstName, ...rest] = fullName.split(" ");
-  const lastName = rest.join(" ") || firstName;
-  const streetAddress = String(profile.address ?? profile.street_address ?? "").trim();
-  const city = String(profile.city ?? "").trim();
-  const state = String(profile.state ?? "").trim();
-  const ZIPCode = String(profile.zip ?? profile.postal_code ?? "").trim();
+function parseAddress(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  return value as Record<string, unknown>;
+}
 
-  if (!fullName || !streetAddress || !city || !state || !ZIPCode) return null;
+function sellerAddressFromVerification(verification: Record<string, unknown> | null) {
+  if (!verification) return null;
+  const legalName = String(verification.legal_name ?? "").trim();
+  const residentialAddress = String(verification.residential_address ?? "").trim();
+  const phoneNumber = String(verification.phone_number ?? "").trim();
+  if (!legalName || !residentialAddress || !phoneNumber) return null;
 
   return {
-    firstName: firstName || fullName,
-    lastName: rest.length > 0 ? lastName : firstName || fullName,
-    streetAddress,
-    city,
-    state,
-    ZIPCode,
+    firstName: legalName.split(" ")[0] ?? legalName,
+    lastName: legalName.split(" ").slice(1).join(" ") || legalName.split(" ")[0] || legalName,
+    streetAddress: residentialAddress,
+    city: String(verification.city ?? verification.address_city ?? "").trim(),
+    state: String(verification.state ?? verification.address_state ?? "").trim(),
+    ZIPCode: String(verification.postal_code ?? verification.zip_code ?? verification.zip ?? "").trim(),
   };
 }
 
@@ -38,7 +38,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ orderId
   const admin = createAdminClient();
   const { data: order, error: orderError } = await (admin as any)
     .from("orders")
-    .select("*, profiles:buyer_id(*), sellers:seller_id(*)")
+    .select("*, profiles:buyer_id(*), seller_verifications:seller_id(*)")
     .eq("id", orderId)
     .maybeSingle();
 
@@ -59,9 +59,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ orderId
     mailClass?: string;
   };
 
-  const buyerAddress = order.buyer_address ?? null;
-  const sellerProfile = (order.profiles ?? null) as Record<string, unknown> | null;
-  const sellerAddress = sellerAddressFromProfile(sellerProfile);
+  const buyerAddress = parseAddress(order.buyer_address);
+  const sellerVerification = parseAddress(order.seller_verifications ?? null);
+  const sellerAddress = sellerAddressFromVerification(sellerVerification);
 
   if (!buyerAddress) {
     return NextResponse.json({ error: "Buyer address is missing" }, { status: 400 });

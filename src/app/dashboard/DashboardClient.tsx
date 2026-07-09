@@ -205,14 +205,27 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     setListings((l) => l.filter((x) => x.id !== id));
   };
 
+  const [labelStatus, setLabelStatus] = useState<string | null>(null);
+
   const handleCreateUSPSLabel = async (orderId: string) => {
+    setLabelStatus(null);
     const res = await fetch(`/api/orders/${orderId}/label`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageWeight: 1, mailClass: "USPS_GROUND_ADVANTAGE" }) });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      alert(data.error ?? "Unable to create USPS label.");
+      setLabelStatus(data.error ?? "Unable to create USPS label.");
       return;
     }
-    alert(data.label?.trackingNumber ? `Label created: ${data.label.trackingNumber}` : "Label created.");
+    setLabelStatus(data.label?.trackingNumber ? `Label created: ${data.label.trackingNumber}` : "Label created.");
+  };
+
+  const refreshOrders = async () => {
+    if (!supabase || !profile) return;
+    const [{ data: freshSales }, { data: freshAuctionOrders }] = await Promise.all([
+      supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", profile.id).order("created_at", { ascending: false }),
+      supabase.from("auction_orders").select("*, show_products(title, subtitle, image_url), profiles:buyer_id(username)").eq("seller_id", profile.id).order("created_at", { ascending: false }),
+    ]);
+    setSales((freshSales ?? []) as DashboardOrder[]);
+    setAuctionOrders((freshAuctionOrders ?? []) as AuctionOrder[]);
   };
 
   const completedSales = useMemo(() => sales.filter((o) => ["paid", "shipped", "delivered", "completed"].includes(o.status)), [sales]);
@@ -933,7 +946,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                           <button type="button" onClick={() => void handleCreateUSPSLabel(first.id)} className="rounded-full border border-yellow-400/40 px-3 py-1.5 font-semibold text-yellow-300 transition hover:bg-yellow-400/10 hover:text-yellow-200">
                             Create USPS label
                           </button>
+                          <button type="button" onClick={() => void refreshOrders()} className="rounded-full border border-white/10 px-3 py-1.5 font-semibold text-gray-300 transition hover:bg-white/5 hover:text-white">
+                            Refresh
+                          </button>
                         </div>
+                        {labelStatus && <div className="mt-2 text-xs text-gray-400">{labelStatus}</div>}
                       </div>
                     );
                   })}
