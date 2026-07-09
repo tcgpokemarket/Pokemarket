@@ -27,7 +27,7 @@ const completedOrder = (overrides: Partial<{ status: string; created_at: string;
 describe("seller fee rules", () => {
   it("keeps the first 1,000 sales at 0% marketplace fee", () => {
     const orders = Array.from({ length: 999 }, () => completedOrder());
-    const tier = getActiveMarketplaceFeePercent({ lifetimeSales: orders.length, monthlySales: 10, config: DEFAULT_SELLER_FEE_CONFIG });
+    const tier = getActiveMarketplaceFeePercent({ lifetimeSales: orders.length, monthlySales: 0, config: DEFAULT_SELLER_FEE_CONFIG });
     expect(tier.feePercent).toBe(0);
     const breakdown = calculateFeeBreakdown({ itemSubtotal: 50, shipping: 0, salesTax: 0, orders });
     expect(breakdown.marketplaceFee).toBe(0);
@@ -35,20 +35,20 @@ describe("seller fee rules", () => {
   });
 
   it("switches sale 1001 to the standard fee", () => {
-    const orders = Array.from({ length: 1000 }, () => completedOrder());
-    const tier = getActiveMarketplaceFeePercent({ lifetimeSales: orders.length, monthlySales: 10, config: DEFAULT_SELLER_FEE_CONFIG });
+    const orders = Array.from({ length: 1001 }, () => completedOrder({ completed_at: "2026-06-01T00:00:00.000Z" }));
+    const tier = getActiveMarketplaceFeePercent({ lifetimeSales: orders.length, monthlySales: 0, config: DEFAULT_SELLER_FEE_CONFIG });
     expect(tier.feePercent).toBe(5);
-    const breakdown = calculateFeeBreakdown({ itemSubtotal: 100, shipping: 0, salesTax: 0, orders });
+    const breakdown = calculateFeeBreakdown({ itemSubtotal: 100, shipping: 0, salesTax: 0, orders, asOf: new Date("2026-07-01T00:00:00.000Z") });
     expect(breakdown.marketplaceFee).toBe(5);
     expect(breakdown.sellerPayout).toBe(91.8);
   });
 
   it("applies power seller discounts by monthly volume", () => {
     const orders = Array.from({ length: 600 }, () => completedOrder({ completed_at: "2026-07-02T00:00:00.000Z" }));
-    const tier = getActiveMarketplaceFeePercent({ lifetimeSales: 200, monthlySales: 600, config: DEFAULT_SELLER_FEE_CONFIG });
+    const tier = getActiveMarketplaceFeePercent({ lifetimeSales: 1000, monthlySales: 600, config: DEFAULT_SELLER_FEE_CONFIG });
     expect(tier.feePercent).toBe(4);
     expect(tier.tierName).toContain("500+");
-    const breakdown = calculateFeeBreakdown({ itemSubtotal: 100, shipping: 0, salesTax: 0, orders });
+    const breakdown = calculateFeeBreakdown({ itemSubtotal: 100, shipping: 0, salesTax: 0, orders: [...Array.from({ length: 1001 }, () => completedOrder({ completed_at: "2026-06-01T00:00:00.000Z" })), ...orders] });
     expect(breakdown.marketplaceFee).toBe(4);
   });
 
