@@ -215,8 +215,8 @@ export default async function Home() {
       <main className="pb-24">
         <section className="px-4 py-5 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
-            <div className="mb-4 flex items-center gap-3 overflow-x-auto pb-2">
-              <div className="flex min-w-[170px] items-center gap-3 rounded-[1.35rem] border-2 border-white bg-yellow-400 px-4 py-3 text-black shadow-lg shadow-yellow-400/20">
+            <div className="mb-4 flex w-full flex-nowrap gap-3 overflow-x-auto pb-3 pr-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex shrink-0 min-w-[140px] items-center gap-3 rounded-[1.35rem] border-2 border-white bg-yellow-400 px-4 py-3 text-black shadow-lg shadow-yellow-400/20 sm:min-w-[170px]">
                 <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-black/10">
                   <span className="text-3xl">⚡</span>
                 </div>
@@ -226,7 +226,7 @@ export default async function Home() {
                 </div>
               </div>
               {feedChips.slice(1).map((chip: (typeof feedChips)[number]) => (
-                <Link key={chip.label} href={chip.href} className="flex min-w-[170px] items-center justify-center rounded-[1.35rem] border border-white/10 bg-[#1a2233] px-4 py-3 text-sm font-semibold text-gray-200 transition hover:border-yellow-400/40 hover:text-white">
+                <Link key={chip.label} href={chip.href} className="flex shrink-0 min-w-[140px] items-center justify-center rounded-[1.35rem] border border-white/10 bg-[#1a2233] px-4 py-3 text-sm font-semibold text-gray-200 transition hover:border-yellow-400/40 hover:text-white sm:min-w-[170px]">
                   {chip.label}
                 </Link>
               ))}
