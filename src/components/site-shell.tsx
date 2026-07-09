@@ -300,8 +300,8 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="fixed inset-0 z-50 lg:hidden">
-        <button aria-label="Close menu" type="button" onClick={() => setOpen(false)} className={`absolute inset-0 bg-black/60 transition-opacity ${open ? "opacity-100" : "pointer-events-none opacity-0"}`} />
+      <div className={`fixed inset-0 z-50 lg:hidden ${open ? "pointer-events-auto" : "pointer-events-none"}`}>
+        <button aria-label="Close menu" type="button" onClick={() => setOpen(false)} className={`absolute inset-0 bg-black/60 transition-opacity ${open ? "opacity-100" : "opacity-0"}`} />
         <aside id="mobile-nav" className={`absolute right-0 top-0 h-full w-[88vw] max-w-sm overflow-y-auto border-l border-white/10 bg-[#0f0f1a] p-5 transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}>
           <div className="flex items-center justify-between">
             <div className="text-lg font-black">Menu</div>
