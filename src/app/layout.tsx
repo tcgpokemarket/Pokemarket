@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import SiteShell from "@/components/site-shell";
 
@@ -86,7 +87,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body style={{ fontFamily: "'Inter', sans-serif" }}>
-        <SiteShell>{children}</SiteShell>
+        <Suspense fallback={null}>
+          <SiteShell>{children}</SiteShell>
+        </Suspense>
       </body>
     </html>
   );

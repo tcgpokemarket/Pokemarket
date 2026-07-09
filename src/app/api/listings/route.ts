@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSellerVerificationApproved } from "@/lib/seller-verification";
+import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
 import { recordAuditEvent } from "@/lib/audit-log";
 
 const PAGE_SIZE = 24;
 
-async function getVerificationStatus(userId: string) {
+async function getVerificationStatus(userId: string): Promise<SellerVerificationStatus> {
   const admin = createAdminClient();
   const { data, error } = await admin.from("seller_verifications").select("status").eq("user_id", userId).maybeSingle();
   if (error) throw new Error(error.message);
-  return data?.status ?? "not_started";
+  return ((data as { status?: SellerVerificationStatus } | null)?.status ?? "not_started") as SellerVerificationStatus;
 }
 
 export async function GET(req: Request) {

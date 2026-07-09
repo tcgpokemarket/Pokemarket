@@ -59,3 +59,17 @@ export async function uploadVerificationDocumentFile({
   if (error) throw error;
   return { path, bucket, mimeType: file.type || null, fileName: file.name };
 }
+
+export async function deleteUploadedFile({
+  supabase,
+  target,
+  path,
+}: {
+  supabase: SupabaseClient<Database>;
+  target: string;
+  path: string;
+}) {
+  const bucket = bucketForTarget(target);
+  const { error } = await supabase.storage.from(bucket).remove([path]);
+  if (error) throw error;
+}

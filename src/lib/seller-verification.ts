@@ -1,6 +1,11 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/types";
 
+type SellerVerificationRow = Database["public"]["Tables"]["seller_verifications"]["Row"];
+type SellerVerificationInsert = Database["public"]["Tables"]["seller_verifications"]["Insert"];
+type SellerVerificationDocumentInsert = Database["public"]["Tables"]["seller_verification_documents"]["Insert"];
+type SellerVerificationHistoryInsert = Database["public"]["Tables"]["seller_verification_history"]["Insert"];
+
 export type SellerVerificationStatus = Database["public"]["Tables"]["seller_verifications"]["Row"]["status"];
 export type SellerVerificationDocumentType = Database["public"]["Tables"]["seller_verification_documents"]["Row"]["document_type"];
 
@@ -89,19 +94,20 @@ export async function upsertSellerVerification(userId: string, payload: {
   submitted_at?: string | null;
 }) {
   const admin = createAdminClient();
+  const verificationPayload: SellerVerificationInsert = {
+    user_id: userId,
+    legal_name: payload.legal_name,
+    date_of_birth: payload.date_of_birth,
+    residential_address: payload.residential_address,
+    phone_number: payload.phone_number,
+    status: payload.status ?? "pending_review",
+    submitted_at: payload.submitted_at ?? new Date().toISOString(),
+  };
   const { data, error } = await admin
     .from("seller_verifications")
-    .upsert({
-      user_id: userId,
-      legal_name: payload.legal_name,
-      date_of_birth: payload.date_of_birth,
-      residential_address: payload.residential_address,
-      phone_number: payload.phone_number,
-      status: payload.status ?? "pending_review",
-      submitted_at: payload.submitted_at ?? new Date().toISOString(),
-    }, { onConflict: "user_id" })
+    .upsert(verificationPayload as never, { onConflict: "user_id" })
     .select("*")
-    .single();
+    .single<SellerVerificationRow>();
 
   if (error) throw new Error(error.message);
   return data;
@@ -117,7 +123,7 @@ export async function addSellerVerificationDocument(input: {
   fileName?: string | null;
 }) {
   const admin = createAdminClient();
-  const { error } = await admin.from("seller_verification_documents").insert({
+  const documentPayload: SellerVerificationDocumentInsert = {
     verification_id: input.verificationId,
     user_id: input.userId,
     document_type: input.documentType,
@@ -125,7 +131,8 @@ export async function addSellerVerificationDocument(input: {
     storage_path: input.storagePath,
     mime_type: input.mimeType ?? null,
     file_name: input.fileName ?? null,
-  });
+  };
+  const { error } = await admin.from("seller_verification_documents").insert(documentPayload as never);
 
   if (error) throw new Error(error.message);
 }
@@ -139,14 +146,15 @@ export async function addSellerVerificationHistory(input: {
   notes?: string | null;
 }) {
   const admin = createAdminClient();
-  const { error } = await admin.from("seller_verification_history").insert({
+  const historyPayload: SellerVerificationHistoryInsert = {
     verification_id: input.verificationId,
     actor_id: input.actorId ?? null,
     action: input.action,
     previous_status: input.previousStatus ?? null,
     next_status: input.nextStatus ?? null,
     notes: input.notes ?? null,
-  });
+  };
+  const { error } = await admin.from("seller_verification_history").insert(historyPayload as never);
 
   if (error) throw new Error(error.message);
 }
@@ -169,6 +177,7 @@ export async function reviewSellerVerification(input: {
 
   if (currentError) throw new Error(currentError.message);
   if (!current) throw new Error("Verification request not found");
+  const currentRow = current as SellerVerificationRow;
 
   const nextValue = {
     reviewed_at: new Date().toISOString(),
@@ -178,13 +187,14 @@ export async function reviewSellerVerification(input: {
     more_information_request: input.moreInformationRequest ?? null,
     suspension_reason: input.suspensionReason ?? null,
     admin_notes: input.adminNotes ?? null,
-    verified_at: input.status === "approved" ? new Date().toISOString() : current.verified_at,
-    submitted_at: current.submitted_at ?? new Date().toISOString(),
+    verified_at: input.status === "approved" ? new Date().toISOString() : currentRow.verified_at,
+    submitted_at: currentRow.submitted_at ?? new Date().toISOString(),
   };
 
+  const currentStatus = currentRow.status;
   const { error } = await admin
     .from("seller_verifications")
-    .update(nextValue)
+    .update(nextValue as never)
     .eq("id", input.verificationId);
 
   if (error) throw new Error(error.message);
@@ -193,7 +203,7 @@ export async function reviewSellerVerification(input: {
     verificationId: input.verificationId,
     actorId: input.reviewerId,
     action: `review.${input.status}`,
-    previousStatus: current.status,
+    previousStatus: currentStatus,
     nextStatus: input.status,
     notes: input.adminNotes ?? input.rejectionReason ?? input.moreInformationRequest ?? input.suspensionReason ?? null,
   });

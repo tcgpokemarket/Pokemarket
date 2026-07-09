@@ -88,3 +88,24 @@ export async function listUpcomingLiveShows(): Promise<LiveShowDirectoryItem[]> 
     return [];
   }
 }
+
+export async function getLiveShowDetails(showId: string) {
+  const supabase = createClient();
+  const [{ data: show }, { data: products }, { data: bids }, { data: chat }, { data: giveaways }] = await Promise.all([
+    supabase.from("live_shows").select("*").eq("id", showId).single(),
+    supabase.from("show_products").select("*").eq("show_id", showId).order("created_at", { ascending: false }),
+    supabase.from("live_bids").select("*").eq("show_id", showId).order("created_at", { ascending: false }),
+    supabase.from("live_chat").select("*").eq("show_id", showId).order("created_at", { ascending: true }),
+    supabase.from("giveaways").select("*").eq("show_id", showId).order("created_at", { ascending: false }),
+  ]);
+
+  if (!show) throw new Error("Show not found");
+
+  return {
+    show: show as import("@/lib/supabase/types").LiveShow,
+    products: (products ?? []) as import("@/lib/supabase/types").LiveShowItem[],
+    bids: (bids ?? []) as import("@/lib/supabase/types").LiveShowBid[],
+    chat: (chat ?? []) as import("@/lib/supabase/types").LiveShowMessage[],
+    giveaways: giveaways ?? [],
+  };
+}

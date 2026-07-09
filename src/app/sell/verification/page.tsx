@@ -62,10 +62,11 @@ export default function SellerVerificationPage() {
         return;
       }
 
-      const [{ data: verification }, { data: profile }] = await Promise.all([
+      const [{ data: verification }, { data: profileData }] = await Promise.all([
         client.from("seller_verifications").select("*").eq("user_id", user.id).maybeSingle(),
-        client.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+        client.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
       ]);
+      const profile = profileData as { full_name?: string | null } | null;
 
       const currentVerification = verification as {
         id: string;
@@ -97,10 +98,11 @@ export default function SellerVerificationPage() {
           .from("seller_verification_documents")
           .select("document_type, storage_path")
           .eq("verification_id", currentVerification.id);
+        const verificationDocs = (docs ?? []) as Array<{ document_type: UploadField; storage_path: string }>;
 
         const nextUploads = { ...uploads };
-        for (const doc of docs ?? []) {
-          nextUploads[doc.document_type as UploadField] = doc.storage_path as string;
+        for (const doc of verificationDocs) {
+          nextUploads[doc.document_type] = doc.storage_path;
         }
         setUploads(nextUploads);
       } else if (profile?.full_name) {
@@ -136,24 +138,25 @@ export default function SellerVerificationPage() {
       });
 
       const verification = verificationId ?? (await (async () => {
+        const verificationPayload = {
+          user_id: user.id,
+          legal_name: form.legal_name || user.user_metadata?.full_name || "",
+          date_of_birth: form.date_of_birth || "2000-01-01",
+          residential_address: form.residential_address || "",
+          phone_number: form.phone_number || "",
+          status: status ?? "not_started",
+        };
         const { data, error } = await supabase
           .from("seller_verifications")
-          .upsert({
-            user_id: user.id,
-            legal_name: form.legal_name || user.user_metadata?.full_name || "",
-            date_of_birth: form.date_of_birth || "2000-01-01",
-            residential_address: form.residential_address || "",
-            phone_number: form.phone_number || "",
-            status: status ?? "not_started",
-          }, { onConflict: "user_id" })
+          .upsert(verificationPayload as never, { onConflict: "user_id" })
           .select("id")
-          .single();
+          .single<{ id: string }>();
         if (error) throw error;
         return data?.id as string;
       })());
 
       setVerificationId(verification);
-      const { error } = await supabase.from("seller_verification_documents").upsert({
+      const documentPayload = {
         verification_id: verification,
         user_id: user.id,
         document_type: field,
@@ -161,7 +164,8 @@ export default function SellerVerificationPage() {
         storage_path: uploaded.path,
         mime_type: uploaded.mimeType,
         file_name: uploaded.fileName,
-      }, { onConflict: "verification_id,document_type" });
+      };
+      const { error } = await supabase.from("seller_verification_documents").upsert(documentPayload as never, { onConflict: "verification_id,document_type" });
       if (error) throw error;
 
       setUploads((current) => ({ ...current, [field]: uploaded.path }));
@@ -187,7 +191,7 @@ export default function SellerVerificationPage() {
         throw new Error("Please upload the required identity documents.");
       }
 
-      const { data, error } = await supabase.from("seller_verifications").upsert({
+      const submitPayload = {
         user_id: user.id,
         legal_name: form.legal_name,
         date_of_birth: form.date_of_birth,
@@ -195,7 +199,8 @@ export default function SellerVerificationPage() {
         phone_number: form.phone_number,
         status: "pending_review",
         submitted_at: new Date().toISOString(),
-      }, { onConflict: "user_id" }).select("id, status").single();
+      };
+      const { data, error } = await supabase.from("seller_verifications").upsert(submitPayload as never, { onConflict: "user_id" }).select("id, status").single<{ id: string; status: SellerVerificationStatus }>();
       if (error) throw error;
 
       setVerificationId(data?.id ?? verificationId);

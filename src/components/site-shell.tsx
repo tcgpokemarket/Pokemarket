@@ -98,8 +98,8 @@ function isActiveLink(pathname: string, searchParams: URLSearchParams, href: str
   if (pathname !== targetPath && !pathname.startsWith(`${targetPath}/`)) return false;
   if (!query) return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
   const expected = new URLSearchParams(query);
-  for (const [key, value] of expected.entries()) {
-    if (searchParams.get(key) !== value) return false;
+  for (const key of Array.from(expected.keys())) {
+    if (searchParams.get(key) !== expected.get(key)) return false;
   }
   return pathname === targetPath || pathname.startsWith(`${targetPath}/`);
 }
