@@ -39,7 +39,6 @@ export default function CreateListingPage() {
     grade_company: "",
     grade_score: "",
     status: "active",
-    shipping_paid_by: "buyer",
     weight_oz: "1",
     package_type: "card envelope",
   });
@@ -48,11 +47,6 @@ export default function CreateListingPage() {
     { value: "card envelope", label: "Card envelope", helper: "Best for singles and PWE-eligible mail." },
     { value: "bubble mailer", label: "Bubble mailer", helper: "Best for small protected shipments." },
     { value: "box", label: "Box", helper: "Best for larger or multi-item packages." },
-  ] as const;
-
-  const shippingOptions = [
-    { value: "buyer", label: "Buyer pays shipping", description: "Adds shipping at checkout." },
-    { value: "seller", label: "Seller pays shipping", description: "Shipping is covered by the seller." },
   ] as const;
 
   useEffect(() => {
@@ -140,7 +134,6 @@ export default function CreateListingPage() {
       grade_score: form.grade_score ? parseFloat(form.grade_score) : null,
       images: imageUrls,
       status: form.status,
-      shipping_paid_by: form.shipping_paid_by,
       weight_oz: Number(form.weight_oz || 0),
       package_type: form.package_type,
     };

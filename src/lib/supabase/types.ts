@@ -78,6 +78,8 @@ export interface Database {
           status: 'active' | 'sold' | 'draft' | 'removed'
           shipping_profile_id: string | null
           shipping_paid_by: 'buyer' | 'seller' | null
+          weight_oz: number | null
+          package_type: string | null
           views: number
 
 
@@ -100,6 +102,9 @@ export interface Database {
           description?: string | null
           category: 'single' | 'sealed' | 'graded' | 'accessory'
           shipping_profile_id?: string | null
+          shipping_paid_by?: 'buyer' | 'seller' | null
+          weight_oz?: number | null
+          package_type?: string | null
           status?: 'active' | 'sold' | 'draft' | 'removed'
           views?: number
           created_at?: string
@@ -459,6 +464,125 @@ export interface Database {
           updated_at?: string | null
         }
         Update: Partial<Database['public']['Tables']['seller_wallets']['Insert']>
+      }
+      referral_program_settings: {
+        Row: {
+          id: string
+          buyer_reward_credit: number
+          buyer_first_purchase_threshold: number
+          buyer_credit_expiry_days: number
+          buyer_reward_fee_share_percent: number
+          buyer_reward_max_payout: number
+          seller_reward_fee_share_percent: number
+          seller_reward_max_payout: number
+          creator_tier1_fee_share_percent: number
+          creator_tier1_duration_days: number
+          creator_tier1_max_payout: number
+          creator_tier2_fee_share_percent: number
+          creator_tier2_duration_days: number
+          min_profit_margin_percent: number
+          referral_hold_days: number
+          minimum_withdrawal_amount: number
+          updated_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          buyer_reward_credit?: number
+          buyer_first_purchase_threshold?: number
+          buyer_credit_expiry_days?: number
+          buyer_reward_fee_share_percent?: number
+          buyer_reward_max_payout?: number
+          seller_reward_fee_share_percent?: number
+          seller_reward_max_payout?: number
+          creator_tier1_fee_share_percent?: number
+          creator_tier1_duration_days?: number
+          creator_tier1_max_payout?: number
+          creator_tier2_fee_share_percent?: number
+          creator_tier2_duration_days?: number
+          min_profit_margin_percent?: number
+          referral_hold_days?: number
+          minimum_withdrawal_amount?: number
+          updated_at?: string
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['referral_program_settings']['Insert']>
+      }
+      referral_programs: {
+        Row: {
+          id: string
+          code: string
+          owner_user_id: string | null
+          program_type: 'buyer' | 'seller' | 'creator' | 'tiered'
+          tier_name: string | null
+          active: boolean
+          approved: boolean
+          commission_rate: number
+          max_payout: number | null
+          starts_at: string | null
+          ends_at: string | null
+          metadata: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          code: string
+          owner_user_id?: string | null
+          program_type: 'buyer' | 'seller' | 'creator' | 'tiered'
+          tier_name?: string | null
+          active?: boolean
+          approved?: boolean
+          commission_rate?: number
+          max_payout?: number | null
+          starts_at?: string | null
+          ends_at?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['referral_programs']['Insert']>
+      }
+      referral_attributions: {
+        Row: {
+          id: string
+          referred_user_id: string
+          referrer_user_id: string
+          order_id: string | null
+          referral_program_id: string | null
+          program_type: 'buyer' | 'seller' | 'creator' | 'tiered'
+          fee_basis: number
+          reward_rate: number
+          reward_amount: number
+          company_kept_amount: number
+          hold_until: string | null
+          status: 'pending' | 'held' | 'available' | 'paid' | 'rejected' | 'adjusted'
+          fraud_flag: boolean
+          fraud_reason: string | null
+          metadata: Json
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          referred_user_id: string
+          referrer_user_id: string
+          order_id?: string | null
+          referral_program_id?: string | null
+          program_type: 'buyer' | 'seller' | 'creator' | 'tiered'
+          fee_basis?: number
+          reward_rate?: number
+          reward_amount?: number
+          company_kept_amount?: number
+          hold_until?: string | null
+          status?: 'pending' | 'held' | 'available' | 'paid' | 'rejected' | 'adjusted'
+          fraud_flag?: boolean
+          fraud_reason?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['referral_attributions']['Insert']>
       }
       shipments: {
         Row: {

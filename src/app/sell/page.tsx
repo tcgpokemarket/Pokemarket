@@ -43,12 +43,14 @@ export default function SellPage() {
     grade_company: "",
     grade_score: "",
     status: "active",
-    shipping_paid_by: "buyer",
+    weight_oz: "1",
+    package_type: "card envelope",
   });
 
-  const shippingOptions = [
-    { value: "buyer", label: "Buyer pays shipping", description: "Adds shipping at checkout." },
-    { value: "seller", label: "Seller pays shipping", description: "Shipping is covered by the seller." },
+  const shippingTypes = [
+    { value: "card envelope", label: "Card envelope", helper: "Best for singles and PWE-eligible mail." },
+    { value: "bubble mailer", label: "Bubble mailer", helper: "Best for small protected shipments." },
+    { value: "box", label: "Box", helper: "Best for larger or multi-item packages." },
   ] as const;
 
   useEffect(() => {
@@ -130,7 +132,8 @@ export default function SellPage() {
       grade_score: form.grade_score ? parseFloat(form.grade_score) : null,
       images: imageUrls,
       status: form.status,
-      shipping_paid_by: form.shipping_paid_by,
+      weight_oz: Number((form as { weight_oz?: string }).weight_oz ?? 0),
+      package_type: String((form as { package_type?: string }).package_type ?? "card envelope"),
     };
 
     const res = await fetch("/api/listings", {
@@ -315,17 +318,6 @@ export default function SellPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4">
-              <div className="text-sm font-semibold text-yellow-400">Shipping payer</div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {shippingOptions.map((option) => (
-                  <button key={option.value} type="button" onClick={() => setForm((current) => ({ ...current, shipping_paid_by: option.value }))} className={`rounded-xl border px-4 py-3 text-left transition-colors ${form.shipping_paid_by === option.value ? "border-yellow-400 bg-yellow-400/10 text-yellow-400" : "border-white/10 bg-[#13131f] text-gray-300 hover:border-white/20"}`}>
-                    <div className="font-semibold">{option.label}</div>
-                    <div className="mt-1 text-xs text-gray-500">{option.description}</div>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
 
           {message && (

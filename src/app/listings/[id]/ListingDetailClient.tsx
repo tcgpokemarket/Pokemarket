@@ -34,8 +34,6 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [shippingPaidBy, setShippingPaidBy] = useState<"buyer" | "seller">(initialListing?.shipping_paid_by ?? "buyer");
-  const [shippingChoiceApplied, setShippingChoiceApplied] = useState(false);
 
   useEffect(() => {
     const client = createClient();
@@ -55,13 +53,6 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   }, [id, initialListing]);
 
 
-  useEffect(() => {
-    if (!shippingChoiceApplied && initialListing) {
-      setShippingPaidBy(initialListing.shipping_paid_by ?? "buyer");
-      setShippingChoiceApplied(true);
-    }
-  }, [initialListing, shippingChoiceApplied]);
-
   const handleBuy = async () => {
     if (!user) { router.push(`/auth?redirectTo=/listings/${id}`); return; }
     if (!supabase) return;
@@ -72,7 +63,6 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       body: JSON.stringify({
         listingId: id,
         quantity: 1,
-        shippingPaidBy,
       }),
     });
     const data = await res.json();
@@ -182,13 +172,6 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
               <div className="font-semibold text-yellow-400">Transparent seller pricing</div>
               <p className="mt-1">
                 Buyers see a clear breakdown at checkout, including item subtotal, shipping, sales tax, payment processing fee, marketplace fee, and seller payout.
-              </p>
-            </div>
-
-            <div className="mb-6 rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Shipping</div>
-              <p className="mt-1 text-xs text-gray-500">
-                USPS shipping is calculated during checkout.
               </p>
             </div>
 

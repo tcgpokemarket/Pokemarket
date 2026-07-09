@@ -246,6 +246,72 @@ create table public.seller_fee_overrides (
   created_at timestamptz default now()
 );
 
+create table public.referral_program_settings (
+  id uuid default gen_random_uuid() primary key,
+  buyer_reward_credit numeric(10,2) not null default 5,
+  buyer_first_purchase_threshold numeric(10,2) not null default 25,
+  buyer_credit_expiry_days integer not null default 90,
+  buyer_reward_fee_share_percent numeric(5,2) not null default 10,
+  buyer_reward_max_payout numeric(10,2) not null default 50,
+  seller_reward_fee_share_percent numeric(5,2) not null default 15,
+  seller_reward_max_payout numeric(10,2) not null default 250,
+  creator_tier1_fee_share_percent numeric(5,2) not null default 20,
+  creator_tier1_duration_days integer not null default 90,
+  creator_tier1_max_payout numeric(10,2) not null default 500,
+  creator_tier2_fee_share_percent numeric(5,2) not null default 25,
+  creator_tier2_duration_days integer not null default 365,
+  min_profit_margin_percent numeric(5,2) not null default 60,
+  referral_hold_days integer not null default 14,
+  minimum_withdrawal_amount numeric(10,2) not null default 25,
+  updated_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+create table public.referral_programs (
+  id uuid default gen_random_uuid() primary key,
+  code text not null unique,
+  owner_user_id uuid references auth.users(id) on delete cascade,
+  program_type text not null check (program_type in ('buyer', 'seller', 'creator', 'tiered')),
+  tier_name text,
+  active boolean not null default true,
+  approved boolean not null default false,
+  commission_rate numeric(5,2) not null default 0,
+  max_payout numeric(10,2),
+  starts_at timestamptz,
+  ends_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.referral_attributions (
+  id uuid default gen_random_uuid() primary key,
+  referred_user_id uuid references auth.users(id) on delete cascade not null,
+  referrer_user_id uuid references auth.users(id) on delete cascade not null,
+  order_id uuid references public.orders(id) on delete cascade,
+  referral_program_id uuid references public.referral_programs(id) on delete set null,
+  program_type text not null check (program_type in ('buyer', 'seller', 'creator', 'tiered')),
+  fee_basis numeric(10,2) not null default 0,
+  reward_rate numeric(5,2) not null default 0,
+  reward_amount numeric(10,2) not null default 0,
+  company_kept_amount numeric(10,2) not null default 0,
+  hold_until timestamptz,
+  status text not null default 'pending' check (status in ('pending', 'held', 'available', 'paid', 'rejected', 'adjusted')),
+  fraud_flag boolean not null default false,
+  fraud_reason text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.referral_events (
+  id uuid default gen_random_uuid() primary key,
+  referral_attribution_id uuid references public.referral_attributions(id) on delete cascade not null,
+  event_type text not null,
+  details jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
 -- Price history cache
 create table public.price_history (
   id uuid default gen_random_uuid() primary key,
