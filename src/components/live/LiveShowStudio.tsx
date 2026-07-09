@@ -30,7 +30,6 @@ const SHOW_FORMATS: { value: LiveShowTemplate; label: string }[] = [
 ];
 
 function seedFromListings(listings: Listing[]): LiveShowState {
-  const base = getLiveShow();
   const items = listings.slice(0, 5).map((listing, index) => {
     const primaryImage = choosePrimaryImage((listing.images ?? []).map((imageUrl) => evaluateImageMatch({ name: listing.card_name, setName: listing.set_name, cardNumber: listing.card_number }, { imageUrl, source: "seller_unverified", setName: listing.set_name, cardNumber: listing.card_number })));
     return {
@@ -52,14 +51,19 @@ function seedFromListings(listings: Listing[]): LiveShowState {
   });
 
   return {
-    ...base,
+    id: "",
+    title: "",
+    format: "fixed_price_drop",
     status: "scheduled",
-    items,
-    queue: createDefaultQueue(items),
-    title: "Collector Live Drop",
+    scheduledStart: new Date().toISOString(),
     viewerCount: 0,
     peakViewers: 0,
     engagementScore: 0,
+    items,
+    queue: createDefaultQueue(items),
+    chat: [],
+    topBidder: "",
+    lastWinner: "",
     hostSettings: {
       mutedChat: false,
       slowModeSeconds: 0,
@@ -72,7 +76,7 @@ function seedFromListings(listings: Listing[]): LiveShowState {
 }
 
 export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
-  const [title, setTitle] = useState("Collector Live Drop");
+  const [title, setTitle] = useState("");
   const [template, setTemplate] = useState<LiveShowTemplate>("fixed_price_drop");
   const [scheduledStart, setScheduledStart] = useState(() => new Date(Date.now() + 1000 * 60 * 30).toISOString().slice(0, 16));
   const [mutedChat, setMutedChat] = useState(false);

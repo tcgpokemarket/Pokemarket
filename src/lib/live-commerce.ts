@@ -131,69 +131,23 @@ export interface LiveShowState {
 
 const LIVE_SHOW_STORAGE_KEY = "tcg-poke-market-live-show";
 
-const DEFAULT_SHOW: LiveShowState = {
-  id: "live-show-001",
-  title: "Friday Night Heat Check",
+const EMPTY_SHOW: LiveShowState = {
+  id: "",
+  title: "",
   format: "fixed_price_drop",
   status: "scheduled",
-  scheduledStart: new Date(Date.now() + 1000 * 60 * 60).toISOString(),
-  viewerCount: 128,
-  peakViewers: 128,
-  engagementScore: 82,
+  scheduledStart: new Date().toISOString(),
+  viewerCount: 0,
+  peakViewers: 0,
+  engagementScore: 0,
   topBidder: "",
   lastWinner: "",
-  items: [
-    {
-      id: "live-item-1",
-      title: "Charizard ex",
-      subtitle: "Obsidian Flames · 125/197",
-      imageUrl: "",
-      startPrice: 1,
-      buyNowPrice: 189.99,
-      currentBid: 18,
-      bidCount: 6,
-      auctionSeconds: 30,
-      secondsLeft: 18,
-      pinned: true,
-      sold: false,
-    },
-    {
-      id: "live-item-2",
-      title: "PSA 9 Umbreon V",
-      subtitle: "Evolving Skies · 188/203",
-      imageUrl: "",
-      startPrice: 10,
-      buyNowPrice: 124.5,
-      currentBid: 68,
-      bidCount: 11,
-      auctionSeconds: 45,
-      secondsLeft: 31,
-      pinned: false,
-      sold: false,
-    },
-  ],
-  chat: [
-    {
-      id: "m-1",
-      user: "CollectorKid",
-      message: "Let’s goooo 🔥",
-      role: "viewer",
-      highlighted: true,
-      createdAt: new Date().toISOString(),
-    },
-    {
-      id: "m-2",
-      user: "TcgPoké Market",
-      message: "Pinned item is live. Bids open now!",
-      role: "seller",
-      highlighted: true,
-      createdAt: new Date().toISOString(),
-    },
-  ],
+  items: [],
+  chat: [],
 };
 
 function createFallbackShow(): LiveShowState {
-  return structuredClone(DEFAULT_SHOW);
+  return structuredClone(EMPTY_SHOW);
 }
 
 export function applyLiveShowTemplate(show: LiveShowState, template: LiveShowTemplate): LiveShowState {
