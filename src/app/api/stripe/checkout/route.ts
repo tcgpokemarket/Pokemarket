@@ -4,6 +4,13 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { buildSellerFeeConfig, calculateFeeBreakdown } from "@/lib/seller-fees";
 import { decideEscrowFlow, getDeliveryReleaseAt, calculateFraudRisk } from "@/lib/escrow";
+import { getRecommendedShippingOptions, loadShippingRules } from "@/lib/shipping-rules";
+import type { Json } from "@/lib/supabase/types";
+
+function toWeightOz(value: unknown) {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 const DEFAULT_ESCROW_SIGNAL_BASE = {
   failedPayments: 0,
@@ -48,14 +55,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
   }
 
-  const shippingPaidBy = listing.shipping_paid_by ?? "buyer";
+  const shippingPaidBy = "buyer";
   const admin = createAdminClient();
-  const [sellerOrdersResult, feeSettingsResult, feeTiersResult, feeOverrideResult] = await Promise.all([
+  const [sellerOrdersResult, feeSettingsResult, feeTiersResult, feeOverrideResult, shippingRules] = await Promise.all([
     supabase.from("orders").select("*").eq("seller_id", listing.seller_id),
     admin.from("seller_fee_settings").select("*").order("updated_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("seller_fee_tiers").select("*").eq("active", true).order("min_monthly_orders", { ascending: true }),
     admin.from("seller_fee_overrides").select("*").eq("seller_id", listing.seller_id).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    loadShippingRules(),
   ]);
+
+  const weightOz = toWeightOz((listing as { weight_oz?: unknown }).weight_oz ?? (listing as { weight?: unknown }).weight ?? listing.quantity);
+  const packageType = String((listing as { package_type?: unknown }).package_type ?? (listing.category === "single" ? "card envelope" : listing.category === "sealed" ? "bubble mailer" : "box"));
+  const shippingOptions = getRecommendedShippingOptions(weightOz, packageType, shippingRules);
+  const preferredShipping = shippingOptions[0] ?? { uspsService: "USPS Ground Advantage", shippingPrice: 0, trackingRequired: true, label: "USPS Ground Advantage" };
+  const shipping = preferredShipping.shippingPrice;
 
   const sellerFeeOrders = ((sellerOrdersResult.data ?? []) as Array<{
     seller_id: string;
@@ -86,7 +100,6 @@ export async function POST(req: Request) {
     : null;
 
   const itemSubtotal = Number(listing.price) * quantity;
-  const shipping = shippingPaidBy === "seller" ? 0 : 0;
   const salesTax = 0;
 
   const feeBreakdown = calculateFeeBreakdown({
@@ -141,8 +154,13 @@ export async function POST(req: Request) {
       quantity: String(quantity),
       itemSubtotal: feeBreakdown.itemSubtotal.toFixed(2),
       shippingAmount: feeBreakdown.shipping.toFixed(2),
-      shippingRateLabel: "USPS shipping",
+      shippingRateLabel: preferredShipping.label,
+      shippingService: preferredShipping.uspsService,
+      trackingRequired: String(preferredShipping.trackingRequired),
       shippingPaidBy,
+      packageType,
+      weightOz: String(weightOz),
+      availableShippingOptions: JSON.stringify(shippingOptions),
       salesTaxAmount: feeBreakdown.salesTax.toFixed(2),
       processingFeeAmount: feeBreakdown.paymentProcessingFee.toFixed(2),
       marketplaceFeeAmount: feeBreakdown.marketplaceFee.toFixed(2),
@@ -167,6 +185,7 @@ export async function POST(req: Request) {
     total_amount: totalAmount,
     item_subtotal: feeBreakdown.itemSubtotal,
     shipping_amount: feeBreakdown.shipping,
+    shipping_carrier: preferredShipping.uspsService,
     sales_tax_amount: feeBreakdown.salesTax,
     processing_fee_amount: feeBreakdown.paymentProcessingFee,
     marketplace_fee_amount: feeBreakdown.marketplaceFee,

@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { incrementSellerTotals, incrementTotalSales } from "@/lib/supabase/fees";
 import { getDeliveryReleaseAt, shouldReleaseFromEscrow, buildEscrowLedgerKey } from "@/lib/escrow";
+import { queueEmail } from "@/lib/notifications";
 
 async function recordWebhookEvent(
   supabase: ReturnType<typeof createAdminClient>,
@@ -187,6 +188,21 @@ export async function POST(req: Request) {
     .from("listings")
     .update({ status: "sold" })
     .eq("id", order.listing_id);
+
+  const buyerProfile = await (supabase as any).from("profiles").select("*").eq("id", order.buyer_id).maybeSingle();
+  if (buyerProfile.data?.id && buyerProfile.data?.full_name) {
+    await queueEmail({
+      userId: buyerProfile.data.id,
+      recipientEmail: session.customer_details?.email ?? session.customer_email ?? "",
+      templateName: "shipping_update",
+      emailType: "shipping_update",
+      payload: {
+        orderId: order.id,
+        trackingNumber: order.tracking_number ?? null,
+        carrier: order.shipping_carrier ?? session.metadata?.shippingService ?? "USPS",
+      },
+    });
+  }
 
   return NextResponse.json({ received: true });
 }

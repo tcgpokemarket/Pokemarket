@@ -40,7 +40,15 @@ export default function CreateListingPage() {
     grade_score: "",
     status: "active",
     shipping_paid_by: "buyer",
+    weight_oz: "1",
+    package_type: "card envelope",
   });
+
+  const shippingTypes = [
+    { value: "card envelope", label: "Card envelope", helper: "Best for singles and PWE-eligible mail." },
+    { value: "bubble mailer", label: "Bubble mailer", helper: "Best for small protected shipments." },
+    { value: "box", label: "Box", helper: "Best for larger or multi-item packages." },
+  ] as const;
 
   const shippingOptions = [
     { value: "buyer", label: "Buyer pays shipping", description: "Adds shipping at checkout." },
@@ -133,6 +141,8 @@ export default function CreateListingPage() {
       images: imageUrls,
       status: form.status,
       shipping_paid_by: form.shipping_paid_by,
+      weight_oz: Number(form.weight_oz || 0),
+      package_type: form.package_type,
     };
 
     const res = await fetch("/api/listings", {
@@ -322,17 +332,33 @@ export default function CreateListingPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4">
-                  <div className="text-sm font-semibold text-yellow-400">Shipping payer</div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {shippingOptions.map((option) => (
-                      <button key={option.value} type="button" onClick={() => setForm((current) => ({ ...current, shipping_paid_by: option.value }))} className={`rounded-xl border px-4 py-3 text-left transition-colors ${form.shipping_paid_by === option.value ? "border-yellow-400 bg-yellow-400/10 text-yellow-400" : "border-white/10 bg-[#13131f] text-gray-300 hover:border-white/20"}`}>
-                        <div className="font-semibold">{option.label}</div>
-                        <div className="mt-1 text-xs text-gray-500">{option.description}</div>
-                      </button>
+                <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4 space-y-4">
+                  <div>
+                    <div className="text-sm font-semibold text-yellow-400">Shipping setup</div>
+                    <p className="mt-1 text-xs text-gray-500">Pick the product weight and package type. We’ll recommend USPS options automatically.</p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className="block text-sm text-gray-300">
+                      Product weight (oz)
+                      <input name="weight_oz" type="number" min="0" step="0.1" value={form.weight_oz} onChange={handleChange} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
+                    </label>
+                    <label className="block text-sm text-gray-300">
+                      Package type
+                      <select name="package_type" value={form.package_type} onChange={handleChange} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none">
+                        {shippingTypes.map((type) => <option key={type.value} value={type.value} className="bg-gray-900">{type.label}</option>)}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {shippingTypes.map((type) => (
+                      <div key={type.value} className={`rounded-xl border px-4 py-3 text-xs ${form.package_type === type.value ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-white/10 bg-[#13131f] text-gray-400"}`}>
+                        <div className="font-semibold">{type.label}</div>
+                        <div className="mt-1">{type.helper}</div>
+                      </div>
                     ))}
                   </div>
                 </div>
+
               </div>
 
               {message && (

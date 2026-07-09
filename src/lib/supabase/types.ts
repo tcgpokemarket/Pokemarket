@@ -76,6 +76,7 @@ export interface Database {
           description: string | null
           category: 'single' | 'sealed' | 'graded' | 'accessory'
           status: 'active' | 'sold' | 'draft' | 'removed'
+          shipping_profile_id: string | null
           shipping_paid_by: 'buyer' | 'seller' | null
           views: number
 
@@ -98,6 +99,7 @@ export interface Database {
           images?: string[]
           description?: string | null
           category: 'single' | 'sealed' | 'graded' | 'accessory'
+          shipping_profile_id?: string | null
           status?: 'active' | 'sold' | 'draft' | 'removed'
           views?: number
           created_at?: string
@@ -1017,6 +1019,33 @@ export interface Database {
           created_at?: string | null
         }
         Update: Partial<Database['public']['Tables']['seller_fee_overrides']['Insert']>
+      }
+      shipping_rules: {
+        Row: {
+          id: string
+          weight_min: number
+          weight_max: number | null
+          package_type: string
+          usps_service: string
+          shipping_price: number
+          tracking_required: boolean
+          active_status: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          weight_min: number
+          weight_max?: number | null
+          package_type: string
+          usps_service: string
+          shipping_price?: number
+          tracking_required?: boolean
+          active_status?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['shipping_rules']['Insert']>
       }
       price_history: {
         Row: {

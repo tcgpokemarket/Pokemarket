@@ -107,6 +107,19 @@ create table public.seller_wallets (
   updated_at timestamptz default now()
 );
 
+create table public.shipping_rules (
+  id uuid default gen_random_uuid() primary key,
+  weight_min numeric(10,2) not null,
+  weight_max numeric(10,2),
+  package_type text not null,
+  usps_service text not null,
+  shipping_price numeric(10,2) not null default 0,
+  tracking_required boolean not null default true,
+  active_status boolean not null default true,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
 create table public.shipment_groups (
   id uuid default gen_random_uuid() primary key,
   buyer_id uuid references public.profiles(id) on delete cascade not null,
