@@ -5,7 +5,7 @@ import { isAdminUser } from "@/lib/admin-access";
 
 export const dynamic = "force-dynamic";
 
-export default async function FeesLayout({ children }: { children: ReactNode }) {
+export default async function AdminLayout({ children }: { children: ReactNode }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 

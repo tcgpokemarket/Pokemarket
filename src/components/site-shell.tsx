@@ -34,23 +34,6 @@ const userNav = [
   { label: "Identity Verification", href: "/sell/verification" },
 ] as const;
 
-const adminNav = [
-  { label: "Dashboard", href: "/admin" },
-  { label: "Users", href: "/dashboard" },
-  { label: "Seller Verifications", href: "/admin/verification" },
-  { label: "Listings", href: "/listings" },
-  { label: "Auctions", href: "/live" },
-  { label: "Orders", href: "/dashboard?tab=sales" },
-  { label: "Escrow", href: "/dashboard?tab=fees" },
-  { label: "Wallets", href: "/dashboard?tab=overview" },
-  { label: "Reports", href: "/admin/compliance" },
-  { label: "Moderation", href: "/admin/apis" },
-  { label: "Support Tickets", href: "/support" },
-  { label: "Promotions", href: "/admin/giveaways" },
-  { label: "Analytics", href: "/admin/email" },
-  { label: "Site Settings", href: "/admin" },
-  { label: "Audit Logs", href: "/admin/compliance" },
-] as const;
 
 const routeLabels: Record<string, string> = {
   "/": "Home",
@@ -65,7 +48,6 @@ const routeLabels: Record<string, string> = {
   "/giveaway-rules": "Events",
   "/help": "Help Center",
   "/support": "Help Center",
-  "/admin": "Admin",
   "/profile": "Profile",
   "/sellers": "Community",
   "/account": "Settings",
@@ -277,11 +259,6 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                 {item.label}
               </Link>
             ))}
-            {admin && adminNav.map((item) => (
-              <Link key={item.href} href={item.href} scroll={false} className={navClass(isActiveLink(pathname, searchParams, item.href))}>
-                {item.label}
-              </Link>
-            ))}
           </div>
         </div>
       </header>
@@ -343,18 +320,6 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                 )}
               </div>
             </div>
-            {admin && (
-              <div>
-                <div className="mb-2 text-xs uppercase tracking-[0.25em] text-gray-500">Admin</div>
-                <div className="grid gap-2">
-                  {adminNav.map((item) => (
-                    <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={navClass(isActiveLink(pathname, searchParams, item.href))}>
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
           </nav>
         </aside>
       </div>
