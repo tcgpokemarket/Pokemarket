@@ -20,6 +20,7 @@ export default function AuthClient() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [referralCode, setReferralCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
@@ -38,7 +39,7 @@ export default function AuthClient() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName } },
+        options: { data: { full_name: fullName, referral_code: referralCode.trim() || undefined } },
       });
       if (error) setMessage({ type: "error", text: error.message });
       else setMessage({ type: "success", text: "Check your email to confirm your account." });
@@ -64,8 +65,14 @@ export default function AuthClient() {
             {mode === "login" ? "Welcome back" : "Create your account"}
           </h1>
           <p className="text-gray-400 text-sm mt-2">
-            {mode === "login" ? "Sign in to buy, sell, and track your collection." : "Join the Pokémon TCG marketplace."}
+            {mode === "login" ? "Sign in to buy, sell, and track your collection." : "Join the Pokémon TCG marketplace and unlock referral rewards."}
           </p>
+          {mode === "signup" && (
+            <div className="mt-4 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4 text-left">
+              <div className="text-sm font-semibold text-yellow-400">Referral rewards</div>
+              <p className="mt-1 text-sm text-gray-300">Add a referral code if someone invited you. We’ll track it for eligible buyer, seller, and creator rewards after signup.</p>
+            </div>
+          )}
         </div>
 
         <div className="bg-white/5 border border-white/10 rounded-2xl p-8">
@@ -81,6 +88,19 @@ export default function AuthClient() {
                   placeholder="Ash Ketchum"
                   className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
                 />
+              </div>
+            )}
+            {mode === "signup" && (
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">Referral code</label>
+                <input
+                  type="text"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value)}
+                  placeholder="Optional invite or creator code"
+                  className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-yellow-400 transition-colors"
+                />
+                <p className="mt-2 text-xs text-gray-500">If you were invited, enter the code here to connect the reward to your account.</p>
               </div>
             )}
             <div>

@@ -132,8 +132,8 @@ export default function SellPage() {
       grade_score: form.grade_score ? parseFloat(form.grade_score) : null,
       images: imageUrls,
       status: form.status,
-      weight_oz: Number((form as { weight_oz?: string }).weight_oz ?? 0),
-      package_type: String((form as { package_type?: string }).package_type ?? "card envelope"),
+      weight_oz: Number(form.weight_oz || 0),
+      package_type: form.package_type,
     };
 
     const res = await fetch("/api/listings", {
@@ -302,6 +302,33 @@ export default function SellPage() {
             <div>
               <label className="block text-sm text-gray-300 mb-1.5 font-medium">Description</label>
               <textarea name="description" value={form.description} onChange={handleChange} rows={4} placeholder="Describe condition, pulls, shipping notes..." className="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-yellow-400 resize-none" />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4 space-y-4">
+            <div>
+              <div className="text-sm font-semibold text-yellow-400">Shipping setup</div>
+              <p className="mt-1 text-xs text-gray-500">Pick the product weight and package type. We’ll recommend USPS options automatically.</p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm text-gray-300">
+                Product weight (oz)
+                <input name="weight_oz" type="number" min="0" step="0.1" value={form.weight_oz} onChange={handleChange} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
+              </label>
+              <label className="block text-sm text-gray-300">
+                Package type
+                <select name="package_type" value={form.package_type} onChange={handleChange} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none">
+                  {shippingTypes.map((type) => <option key={type.value} value={type.value} className="bg-gray-900">{type.label}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {shippingTypes.map((type) => (
+                <div key={type.value} className={`rounded-xl border px-4 py-3 text-xs ${form.package_type === type.value ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-white/10 bg-[#13131f] text-gray-400"}`}>
+                  <div className="font-semibold">{type.label}</div>
+                  <div className="mt-1">{type.helper}</div>
+                </div>
+              ))}
             </div>
           </div>
 
