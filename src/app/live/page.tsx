@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 
 const categories = ["Pokémon", "Sealed", "Singles", "Graded", "Accessories"];
 
@@ -18,15 +17,40 @@ type LiveShowRow = {
   auction_settings: Record<string, unknown> | null;
 };
 
-export default async function LivePage() {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("live_shows")
-    .select("id, title, description, status, seller_id, viewer_count, scheduled_start, auction_settings")
-    .order("created_at", { ascending: false })
-    .limit(12);
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-  const shows = (data ?? []) as LiveShowRow[];
+function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+  url.searchParams.set("select", select);
+  url.searchParams.set("limit", String(limit));
+  for (const [key, value] of filters) url.searchParams.set(key, value);
+  return url;
+}
+
+async function fetchPublicRows<T>(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return [] as T[];
+
+  const response = await fetch(buildRestUrl(table, select, filters, limit).toString(), {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Accept: "application/json",
+    },
+    cache: "force-cache",
+  });
+
+  if (!response.ok) return [] as T[];
+  return (await response.json()) as T[];
+}
+
+export default async function LivePage() {
+  const shows = await fetchPublicRows<LiveShowRow>(
+    "live_shows",
+    "id, title, description, status, seller_id, viewer_count, scheduled_start, auction_settings",
+    [["order", "created_at.desc"]],
+    12,
+  );
 
   return (
     <div className="min-h-screen bg-[#08111f] text-white">
