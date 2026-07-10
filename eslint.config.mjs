@@ -1,6 +1,9 @@
 import nextConfig from "eslint-config-next";
 
 const config = [
+  {
+    ignores: ["**/.next/**", "**/_build/**", "**/out/**", "**/node_modules/**"],
+  },
   ...nextConfig,
   {
     rules: {
@@ -10,7 +13,6 @@ const config = [
       "react-hooks/exhaustive-deps": "off",
       "import/no-anonymous-default-export": "off",
     },
-    ignores: [".next/**", "out/**", "node_modules/**"],
   },
 ];
 

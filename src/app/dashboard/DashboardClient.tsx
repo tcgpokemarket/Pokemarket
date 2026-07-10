@@ -534,8 +534,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
           </a>
           <div className="flex items-center gap-4">
             <a href="/listings" className="text-sm text-gray-300 hover:text-white">Browse</a>
-            <a href="/dashboard/fees" className="text-sm text-gray-300 hover:text-white">Fee Admin</a>
-            <a href="/admin" className="text-sm text-gray-300 hover:text-white">Admin</a>
+            <a href="/dashboard/fees" className="text-sm text-gray-300 hover:text-white">Fees</a>
             <a href="/listings/create" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">+ New Listing</a>
             <button onClick={handleSignOut} className="text-sm text-gray-400 hover:text-white">Sign out</button>
           </div>

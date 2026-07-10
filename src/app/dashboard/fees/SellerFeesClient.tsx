@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildSellerFeeConfig, calculateFeeBreakdown } from "@/lib/seller-fees";
 
-type AdminFeePayload = {
+type FeePayload = {
   settings?: {
     free_sales_limit?: number;
     standard_marketplace_fee_percent?: number;
@@ -34,7 +34,7 @@ const defaultConfig = {
   powerSeller2000: 3.5,
 };
 
-function normalizeAdminSettings(payload: AdminFeePayload) {
+function normalizeFeeSettings(payload: FeePayload) {
   return buildSellerFeeConfig({
     settings: payload.settings,
     tiers: payload.tiers?.map((tier) => ({
@@ -61,17 +61,17 @@ export default function SellerFeesClient() {
     const loadSettings = async () => {
       try {
         const response = await fetch("/api/admin/fees");
-        const payload = (await response.json()) as AdminFeePayload & { error?: string };
+        const payload = (await response.json()) as FeePayload & { error?: string };
 
         if (!active) return;
 
         if (!response.ok) {
           setStatus("error");
-          setMessage(payload.error ?? "Unable to load admin fee settings.");
+          setMessage(payload.error ?? "Unable to load fee settings.");
           return;
         }
 
-        const nextConfig = normalizeAdminSettings(payload);
+        const nextConfig = normalizeFeeSettings(payload);
         setConfig({
           freeSalesLimit: nextConfig.freeSalesLimit,
           standardMarketplaceFeePercent: nextConfig.standardMarketplaceFeePercent,
@@ -81,7 +81,7 @@ export default function SellerFeesClient() {
           powerSeller2000: nextConfig.powerSellerTiers[1]?.feePercent ?? defaultConfig.powerSeller2000,
         });
         setStatus("idle");
-        setMessage("Live admin settings loaded.");
+        setMessage("Live fee settings loaded.");
       } catch {
         if (!active) return;
         setStatus("error");
@@ -167,7 +167,7 @@ export default function SellerFeesClient() {
           seller_id: "preview-seller",
           fee_percent: overrideFee === "" ? null : Number(overrideFee),
           free_sales_limit: overrideFreeSales === "" ? null : Number(overrideFreeSales),
-          reason: "Admin preview override",
+          reason: "Seller preview override",
         } : null,
       }),
     });
@@ -176,21 +176,21 @@ export default function SellerFeesClient() {
 
     if (!response.ok) {
       setStatus("error");
-      setMessage(data.error ?? "Unable to save admin fee settings.");
+      setMessage(data.error ?? "Unable to save fee settings.");
       return;
     }
 
     setStatus("saved");
-    setMessage("Live admin settings saved.");
+    setMessage("Live fee settings saved.");
   };
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
       <div className="mx-auto max-w-6xl px-4 py-24">
         <div className="mb-8">
-          <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Admin Dashboard</div>
+          <div className="mb-3 text-sm font-semibold uppercase tracking-widest text-yellow-400">Seller dashboard</div>
           <h1 className="text-3xl font-black">Seller Fee Management</h1>
-          <p className="mt-3 max-w-2xl text-gray-400">Edit the fee model, save it to shared admin settings, and preview the effect on seller earnings.</p>
+          <p className="mt-3 max-w-2xl text-gray-400">Edit the fee model, save it to shared settings, and preview the effect on seller earnings.</p>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">

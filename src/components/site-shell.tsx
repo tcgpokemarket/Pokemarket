@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { isAdmin } from "@/lib/security";
 
 const primaryNav = [
   { label: "Home", href: "/" },
@@ -106,7 +105,6 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
-  const [admin, setAdmin] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(0);
@@ -120,7 +118,6 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
     client.auth.getUser().then(({ data: { user } }) => {
       if (!alive) return;
       setSignedIn(Boolean(user));
-      setAdmin(isAdmin(user));
       setName(user?.email?.split("@")[0] ?? null);
     });
 
