@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getHomepageData } from "@/lib/homepage-data";
+import { createClient } from "@/lib/supabase/server";
 import type { HomepageActivity, HomepageListing, HomepageLiveShow, HomepageSeller } from "@/lib/homepage-data";
 
 const EMPTY_HOMEPAGE = {
@@ -38,14 +39,6 @@ const feedChips = [
   { label: "Trading Card Games", href: "/listings?category=sealed" },
   { label: "Slabs", href: "/listings?category=graded" },
   { label: "Sealed", href: "/listings?category=sealed" },
-];
-
-const bottomNav = [
-  { label: "Home", href: "/", icon: "⌂", active: true },
-  { label: "Categories", href: "/listings", icon: "⌕" },
-  { label: "Seller Hub", href: "/sell", icon: "▦" },
-  { label: "Activity", href: "/messages", icon: "♡" },
-  { label: "Account", href: "/dashboard", icon: "◉" },
 ];
 
 function formatTimeRemaining(target?: string | null) {
@@ -175,8 +168,17 @@ function ActivityCard({ activity }: { activity: HomepageActivity }) {
   );
 }
 
+async function getCurrentUser() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = user ? await supabase.from("profiles").select("id, username, full_name, is_seller, avatar_url").eq("id", user.id).maybeSingle() : { data: null };
+  const { count: notifications } = user ? await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("read_status", false) : { count: 0 };
+  return { user, profile: profile as { id: string; username: string | null; full_name: string | null; is_seller: boolean; avatar_url: string | null } | null, notifications: notifications ?? 0 };
+}
+
 export default async function Home() {
   const data = await getHomepageData().catch(() => EMPTY_HOMEPAGE);
+  const { user, profile, notifications } = await getCurrentUser().catch(() => ({ user: null, profile: null, notifications: 0 }));
 
   const liveNow = data.liveNow.slice(0, 4);
   const featuredLive = data.featuredLiveShows.slice(0, 4);
@@ -186,6 +188,16 @@ export default async function Home() {
   const sellerHighlights = data.featuredSellers.slice(0, 4);
   const recommended = data.trendingMarketplace.slice(0, 8);
   const totalViewers = [...data.liveNow, ...data.featuredLiveShows].reduce((sum: number, show: HomepageLiveShow) => sum + (show.viewer_count ?? 0), 0);
+  const isLoggedIn = Boolean(user);
+  const isSeller = Boolean(profile?.is_seller);
+  const avatarInitial = profile?.full_name?.[0] ?? profile?.username?.[0] ?? user?.email?.[0] ?? "U";
+  const bottomNav = [
+    { href: "/", label: "Home", icon: "⌂" },
+    { href: "/live", label: "Live", icon: "⚡" },
+    { href: "/listings", label: "Shop", icon: "🛒" },
+    { href: "/sell", label: "Sell", icon: "＋" },
+    { href: "/dashboard", label: isLoggedIn ? "Account" : "Sign In", icon: "◌" },
+  ];
 
   return (
     <div className="min-h-screen bg-[#08111f] text-white">
@@ -195,19 +207,72 @@ export default async function Home() {
             <span className="text-2xl">⚡</span>
             <span className="text-white">TCG</span><span className="text-yellow-400">Poke</span><span className="text-white">Market</span>
           </Link>
+
           <div className="hidden items-center gap-5 md:flex">
             <Link href="/live" className="text-sm font-medium text-gray-300 transition hover:text-yellow-400">Live</Link>
             <Link href="/listings" className="text-sm font-medium text-gray-300 transition hover:text-yellow-400">Marketplace</Link>
             <Link href="/sell" className="text-sm font-medium text-gray-300 transition hover:text-yellow-400">Sell</Link>
             <Link href="/dashboard" className="text-sm font-medium text-gray-300 transition hover:text-yellow-400">Dashboard</Link>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/sell" className="hidden rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 sm:inline-flex">
-              Start Selling
-            </Link>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            {!isLoggedIn ? (
+              <>
+                <Link href="/login" className="hidden rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 sm:inline-flex">
+                  Sign In
+                </Link>
+                <Link href="/signup" className="hidden rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300 sm:inline-flex">
+                  Sign Up
+                </Link>
+                <Link href="/auth?mode=login&redirectTo=/dashboard" className="hidden rounded-xl bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-gray-100 sm:inline-flex">
+                  Continue with Google
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/dashboard" className="hidden rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 sm:inline-flex">
+                  My Dashboard
+                </Link>
+                <Link href="/dashboard?tab=overview" className="hidden rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 lg:inline-flex">
+                  My Wallet
+                </Link>
+                {isSeller && (
+                  <Link href="/dashboard?tab=live" className="hidden rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300 sm:inline-flex">
+                    My Shop
+                  </Link>
+                )}
+                <Link href="/dashboard?tab=notifications" className="hidden rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 md:inline-flex">
+                  Notifications
+                </Link>
+                <Link href="/dashboard" className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-white/15 bg-white/5 text-sm font-black text-yellow-400 transition hover:border-yellow-400/40">
+                  {profile?.avatar_url ? <img src={profile.avatar_url} alt="Profile avatar" className="h-full w-full object-cover" /> : avatarInitial}
+                </Link>
+              </>
+            )}
             <Link href="/live" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">
               Join Live Auction
             </Link>
+          </div>
+        </div>
+
+        <div className="border-t border-white/10 px-4 py-3 sm:px-6 lg:px-8 md:hidden">
+          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
+            {!isLoggedIn ? (
+              <>
+                <Link href="/login" className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Sign In</Link>
+                <Link href="/signup" className="rounded-xl bg-yellow-400 px-3 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">Sign Up</Link>
+                <Link href="/auth?mode=login&redirectTo=/dashboard" className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-black transition hover:bg-gray-100">
+                  Continue with Google
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link href="/dashboard" className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/5">My Dashboard</Link>
+                <Link href="/dashboard?tab=overview" className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/5">My Wallet</Link>
+                {isSeller && <Link href="/dashboard?tab=live" className="rounded-xl bg-yellow-400 px-3 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">My Shop</Link>}
+                <Link href="/dashboard?tab=notifications" className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Notifications</Link>
+              </>
+            )}
           </div>
         </div>
       </nav>
@@ -239,6 +304,19 @@ export default async function Home() {
                     <div className="text-base font-semibold text-white">Live shows, cards, sellers, deals</div>
                   </div>
                   <Link href="/listings" className="hidden rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black sm:inline-flex">Search</Link>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Link href="/sell" className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300">Start Selling</Link>
+                  <Link href="/listings" className="rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/5">Shop Marketplace</Link>
+                  {!isLoggedIn ? (
+                    <>
+                      <Link href="/login" className="rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/5">Sign In</Link>
+                      <Link href="/auth?mode=login&redirectTo=/dashboard" className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-black transition hover:bg-gray-100">
+                        Continue with Google
+                      </Link>
+                    </>
+                  ) : null}
                 </div>
 
                 <div className="mt-4 grid gap-4 sm:grid-cols-3">
@@ -321,7 +399,7 @@ export default async function Home() {
                 <div className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-yellow-400">Sealed</div>
                 <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
                   {trendingSealed.map((listing: HomepageListing) => <div key={listing.id} className="min-w-[240px] snap-start"><ListingCard listing={listing} /></div>)}
-                  {!trendingSealed.length && <div className="rounded-[1.75rem] border border-white/10 bg-[#121826] p-6 text-sm text-gray-400">No sealed items to show.</div>}
+                  {!trendingSealed.length && <div className="rounded-[1.75rem] border border-white/10 bg-[#121826] p-6 text-sm text-gray-400">No sealed products to show.</div>}
                 </div>
               </div>
             </div>
@@ -332,71 +410,24 @@ export default async function Home() {
           <div className="mx-auto max-w-7xl">
             <div className="mb-4 flex items-end justify-between gap-4">
               <div>
-                <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Recommended for you</h2>
-                <p className="mt-2 max-w-2xl text-sm text-gray-400">A quick scan of the hottest items across the marketplace.</p>
+                <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Recent activity</h2>
+                <p className="mt-2 max-w-2xl text-sm text-gray-400">Community movement across auctions, purchases, and new storefronts.</p>
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {recommended.map((listing: HomepageListing) => <ListingCard key={listing.id} listing={listing} />)}
-              {!recommended.length && <div className="rounded-[1.75rem] border border-white/10 bg-[#121826] p-6 text-sm text-gray-400">No recommendations available yet.</div>}
-            </div>
-          </div>
-        </section>
-
-        <section className="px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl">
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Community activity</h2>
-                <p className="mt-2 max-w-2xl text-sm text-gray-400">Recent purchase, auction, and follower activity.</p>
-              </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {data.activity.map((activity: HomepageActivity) => <ActivityCard key={`${activity.type}-${activity.title}`} activity={activity} />)}
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {data.activity.slice(0, 8).map((activity, index) => <ActivityCard key={`${activity.type}-${activity.title}-${index}`} activity={activity} />)}
               {!data.activity.length && <div className="rounded-[1.75rem] border border-white/10 bg-[#121826] p-6 text-sm text-gray-400">No recent activity yet.</div>}
-            </div>
-          </div>
-        </section>
-
-        <section className="px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mx-auto max-w-7xl">
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Upcoming live shows</h2>
-                <p className="mt-2 max-w-2xl text-sm text-gray-400">Scheduled drops with reminders and countdowns.</p>
-              </div>
-              <Link href="/live" className="text-sm font-semibold text-yellow-400 hover:underline">Schedule →</Link>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {featuredLive.map((show) => (
-                <Link key={show.id} href={`/live/${show.id}`} className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#121826] transition hover:border-yellow-400/40">
-                  <div className="aspect-[4/3] bg-gradient-to-r from-yellow-400/20 via-red-500/10 to-blue-500/10">
-                    {show.thumbnail ? (
-                                  <img src={show.thumbnail} alt={show.title} className="h-full w-full object-cover" />
-                    ) : null}
-                  </div>
-                  <div className="p-4">
-                    <div className="flex items-center justify-between gap-3 text-xs uppercase tracking-widest text-gray-400">
-                      <span>{formatTimeRemaining(show.scheduled_start)}</span>
-                      <span className="rounded-full bg-yellow-400/10 px-3 py-1 text-yellow-300">{show.viewer_count} watching</span>
-                    </div>
-                    <h3 className="mt-3 text-lg font-bold text-white">{show.title}</h3>
-                    <p className="mt-1 text-sm text-gray-400">{show.description ?? "Scheduled live show"}</p>
-                  </div>
-                </Link>
-              ))}
-              {!featuredLive.length && <div className="rounded-[1.75rem] border border-white/10 bg-[#121826] p-6 text-sm text-gray-400">No upcoming live shows are scheduled.</div>}
             </div>
           </div>
         </section>
       </main>
 
-      <div className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-[#08111f]/95 px-3 py-2 backdrop-blur-xl md:hidden">
-        <div className="mx-auto grid max-w-7xl grid-cols-5 gap-1 text-center text-[11px] text-gray-300">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#08111f]/95 px-4 py-3 backdrop-blur-xl md:hidden">
+        <div className="mx-auto grid max-w-7xl grid-cols-5 gap-2 text-center text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-300">
           {bottomNav.map((item) => (
-            <Link key={item.label} href={item.href} className={`flex flex-col items-center justify-center rounded-2xl px-1 py-2 ${item.active ? "text-white" : ""}`}>
-              <span className={`text-xl ${item.active ? "text-yellow-400" : "text-gray-300"}`}>{item.icon}</span>
-              <span className="mt-1 font-semibold">{item.label}</span>
+            <Link key={item.href} href={item.href} className="rounded-2xl border border-white/10 bg-white/5 px-2 py-2">
+              <div className="text-lg leading-none">{item.icon}</div>
+              <div className="truncate">{item.label}</div>
             </Link>
           ))}
         </div>
