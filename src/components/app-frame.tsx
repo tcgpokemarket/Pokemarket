@@ -44,13 +44,13 @@ function getSafeRedirect(value: string | null) {
   return value;
 }
 
-function getDestination(role: ReturnType<typeof getAppRole>, redirectTo: string | null) {
+function getDestination(userRole: ReturnType<typeof getAppRole>, redirectTo: string | null) {
   if (redirectTo) return redirectTo;
-  if (role === "admin" || role === "super_admin") return "/admin";
+  if (userRole === "admin" || userRole === "super_admin") return "/admin";
   return "/dashboard";
 }
 
-function Loader({ label }: { label: string }) {
+function FullPageLoader({ label }: { label: string }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-4 text-center text-gray-200">
       <div className="max-w-sm rounded-3xl border border-white/10 bg-white/5 px-6 py-8 shadow-2xl shadow-black/20 backdrop-blur">
@@ -67,7 +67,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [authState, setAuthState] = useState<"loading" | "ready">("loading");
+  const [authState, setAuthState] = useState<"loading" | "ready" | "redirecting">("loading");
 
   const isAuthPage = isPathMatch(pathname, "/auth") || pathname === "/login" || pathname === "/signup";
   const isPublicPage = isPublicPath(pathname);
@@ -86,14 +86,17 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
 
       if (isAuthPage) {
         if (user) {
+          setAuthState("redirecting");
           router.replace(getDestination(getAppRole(user), redirectTo));
           return;
         }
+
         setAuthState("ready");
         return;
       }
 
       if (isProtectedPage && !user) {
+        setAuthState("redirecting");
         router.replace(`/auth?redirectTo=${encodeURIComponent(requestedPath)}`);
         return;
       }
@@ -104,6 +107,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     run().catch(() => {
       if (!alive) return;
       if (isProtectedPage) {
+        setAuthState("redirecting");
         router.replace(`/auth?redirectTo=${encodeURIComponent(requestedPath)}`);
       } else {
         setAuthState("ready");
@@ -116,11 +120,15 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
   }, [isAuthPage, isProtectedPage, pathname, requestedPath, router, searchParams]);
 
   if (authState !== "ready") {
-    return <Loader label={isAuthPage ? "Opening your account" : "Checking access"} />;
+    return <FullPageLoader label={isAuthPage ? "Opening your account" : "Checking access"} />;
   }
 
   if (isAuthPage) {
     return <>{children}</>;
+  }
+
+  if (isPublicPage) {
+    return <SiteShell>{children}</SiteShell>;
   }
 
   return <SiteShell>{children}</SiteShell>;

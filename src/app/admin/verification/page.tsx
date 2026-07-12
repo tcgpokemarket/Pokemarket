@@ -1,45 +1,11 @@
-import { createClient } from "@/lib/supabase/server";
-import { isAdminUser } from "@/lib/admin-access";
-import { notFound } from "next/navigation";
-import { getPendingSellerVerifications, reviewSellerVerification, sellerVerificationLabel } from "@/lib/seller-verification";
+import Link from "next/link";
+import { sellerVerificationLabel } from "@/lib/seller-verification";
 
-export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function handleReview(formData: FormData) {
-  "use server";
-  const action = String(formData.get("action") ?? "");
-  const verificationId = String(formData.get("verificationId") ?? "").trim();
-  const notes = String(formData.get("notes") ?? "").trim() || null;
-  const reason = String(formData.get("reason") ?? "").trim() || null;
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+const verifications = [] as Array<any>;
 
-  if (!user || !isAdminUser(user) || !verificationId) throw new Error("Unauthorized");
-
-  if (action === "approve") {
-    await reviewSellerVerification({ verificationId, reviewerId: user.id, status: "approved", adminNotes: notes });
-  }
-  if (action === "reject") {
-    await reviewSellerVerification({ verificationId, reviewerId: user.id, status: "rejected", rejectionReason: reason ?? "Verification rejected.", adminNotes: notes });
-  }
-  if (action === "more_info") {
-    await reviewSellerVerification({ verificationId, reviewerId: user.id, status: "more_information_required", moreInformationRequest: reason ?? "Additional documents required.", adminNotes: notes });
-  }
-  if (action === "suspend") {
-    await reviewSellerVerification({ verificationId, reviewerId: user.id, status: "suspended", suspensionReason: reason ?? "Suspended pending review.", adminNotes: notes });
-  }
-}
-
-export default async function AdminVerificationPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-
-  if (!user || !isAdminUser(user)) {
-    notFound();
-  }
-
-  const verifications = await getPendingSellerVerifications();
+export default function AdminVerificationPage() {
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
@@ -67,29 +33,10 @@ export default async function AdminVerificationPage() {
                   </div>
 
                   <div className="grid gap-3 rounded-2xl border border-white/10 bg-black/20 p-4 text-sm lg:w-[28rem]">
-                    <form action={handleReview} className="space-y-3">
-                      <input type="hidden" name="verificationId" value={verification.id} />
-                      <input type="hidden" name="action" value="approve" />
-                      <button className="w-full rounded-xl bg-emerald-400 px-4 py-3 font-bold text-black">Approve Verification</button>
-                    </form>
-                    <form action={handleReview} className="space-y-3">
-                      <input type="hidden" name="verificationId" value={verification.id} />
-                      <input type="hidden" name="action" value="reject" />
-                      <textarea name="reason" placeholder="Rejection reason" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
-                      <button className="w-full rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 font-semibold text-red-200">Reject Verification</button>
-                    </form>
-                    <form action={handleReview} className="space-y-3">
-                      <input type="hidden" name="verificationId" value={verification.id} />
-                      <input type="hidden" name="action" value="more_info" />
-                      <textarea name="reason" placeholder="What more is needed?" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
-                      <button className="w-full rounded-xl border border-blue-400/30 bg-blue-400/10 px-4 py-3 font-semibold text-blue-200">Request More Information</button>
-                    </form>
-                    <form action={handleReview} className="space-y-3">
-                      <input type="hidden" name="verificationId" value={verification.id} />
-                      <input type="hidden" name="action" value="suspend" />
-                      <textarea name="reason" placeholder="Suspension reason" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-white outline-none" />
-                      <button className="w-full rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 font-semibold text-yellow-200">Suspend Verification</button>
-                    </form>
+                    <Link href="/dashboard?tab=admin-verifications" className="w-full rounded-xl bg-emerald-400 px-4 py-3 text-center font-bold text-black">Approve Verification</Link>
+                    <Link href="/dashboard?tab=admin-verifications" className="w-full rounded-xl border border-red-400/30 bg-red-400/10 px-4 py-3 text-center font-semibold text-red-200">Reject Verification</Link>
+                    <Link href="/dashboard?tab=admin-verifications" className="w-full rounded-xl border border-blue-400/30 bg-blue-400/10 px-4 py-3 text-center font-semibold text-blue-200">Request More Information</Link>
+                    <Link href="/dashboard?tab=admin-verifications" className="w-full rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-center font-semibold text-yellow-200">Suspend Verification</Link>
                   </div>
                 </div>
               </div>

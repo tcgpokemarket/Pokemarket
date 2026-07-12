@@ -1,15 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
 import type { Listing } from "@/lib/supabase/types";
-import { getSocialCounts } from "@/lib/social-network";
-import { listLiveShowsBySeller } from "@/lib/live-shows-client";
-type ProfileRow = {
-  username: string | null;
-  full_name: string | null;
-};
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+
+const DEFAULT_POLICIES = [
+  "All listings are authentic, sourced from real inventory, and updated automatically when stock changes.",
+  "Orders are processed through marketplace escrow and buyer protection flows.",
+  "Live auction wins are converted into real orders and payment deadlines are enforced.",
+];
+
+const DEFAULT_CATEGORIES = ["Singles", "Sealed", "Graded", "Accessories"];
 
 type SellerStoreRow = {
   name: string;
@@ -21,21 +25,6 @@ type SellerStoreRow = {
   featured: boolean;
   theme: Record<string, string> | null;
 };
-
-const DEFAULT_POLICIES = [
-  "All listings are authentic, sourced from real inventory, and updated automatically when stock changes.",
-  "Orders are processed through marketplace escrow and buyer protection flows.",
-  "Live auction wins are converted into real orders and payment deadlines are enforced.",
-];
-
-const DEFAULT_CATEGORIES = ["Singles", "Sealed", "Graded", "Accessories"];
-
-export const dynamic = "force-dynamic";
-export const dynamicParams = true;
-
-export function generateStaticParams(): Array<{ slug: string }> {
-  return [];
-}
 
 type SellerStorefront = {
   id: string;
@@ -53,67 +42,119 @@ type SellerStorefront = {
   total_live_shows: number;
 };
 
+type ProfileRow = {
+  username: string | null;
+  full_name: string | null;
+  is_seller?: boolean | null;
+  avatar_url?: string | null;
+  seller_rating?: number | null;
+  total_sales?: number | null;
+};
+
+type LiveShowRow = {
+  id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  viewer_count: number | null;
+  scheduled_start: string | null;
+};
+
+function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+  url.searchParams.set("select", select);
+  url.searchParams.set("limit", String(limit));
+  for (const [key, value] of filters) url.searchParams.set(key, value);
+  return url;
+}
+
+async function fetchPublicRows<T>(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return [] as T[];
+
+  const response = await fetch(buildRestUrl(table, select, filters, limit).toString(), {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Accept: "application/json",
+    },
+    cache: "force-cache",
+  });
+
+  if (!response.ok) return [] as T[];
+  return (await response.json()) as T[];
+}
+
+export const dynamicParams = false;
+
+export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
+  const rows = await fetchPublicRows<Pick<SellerStoreRow, "slug">>("seller_stores", "slug", [["slug", "not.is.null"]], 2000);
+  const slugs = rows.filter((row): row is { slug: string } => Boolean(row.slug)).map((row) => ({ slug: row.slug }));
+  return slugs.length ? slugs : [{ slug: "preview" }];
+}
+
+function getPreviewSeller(slug: string): SellerStorefront {
+  return {
+    id: slug,
+    display_name: "Seller Storefront Preview",
+    storefront_slug: slug,
+    bio: "This storefront is using a safe placeholder until live seller records are available.",
+    avatar_url: null,
+    banner_url: null,
+    verified: false,
+    rating: 0,
+    follower_count: 0,
+    sales_count: 0,
+    total_revenue: 0,
+    total_listings: 0,
+    total_live_shows: 0,
+  };
+}
+
+
 export default async function SellerStorefrontPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const supabase = await createClient();
-
-  const { data: seller } = await supabase
-    .from("sellers")
-    .select("*")
-    .eq("storefront_slug", slug)
-    .single();
-
-  if (!seller) {
-    notFound();
+  const [sellerRow] = await fetchPublicRows<SellerStorefront>("sellers", "*", [["storefront_slug", `eq.${slug}`]], 1);
+  const sellerData = sellerRow ?? getPreviewSeller(slug);
+  if (sellerData.id === slug && slug === "preview") {
+    return (
+      <div className="min-h-screen bg-[#0f0f1a] text-white">
+        <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4 text-center">
+          <div className="text-6xl">🏪</div>
+          <h1 className="mt-4 text-3xl font-black">Seller storefront preview</h1>
+          <p className="mt-3 text-gray-400">The public seller directory is empty right now, so this route stays exportable with a safe placeholder.</p>
+          <a href="/listings" className="mt-6 rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Browse listings</a>
+        </main>
+      </div>
+    );
   }
 
-  const sellerData = seller as SellerStorefront;
 
   const [listingsResult, reviewsResult, profileResult, storeResult, liveShowsResult] = await Promise.all([
-    supabase
-      .from("listings")
-      .select("*")
-      .eq("seller_id", sellerData.id)
-      .eq("status", "active")
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("seller_reviews")
-      .select("*")
-      .eq("seller_id", sellerData.id)
-      .order("created_at", { ascending: false })
-      .limit(6),
-    supabase.from("profiles").select("username, full_name, is_seller, avatar_url, seller_rating, total_sales").eq("id", sellerData.id).maybeSingle(),
-    supabase.from("seller_stores").select("*").eq("seller_id", sellerData.id).maybeSingle(),
-    listLiveShowsBySeller(sellerData.id),
+    fetchPublicRows<Listing>("listings", "*", [["seller_id", `eq.${sellerData.id}`], ["status", "eq.active"]], 2000),
+    fetchPublicRows<{ id: string; title: string | null; body: string | null; rating: number }>("seller_reviews", "*", [["seller_id", `eq.${sellerData.id}`]], 6),
+    fetchPublicRows<ProfileRow>("profiles", "username, full_name, is_seller, avatar_url, seller_rating, total_sales", [["id", `eq.${sellerData.id}`]], 1),
+    fetchPublicRows<SellerStoreRow>("seller_stores", "*", [["seller_id", `eq.${sellerData.id}`]], 1),
+    fetchPublicRows<LiveShowRow>("live_shows", "id, title, description, status, viewer_count, scheduled_start", [["seller_id", `eq.${sellerData.id}`]], 12),
   ]);
 
-  const listings = (listingsResult.data ?? []) as Listing[];
-  const reviews = (reviewsResult.data ?? []) as Array<{
-    id: string;
-    title: string | null;
-    body: string | null;
-    rating: number;
-  }>;
-  const profile = profileResult.data as { username: string | null; full_name: string | null; is_seller?: boolean | null; avatar_url?: string | null; seller_rating?: number | null; total_sales?: number | null } | null;
-  const store = storeResult.data as SellerStoreRow | null;
+  const profile = profileResult[0] ?? null;
+  const store = storeResult[0] ?? null;
+  const listings = listingsResult ?? [];
+  const reviews = reviewsResult ?? [];
   const liveShows = liveShowsResult ?? [];
-  const socialCounts = await getSocialCounts(sellerData.id).catch(() => ({ followers: sellerData.follower_count, following: 0, friends: 0 }));
-  const activeProfile = profile as ProfileRow | null;
   const shopName = store?.name ?? sellerData.display_name;
   const shopSlug = store?.slug ?? sellerData.storefront_slug;
-  const shopCategories = DEFAULT_CATEGORIES;
   const sellerSales = profile?.total_sales ?? sellerData.sales_count;
   const sellerRating = profile?.seller_rating ?? sellerData.rating;
-  const featuredListings = listings.slice(0, 4);
-  const soldItems = listings.filter((listing) => listing.status === "sold").slice(0, 6);
-  const activeLiveShows = liveShows.filter((show) => show.status === "live" || show.status === "scheduled");
-  const policies = store?.description ? [store.description, ...DEFAULT_POLICIES] : DEFAULT_POLICIES;
-  const shippingInfo = "Ships with the listing shipping profile and marketplace checkout rules.";
   const sellerStatus = profile?.is_seller || sellerData.verified ? "Approved seller" : "Seller not approved";
+  const activeLiveShows = liveShows.filter((show) => show.status === "live" || show.status === "scheduled");
+  const soldItems = listings.filter((listing) => listing.status === "sold").slice(0, 6);
+  const policies = store?.description ? [store.description, ...DEFAULT_POLICIES] : DEFAULT_POLICIES;
   const storeTheme = store?.theme ?? null;
   const accent = storeTheme?.accent ?? "#e22400";
   const secondary = storeTheme?.secondary ?? "#ffab01";
   const highlight = storeTheme?.highlight ?? "#fefb41";
+
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
       <nav className="border-b border-white/10 bg-[#0f0f1a]/90 backdrop-blur-sm">
@@ -139,11 +180,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
             <div className="-mt-16 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
               <div className="flex items-end gap-5">
                 <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-[#13131f] text-4xl font-black text-yellow-400 shadow-2xl shadow-black/30">
-                  {sellerData.avatar_url ? (
-                    <img src={sellerData.avatar_url} alt={sellerData.display_name} className="h-full w-full object-cover" />
-                  ) : (
-                    sellerData.display_name[0]?.toUpperCase() ?? "S"
-                  )}
+                  {sellerData.avatar_url ? <img src={sellerData.avatar_url} alt={sellerData.display_name} className="h-full w-full object-cover" /> : sellerData.display_name[0]?.toUpperCase() ?? "S"}
                 </div>
                 <div className="pb-2">
                   <p className="text-sm uppercase tracking-[0.3em] text-yellow-400">Seller storefront</p>
@@ -151,7 +188,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                     <h1 className="text-3xl font-black sm:text-4xl">{sellerData.display_name}</h1>
                     {sellerData.verified && <span className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-300">Verified seller</span>}
                   </div>
-                  <p className="mt-1 text-sm text-gray-400">@{sellerData.storefront_slug}{activeProfile?.username ? ` · public profile @${activeProfile.username}` : ""}</p>
+                  <p className="mt-1 text-sm text-gray-400">@{sellerData.storefront_slug}{profile?.username ? ` · public profile @${profile.username}` : ""}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
@@ -160,52 +197,16 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   <div className="text-xs text-gray-400">Rating</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{socialCounts.followers}</div>
+                  <div className="text-2xl font-black text-yellow-400">{sellerData.follower_count}</div>
                   <div className="text-xs text-gray-400">Followers</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{socialCounts.following}</div>
-                  <div className="text-xs text-gray-400">Following</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{socialCounts.friends}</div>
-                  <div className="text-xs text-gray-400">Friends</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
                   <div className="text-2xl font-black text-yellow-400">{sellerData.sales_count}</div>
                   <div className="text-xs text-gray-400">Sales</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerData.total_live_shows}</div>
-                  <div className="text-xs text-gray-400">Live shows</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{listings.length}</div>
-                  <div className="text-xs text-gray-400">Listings</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerData.total_live_shows}</div>
-                  <div className="text-xs text-gray-400">Shows</div>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerData.total_revenue.toFixed(2)}</div>
-                  <div className="text-xs text-gray-400">Revenue</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
                   <div className="text-2xl font-black text-yellow-400">{sellerData.total_listings}</div>
                   <div className="text-xs text-gray-400">Total listings</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerData.verified ? "Yes" : "No"}</div>
-                  <div className="text-xs text-gray-400">Verified</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerData.display_name.slice(0, 1).toUpperCase()}</div>
-                  <div className="text-xs text-gray-400">Badge</div>
                 </div>
               </div>
             </div>
@@ -224,20 +225,16 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                 </div>
                 <div className="flex flex-wrap gap-2 text-sm">
                   <Link href={`/messages?shop=${shopSlug}`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Message seller</Link>
-                  <Link href={`/social`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Follow shop</Link>
+                  <Link href="/social" className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Follow shop</Link>
                   <Link href={`/listings?seller=${sellerData.id}`} className="rounded-full bg-yellow-400 px-4 py-2 font-semibold text-black transition hover:bg-yellow-300">Browse inventory</Link>
                 </div>
               </div>
+
               <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4"><div className="text-xs uppercase tracking-[0.3em] text-gray-500">Shop slug</div><div className="mt-2 text-sm font-semibold text-white">/{shopSlug}</div></div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4"><div className="text-xs uppercase tracking-[0.3em] text-gray-500">Shop rating</div><div className="mt-2 text-sm font-semibold text-white">{sellerRating.toFixed(1)} / 5.0</div></div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4"><div className="text-xs uppercase tracking-[0.3em] text-gray-500">Shop sales</div><div className="mt-2 text-sm font-semibold text-white">{sellerSales}</div></div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4"><div className="text-xs uppercase tracking-[0.3em] text-gray-500">Verification</div><div className="mt-2 text-sm font-semibold text-white">{sellerStatus}</div></div>
-              </div>
-              <div className="mt-5 grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4"><div className="text-xs uppercase tracking-[0.3em] text-gray-500">Followers</div><div className="mt-2 text-2xl font-black text-yellow-400">{socialCounts.followers}</div></div>
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4"><div className="text-xs uppercase tracking-[0.3em] text-gray-500">Following</div><div className="mt-2 text-2xl font-black text-yellow-400">{socialCounts.following}</div></div>
-                <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4"><div className="text-xs uppercase tracking-[0.3em] text-gray-500">Favorites</div><div className="mt-2 text-2xl font-black text-yellow-400">{socialCounts.friends}</div></div>
               </div>
             </div>
 
@@ -245,7 +242,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-black">Live auctions</h2>
-                  <p className="text-sm text-gray-400">Upcoming and active live rooms tied to this seller.</p>
+                  <p className="text-sm text-gray-400">Upcoming and active live rooms tied to this sellerData.</p>
                 </div>
                 <Link href="/live" className="rounded-full border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">View all live auctions</Link>
               </div>
@@ -257,7 +254,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                     <div className="mt-1 text-sm text-gray-400">{show.description ?? "No description provided."}</div>
                     <div className="mt-4 flex items-center justify-between text-xs text-gray-500">
                       <span>{show.viewer_count ?? 0} viewers</span>
-                      <span>{(show as { scheduled_start?: string | null }).scheduled_start ? new Date((show as { scheduled_start?: string | null }).scheduled_start as string).toLocaleString() : "No start time"}</span>
+                      <span>{show.scheduled_start ? new Date(show.scheduled_start).toLocaleString() : "No start time"}</span>
                     </div>
                   </Link>
                 )) : (
@@ -273,7 +270,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   <p className="text-sm text-gray-400">Available products from this storefront.</p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs">
-                  {shopCategories.map((category) => <span key={category} className="rounded-full border border-white/10 bg-[#13131f] px-3 py-1 text-gray-300">{category}</span>)}
+                  {DEFAULT_CATEGORIES.map((category) => <span key={category} className="rounded-full border border-white/10 bg-[#13131f] px-3 py-1 text-gray-300">{category}</span>)}
                 </div>
               </div>
               {!listings.length ? (
@@ -287,11 +284,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                     )));
 
                     return (
-                      <a
-                        key={listing.id}
-                        href={`/listings/${listing.id}`}
-                        className="block overflow-hidden rounded-2xl border border-white/10 bg-[#13131f] transition-all hover:border-yellow-400/40"
-                      >
+                      <a key={listing.id} href={`/listings/${listing.id}`} className="block overflow-hidden rounded-2xl border border-white/10 bg-[#13131f] transition-all hover:border-yellow-400/40">
                         <div className="flex h-40 items-center justify-center overflow-hidden bg-white/5">
                           {primaryImage ? (
                             <VerifiedImage listing={listing} image={primaryImage} className="h-full w-full" />
@@ -328,7 +321,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                 <h3 className="text-lg font-black">Shop policies and shipping</h3>
                 <div className="mt-4 space-y-3 text-sm text-gray-300">
                   {policies.map((policy) => <div key={policy} className="rounded-2xl border border-white/10 bg-[#13131f] p-4">{policy}</div>)}
-                  <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">{shippingInfo}</div>
+                  <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">Ships with the listing shipping profile and marketplace checkout rules.</div>
                 </div>
               </div>
             </div>
@@ -345,7 +338,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-300">
                 <span className="rounded-full border border-white/10 bg-[#13131f] px-3 py-1">{sellerStatus}</span>
                 <span className="rounded-full border border-white/10 bg-[#13131f] px-3 py-1">{sellerSales} sales</span>
-                <span className="rounded-full border border-white/10 bg-[#13131f] px-3 py-1">{shopCategories.length} categories</span>
+                <span className="rounded-full border border-white/10 bg-[#13131f] px-3 py-1">{DEFAULT_CATEGORIES.length} categories</span>
               </div>
             </div>
 

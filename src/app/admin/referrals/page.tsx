@@ -1,46 +1,13 @@
-import { createClient } from "@/lib/supabase/server";
-import { isAdminUser } from "@/lib/admin-access";
-import { notFound } from "next/navigation";
-import { canManuallyAssignReferral } from "@/lib/referrals";
+import Link from "next/link";
 
-export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-async function handleAssign(formData: FormData) {
-  "use server";
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !isAdminUser(user)) throw new Error("Unauthorized");
+const profiles = [] as Array<any>;
+const attributions = [] as Array<any>;
 
-  const referredUserId = String(formData.get("referredUserId") ?? "").trim();
-  const referrerUserId = String(formData.get("referrerUserId") ?? "").trim();
-  const referralCode = String(formData.get("referralCode") ?? "").trim().toUpperCase();
-  const signupSource = String(formData.get("signupSource") ?? "manual signup").trim() || "manual signup";
-  if (!referredUserId || !referrerUserId || !referralCode) throw new Error("Missing referral data");
-
-  const updatePayload = {
-    referral_source_user_id: referrerUserId,
-    referral_source: signupSource,
-    referral_source_code: referralCode,
-    referral_source_confirmed_at: new Date().toISOString(),
-    referral_locked_at: new Date().toISOString(),
-  } as any;
-  const { error } = await (supabase as any).from("profiles").update(updatePayload).eq("id", referredUserId).is("referral_source_user_id", null);
-
-  if (error) throw new Error(error.message);
-}
-
-export default async function AdminReferralsPage() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user || !isAdminUser(user)) {
-    notFound();
-  }
-
-  const [{ data: profiles }, { data: attributions }] = await Promise.all([
-    supabase.from("profiles").select("id, username, full_name, referral_code, referral_source, referral_source_user_id, referral_source_code, referral_source_confirmed_at, referral_locked_at, created_at").order("created_at", { ascending: false }).limit(100),
-    supabase.from("referral_attributions").select("*").order("created_at", { ascending: false }).limit(50),
-  ]);
+export default function AdminReferralsPage() {
+  const canAssign = false;
+  void canAssign;
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
@@ -55,27 +22,18 @@ export default async function AdminReferralsPage() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
             <h2 className="text-xl font-bold">Recent profiles</h2>
             <div className="mt-4 space-y-3">
-              {(profiles ?? []).map((profile: any) => {
-                const canAssign = canManuallyAssignReferral(profile.created_at, profile.referral_source_confirmed_at);
-                return (
-                  <div key={profile.id} className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <div className="font-semibold text-white">{profile.full_name ?? profile.username ?? profile.id}</div>
-                        <div className="text-xs text-gray-400">Code {profile.referral_code ?? "—"} · Source {profile.referral_source ?? "—"}</div>
-                        <div className="text-xs text-gray-500">Locked {profile.referral_locked_at ?? "not yet"}</div>
-                      </div>
-                      <form action={handleAssign} className="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto] md:items-end">
-                        <input type="hidden" name="referredUserId" value={profile.id} />
-                        <input name="referrerUserId" placeholder="Referrer user ID" disabled={!canAssign} className="rounded-xl border border-white/10 bg-[#0f0f1a] px-3 py-2 text-sm text-white disabled:opacity-50" />
-                        <input name="referralCode" placeholder="Referral code" disabled={!canAssign} className="rounded-xl border border-white/10 bg-[#0f0f1a] px-3 py-2 text-sm text-white disabled:opacity-50" />
-                        <input name="signupSource" placeholder="signup source" disabled={!canAssign} className="rounded-xl border border-white/10 bg-[#0f0f1a] px-3 py-2 text-sm text-white disabled:opacity-50" />
-                        <button disabled={!canAssign} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:opacity-50">Assign</button>
-                      </form>
+              {(profiles ?? []).map((profile: any) => (
+                <div key={profile.id} className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <div className="font-semibold text-white">{profile.full_name ?? profile.username ?? profile.id}</div>
+                      <div className="text-xs text-gray-400">Code {profile.referral_code ?? "—"} · Source {profile.referral_source ?? "—"}</div>
+                      <div className="text-xs text-gray-500">Locked {profile.referral_locked_at ?? "not yet"}</div>
                     </div>
+                    <Link href="/dashboard?tab=admin-referrals" className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Assign in dashboard</Link>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
 

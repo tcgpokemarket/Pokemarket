@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import type { Listing, Profile } from "@/lib/supabase/types";
 import { notFound } from "next/navigation";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
@@ -8,35 +7,91 @@ type ProfileWithListings = Profile & {
   listings?: Listing[];
 };
 
-export const dynamic = "force-dynamic";
-export const dynamicParams = true;
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-export function generateStaticParams(): Array<{ username: string }> {
-  return [];
+function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
+  const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
+  url.searchParams.set("select", select);
+  url.searchParams.set("limit", String(limit));
+  for (const [key, value] of filters) url.searchParams.set(key, value);
+  return url;
+}
+
+async function fetchPublicRows<T>(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return [] as T[];
+
+  const response = await fetch(buildRestUrl(table, select, filters, limit).toString(), {
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      Accept: "application/json",
+    },
+    cache: "force-cache",
+  });
+
+  if (!response.ok) return [] as T[];
+  return (await response.json()) as T[];
+}
+
+export const dynamicParams = false;
+
+export async function generateStaticParams(): Promise<Array<{ username: string }>> {
+  const rows = await fetchPublicRows<Pick<Profile, "username">>("profiles", "username", [["username", "not.is.null"]], 2000);
+  const usernames = rows.filter((row): row is { username: string } => Boolean(row.username)).map((row) => ({ username: row.username })).slice(0, 500);
+  return usernames.length ? usernames : [{ username: "preview" }];
+}
+
+function getPreviewProfile(username: string): Profile {
+  return {
+    id: username,
+    username,
+    full_name: username,
+    avatar_url: null,
+    is_seller: false,
+    seller_rating: 0,
+    total_sales: 0,
+    referral_code: null,
+    referral_code_created_at: null,
+    referral_source: null,
+    referral_source_user_id: null,
+    referral_source_code: null,
+    referral_source_confirmed_at: null,
+    referral_locked_at: null,
+    verification_status: null,
+    verification_submitted_at: null,
+    verification_reviewed_at: null,
+    verification_reviewed_by: null,
+    verification_rejection_reason: null,
+    verification_more_info: null,
+    verification_suspension_reason: null,
+    verified_at: null,
+    created_at: new Date().toISOString(),
+  } as Profile;
 }
 
 export default async function PublicProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
-  const supabase = await createClient();
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("username", username)
-    .single();
-
-  if (!profile) {
+  const [profile] = await fetchPublicRows<Profile>("profiles", "*", [["username", `eq.${username}`]], 1);
+  const profileData = profile ?? getPreviewProfile(username);
+  if (profileData.username === "preview" && username !== "preview") {
     notFound();
   }
 
-  const profileData = profile as Profile;
-  const { data: listings } = await supabase
-    .from("listings")
-    .select("*")
-    .eq("seller_id", profileData.id)
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
+  if (username === "preview") {
+    return (
+      <div className="min-h-screen bg-[#0f0f1a] text-white">
+        <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4 text-center">
+          <div className="text-6xl">👤</div>
+          <h1 className="mt-4 text-3xl font-black">Seller profile preview</h1>
+          <p className="mt-3 text-gray-400">The public seller directory is currently empty, so this route stays exportable with a safe placeholder.</p>
+          <a href="/listings" className="mt-6 rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Browse listings</a>
+        </main>
+      </div>
+    );
+  }
 
+  const listings = await fetchPublicRows<Listing>("listings", "*", [["seller_id", `eq.${profileData.id}`], ["status", "eq.active"]], 2000);
   const publicProfile = profileData as ProfileWithListings;
   publicProfile.listings = listings ?? [];
 

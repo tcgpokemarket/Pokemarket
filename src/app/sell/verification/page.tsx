@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
 import { getAppRole } from "@/lib/security";
-import { sellerVerificationLabel, type SellerVerificationStatus } from "@/lib/seller-verification";
+import { getEffectiveSellerVerificationStatus, sellerVerificationLabel, type SellerVerificationStatus } from "@/lib/seller-verification";
 import { uploadVerificationDocumentFile } from "@/lib/uploads";
 import type { User } from "@supabase/supabase-js";
 
@@ -38,6 +38,8 @@ export default function SellerVerificationPage() {
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [status, setStatus] = useState<SellerVerificationStatus | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const isAdmin = getAppRole(currentUser) === "admin" || getAppRole(currentUser) === "super_admin";
+  const effectiveStatus = getEffectiveSellerVerificationStatus(currentUser, status);
   const [form, setForm] = useState<VerificationForm>({
     legal_name: "",
     date_of_birth: "",
@@ -63,7 +65,9 @@ export default function SellerVerificationPage() {
       }
 
       setCurrentUser(user);
-      const isAdmin = getAppRole(user) === "admin" || getAppRole(user) === "super_admin";
+      if (getAppRole(user) === "admin" || getAppRole(user) === "super_admin") {
+        setStatus("approved");
+      }
 
       const [{ data: verification }, { data: profileData }] = await Promise.all([
         supabase.from("seller_verifications").select("*").eq("user_id", user.id).maybeSingle(),
@@ -85,7 +89,7 @@ export default function SellerVerificationPage() {
 
       if (currentVerification) {
         setVerificationId(currentVerification.id);
-        setStatus(isAdmin ? "approved" : currentVerification.status);
+        setStatus(currentVerification.status);
         setForm((current) => ({
           ...current,
           legal_name: currentVerification.legal_name ?? profile?.full_name ?? "",
@@ -96,10 +100,6 @@ export default function SellerVerificationPage() {
           moreInfo: currentVerification.more_information_request,
           verifiedAt: currentVerification.verified_at,
         }));
-
-        if (isAdmin) {
-          setMessage({ type: "success", text: "Admin verification bypass enabled." });
-        }
 
         const { data: docs } = await supabase
           .from("seller_verification_documents")
@@ -193,10 +193,11 @@ export default function SellerVerificationPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Please sign in again.");
 
-      const isAdmin = getAppRole(user) === "admin" || getAppRole(user) === "super_admin";
-      const requiredFiles = [uploads["id-front"], uploads.selfie];
-      if (!isAdmin && requiredFiles.some((item) => !item)) {
-        throw new Error("Please upload the required identity documents.");
+      if (!isAdmin) {
+        const requiredFiles = [uploads["id-front"], uploads.selfie];
+        if (requiredFiles.some((item) => !item)) {
+          throw new Error("Please upload the required identity documents.");
+        }
       }
 
       const submitPayload = {
@@ -205,7 +206,7 @@ export default function SellerVerificationPage() {
         date_of_birth: form.date_of_birth,
         residential_address: form.residential_address,
         phone_number: form.phone_number,
-        status: isAdmin ? "approved" : "pending_review",
+        status: "pending_review",
         submitted_at: new Date().toISOString(),
       };
       const { data, error } = await supabase.from("seller_verifications").upsert(submitPayload as never, { onConflict: "user_id" }).select("id, status").single<{ id: string; status: SellerVerificationStatus }>();
@@ -231,11 +232,13 @@ export default function SellerVerificationPage() {
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 sm:p-8">
           <p className="text-sm uppercase tracking-widest text-yellow-400">Seller identity verification</p>
           <h1 className="mt-3 text-3xl font-black">Complete verification to unlock selling</h1>
-          <p className="mt-2 max-w-2xl text-sm text-gray-400">Anyone can buy. Selling, live auctions, payouts, and seller tools open after an admin approves your identity check.</p>
+          <p className="mt-2 max-w-2xl text-sm text-gray-400">Anyone can buy. Selling, live auctions, payouts, and seller tools open after identity verification is approved for non-admin accounts.</p>
 
-          <div className="mt-6">
-            <SellerVerificationStatusCard status={status} rejectionReason={form.rejectionReason} moreInfo={form.moreInfo} verifiedAt={form.verifiedAt} />
-          </div>
+          {!isAdmin && (
+            <div className="mt-6">
+              <SellerVerificationStatusCard status={status} rejectionReason={form.rejectionReason} moreInfo={form.moreInfo} verifiedAt={form.verifiedAt} />
+            </div>
+          )}
 
           <div className="mt-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
             <div className="space-y-4 rounded-3xl border border-white/10 bg-[#13131f] p-5">
@@ -282,13 +285,14 @@ export default function SellerVerificationPage() {
           {message && <div className={`mt-6 rounded-2xl border px-4 py-3 text-sm ${message.type === "success" ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-200" : "border-red-400/20 bg-red-400/10 text-red-200"}`}>{message.text}</div>}
 
           <div className="mt-8 flex flex-wrap gap-3">
-            <button onClick={submitVerification} disabled={submitting || status === "approved"} className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black disabled:opacity-50">
-              {submitting ? "Submitting..." : status === "rejected" || status === "more_information_required" ? "Resubmit for review" : "Submit for admin review"}
+            <button onClick={submitVerification} disabled={submitting || effectiveStatus === "approved"} className="rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black disabled:opacity-50">
+              {submitting ? "Submitting..." : isAdmin ? "Continue" : status === "rejected" || status === "more_information_required" ? "Resubmit for review" : "Submit for admin review"}
             </button>
             <button onClick={() => router.push("/sell")} className="rounded-xl border border-white/20 px-5 py-3 font-semibold text-white hover:bg-white/5">
               Back to sell page
             </button>
           </div>
+          {isAdmin && <div className="mt-4 text-sm text-emerald-300">Administrator accounts bypass identity verification automatically.</div>}
           <div className="mt-4 text-xs uppercase tracking-[0.3em] text-gray-500">Current state · {label}</div>
         </div>
       </div>

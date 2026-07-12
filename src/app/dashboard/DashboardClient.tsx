@@ -6,8 +6,7 @@ import Link from "next/link";
 import type { Listing, Order, Profile, SellerWallet } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
-import { isAdminUser } from "@/lib/admin-access";
-import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
+import { getEffectiveSellerVerificationStatus, isAdminVerifiedUser, isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
 import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
 import { calculateLiveShowInsights, createLiveShowSnapshot, getLiveShow } from "@/lib/live-commerce";
 import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
@@ -39,78 +38,10 @@ const SUPPORT_CARD = (
   <SupportInlineCard title="Need seller support?" description="Get help with listings, fees, payouts, live shows, or seller tools." href="/support" />
 );
 
-type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live" | "rewards";
-
-type RewardsAccount = {
-  available_points: number;
-  pending_points: number;
-  redeemed_points: number;
-  lifetime_points: number;
-  last_login_bonus_at: string | null;
-  points_expire_at: string | null;
-};
-
-type RewardsLedgerRow = {
-  id: string;
-  entry_type: string;
-  points: number;
-  balance_after: number;
-  created_at: string;
-};
-
-type RewardsOption = {
-  id: string;
-  option_key: string;
-  display_name: string;
-  redemption_type: string;
-  points_cost: number;
-  credit_amount: number | null;
-};
-
-type RewardsSnapshot = {
-  account: RewardsAccount | null;
-  ledger: RewardsLedgerRow[];
-  options: RewardsOption[];
-};
-
-const DEFAULT_REWARDS_ACCOUNT: RewardsAccount = {
-  available_points: 0,
-  pending_points: 0,
-  redeemed_points: 0,
-  lifetime_points: 0,
-  last_login_bonus_at: null,
-  points_expire_at: null,
-};
-
-function formatPoints(value: number) {
-  return new Intl.NumberFormat("en-US").format(value);
-}
-
-function formatDateTime(value: string | null) {
-  return value ? new Date(value).toLocaleString() : "—";
-}
-
-function pointsBadge(points: number) {
-  return points >= 0 ? `+${formatPoints(points)}` : formatPoints(points);
-}
-
+type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live";
 
 type DashboardOrder = Order & {
   listings?: { card_name?: string; images?: string[] } | null;
-  profiles?: { username?: string | null } | null;
-};
-
-type AuctionOrder = {
-  id: string;
-  seller_id: string;
-  buyer_id: string | null;
-  item_id: string | null;
-  winning_bid: number;
-  payment_status: "payment_pending" | "paid" | "expired" | "failed" | "cancelled" | string;
-  payment_deadline?: string | null;
-  created_at: string;
-  updated_at: string;
-  show_products?: { title?: string; subtitle?: string | null; image_url?: string | null } | null;
   profiles?: { username?: string | null } | null;
 };
 
@@ -122,7 +53,7 @@ function formatTimeRemaining(deadline: string) {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function paymentStatusLabel(status: AuctionOrder["payment_status"]) {
+function paymentStatusLabel(status: string) {
   if (status === "paid") return "🟢 Paid — Ready to Ship";
   if (status === "expired") return "🔴 Payment Failed";
   if (status === "failed") return "🔴 Payment Failed";
@@ -156,8 +87,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
 
   const [tab, setTab] = useState<Tab>(orderTab === "sales" ? "sales" : "overview");
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [currentUser, setCurrentUser] = useState<{ id: string; email?: string | null } | null>(null);
-  const [adminBypass, setAdminBypass] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
   const [verificationDetails, setVerificationDetails] = useState<VerificationRow | null>(null);
   const [sellerRecord, setSellerRecord] = useState<SellerRow | null>(null);
@@ -175,15 +104,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [listings, setListings] = useState<Listing[]>([]);
   const [purchases, setPurchases] = useState<DashboardOrder[]>([]);
   const [sales, setSales] = useState<DashboardOrder[]>([]);
-  const [auctionOrders, setAuctionOrders] = useState<AuctionOrder[]>([]);
-  const [rewardsSnapshot, setRewardsSnapshot] = useState<RewardsSnapshot | null>(null);
-  const pendingAuctionOrders = useMemo(() => auctionOrders.filter((order) => order.payment_status === "payment_pending"), [auctionOrders]);
-  const paidAuctionOrders = useMemo(() => auctionOrders.filter((order) => order.payment_status === "paid"), [auctionOrders]);
-  const expiredAuctionOrders = useMemo(() => auctionOrders.filter((order) => ["expired", "failed"].includes(order.payment_status)), [auctionOrders]);
-  const sellerPendingPayments = pendingAuctionOrders.length;
-  const notificationCount = sellerPendingPayments;
+  const [sellerLiveShows, setSellerLiveShows] = useState<LiveShowDirectoryItem[]>([]);
+  const liveShowCount = sellerLiveShows.length;
+  const notificationCount = liveShowCount;
   const [loading, setLoading] = useState(true);
   const [brainCopied, setBrainCopied] = useState(false);
+  const [isAdminAccount, setIsAdminAccount] = useState(false);
 
   useEffect(() => {
     const init = async () => {
@@ -193,31 +119,28 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         return;
       }
 
-      setCurrentUser({ id: user.id, email: user.email ?? null });
-      setAdminBypass(isAdminUser(user));
-
-      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: auctionOrdersData }, { data: sellerData }, { data: storeData }, rewardsData] = await Promise.all([
+      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: sellerData }, { data: storeData }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
         supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
         supabase.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
         supabase.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
         supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("auction_orders").select("*, show_products(title, subtitle, image_url), profiles:buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
         supabase.from("sellers").select("*").eq("id", user.id).maybeSingle(),
         supabase.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
-        fetch("/api/rewards").then(async (response) => (response.ok ? response.json() : null)).catch(() => null),
       ]);
+
+      const sellerLiveShowsData = await listLiveShowsBySeller(user.id);
 
       const profileRow = profileData as Profile | null;
       const sellerRow = sellerData as SellerRow | null;
       const storeRow = storeData as StoreRow | null;
       const verificationRow = verificationData as VerificationRow | null;
-      const adminBypass = isAdminUser(user);
 
       setProfile(profileRow);
-      setVerificationStatus(adminBypass ? "approved" : (verificationRow?.status ?? profileRow?.verification_status ?? "not_started"));
-      setVerificationDetails(adminBypass ? null : verificationRow ? {
+      setIsAdminAccount(Boolean(user?.app_metadata?.role === "admin" || user?.app_metadata?.role === "super_admin" || user?.user_metadata?.role === "admin" || user?.user_metadata?.role === "super_admin"));
+      setVerificationStatus(getEffectiveSellerVerificationStatus(user, verificationRow?.status ?? profileRow?.verification_status ?? "not_started"));
+      setVerificationDetails(verificationRow ? {
         rejection_reason: verificationRow.rejection_reason,
         more_information_request: verificationRow.more_information_request,
         verified_at: verificationRow.verified_at,
@@ -234,8 +157,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       setListings(listingData ?? []);
       setPurchases((purchaseData ?? []) as DashboardOrder[]);
       setSales((salesData ?? []) as DashboardOrder[]);
-      setAuctionOrders((auctionOrdersData ?? []) as AuctionOrder[]);
-      setRewardsSnapshot(rewardsData as RewardsSnapshot | null);
+      setSellerLiveShows((sellerLiveShowsData ?? []) as LiveShowDirectoryItem[]);
       setLoading(false);
     };
 
@@ -273,7 +195,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       });
     }
     await supabase.auth.signOut();
-    router.push("/");
+    router.push("/auth");
   };
 
   const handleDeleteListing = async (id: string) => {
@@ -324,12 +246,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
 
   const refreshOrders = async () => {
     if (!supabase || !profile) return;
-    const [{ data: freshSales }, { data: freshAuctionOrders }] = await Promise.all([
+    const [{ data: freshSales }, freshAuctionOrders] = await Promise.all([
       supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", profile.id).order("created_at", { ascending: false }),
-      supabase.from("auction_orders").select("*, show_products(title, subtitle, image_url), profiles:buyer_id(username)").eq("seller_id", profile.id).order("created_at", { ascending: false }),
+      listLiveShowsBySeller(profile.id),
     ]);
     setSales((freshSales ?? []) as DashboardOrder[]);
-    setAuctionOrders((freshAuctionOrders ?? []) as AuctionOrder[]);
+    setSellerLiveShows((freshAuctionOrders ?? []) as LiveShowDirectoryItem[]);
   };
 
   const completedSales = useMemo(() => sales.filter((o) => ["paid", "shipped", "delivered", "completed"].includes(o.status)), [sales]);
@@ -340,7 +262,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const upcomingFeeExample = calculateFeeBreakdown({ itemSubtotal: 100, shipping: 0, salesTax: 0, orders: completedSales, config: feeConfig });
 
   const liveInsights = calculateLiveShowInsights(createLiveShowSnapshot(getLiveShow()));
-  const [sellerLiveShows, setSellerLiveShows] = useState<LiveShowDirectoryItem[]>([]);
   const [liveShowsLoading, setLiveShowsLoading] = useState(false);
   const [liveShowTitle, setLiveShowTitle] = useState("New live show");
   const [liveShowDescription, setLiveShowDescription] = useState("Run a separate live room for this drop.");
@@ -586,15 +507,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     { key: "sales", label: `Sales (${sales.length})` },
     { key: "fees", label: "Fees & Earnings" },
     { key: "live", label: "Live Studio" },
-    { key: "rewards", label: "Rewards" },
   ];
-
-  const rewardsAccount = rewardsSnapshot?.account ?? DEFAULT_REWARDS_ACCOUNT;
-  const rewardsOptions = rewardsSnapshot?.options ?? [];
-  const rewardsLedger = rewardsSnapshot?.ledger ?? [];
-  const rewardsProgress = rewardsAccount.available_points > 0 ? Math.min(100, (rewardsAccount.available_points / 1000) * 100) : 0;
-
-
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -633,16 +546,20 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               Manage listings, review sales, track seller fees, and keep your live auctions moving with a polished control center.
             </p>
             <div className="max-w-2xl">
-              <SellerVerificationStatusCard
-                status={verificationStatus}
-                rejectionReason={verificationDetails?.rejection_reason}
-                moreInfo={verificationDetails?.more_information_request}
-                verifiedAt={verificationDetails?.verified_at}
-              />
-              {!isSellerVerificationApproved(verificationStatus) && !adminBypass && (
-                <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
-                  Identity verification is required before you can create listings or start live auctions.
-                </div>
+              {!isAdminAccount && (
+                <>
+                  <SellerVerificationStatusCard
+                    status={verificationStatus}
+                    rejectionReason={verificationDetails?.rejection_reason}
+                    moreInfo={verificationDetails?.more_information_request}
+                    verifiedAt={verificationDetails?.verified_at}
+                  />
+                  {!isSellerVerificationApproved(verificationStatus) && (
+                    <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
+                      Identity verification is required before you can create listings or start live auctions.
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -742,24 +659,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                 <button className="mt-4 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-400/20" disabled={!instantEligible}>
                   {instantEligible ? "Request instant payout" : "Instant payout locked"}
                 </button>
-              </div>
-
-              <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-6">
-                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Rewards</div>
-                <h3 className="mt-2 text-xl font-black">{formatPoints(rewardsAccount.available_points)} points ready</h3>
-                <p className="mt-2 text-sm text-gray-300">Earn from signup, purchases, live bids, referrals, and admin bonuses.</p>
-                <div className="mt-4 space-y-2 text-sm text-gray-300">
-                  <div className="flex items-center justify-between"><span>Pending points</span><span>{formatPoints(rewardsAccount.pending_points)}</span></div>
-                  <div className="flex items-center justify-between"><span>Redeemed points</span><span>{formatPoints(rewardsAccount.redeemed_points)}</span></div>
-                  <div className="flex items-center justify-between"><span>Lifetime points</span><span>{formatPoints(rewardsAccount.lifetime_points)}</span></div>
-                </div>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${rewardsProgress}%` }} />
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <Link href="/rewards" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white hover:border-yellow-400/40">Open rewards center</Link>
-                  <Link href="/dashboard?tab=rewards" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white hover:border-yellow-400/40">View in dashboard</Link>
-                </div>
               </div>
 
               <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-6">
@@ -911,91 +810,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
           </div>
         )}
 
-        {tab === "rewards" && (
-          <div className="space-y-6">
-            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Rewards center</div>
-                  <h2 className="mt-2 text-2xl font-black">{formatPoints(rewardsAccount.available_points)} available points</h2>
-                  <p className="mt-2 text-sm text-gray-400">Rewards are issued from signup, orders, live bids, referrals, and admin bonuses.</p>
-                </div>
-                <Link href="/rewards" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">Open full rewards page</Link>
-              </div>
-              <div className="mt-6 grid gap-4 md:grid-cols-4">
-                {[
-                  { label: "Available", value: rewardsAccount.available_points },
-                  { label: "Pending", value: rewardsAccount.pending_points },
-                  { label: "Redeemed", value: rewardsAccount.redeemed_points },
-                  { label: "Lifetime", value: rewardsAccount.lifetime_points },
-                ].map((stat) => (
-                  <div key={stat.label} className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
-                    <div className="text-xs uppercase tracking-widest text-gray-500">{stat.label}</div>
-                    <div className="mt-2 text-2xl font-black">{formatPoints(stat.value)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <h3 className="text-lg font-bold">Redeem options</h3>
-                <div className="mt-4 space-y-3">
-                  {rewardsOptions.length === 0 ? (
-                    <div className="rounded-xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-400">No redemption options available.</div>
-                  ) : rewardsOptions.map((option) => (
-                    <div key={option.id} className="rounded-xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="font-semibold text-white">{option.display_name}</span>
-                        <span>{formatPoints(option.points_cost)} pts</span>
-                      </div>
-                      <div className="mt-1 text-xs uppercase tracking-widest text-yellow-400">{option.redemption_type.replaceAll("_", " ")}</div>
-                      <button
-                        onClick={async () => {
-                          const response = await fetch("/api/rewards/redeem", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ optionId: option.id }),
-                          });
-                          if (!response.ok) {
-                            return;
-                          }
-                          const refreshed = await fetch("/api/rewards").then((res) => res.json()).catch(() => null);
-                          if (refreshed) setRewardsSnapshot(refreshed as RewardsSnapshot);
-                        }}
-                        disabled={rewardsAccount.available_points < option.points_cost}
-                        className="mt-3 w-full rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs font-semibold text-yellow-400 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {rewardsAccount.available_points < option.points_cost ? "Not enough points" : "Redeem now"}
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <h3 className="text-lg font-bold">Recent rewards</h3>
-                <div className="mt-4 space-y-3">
-                  {rewardsLedger.length === 0 ? (
-                    <div className="rounded-xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-400">No rewards activity yet.</div>
-                  ) : rewardsLedger.slice(0, 6).map((entry) => (
-                    <div key={entry.id} className="rounded-xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="font-semibold text-white">{entry.entry_type.replaceAll("_", " ")}</span>
-                        <span className="font-black text-yellow-400">{pointsBadge(entry.points)}</span>
-                      </div>
-                      <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
-                        <span>{formatDateTime(entry.created_at)}</span>
-                        <span>Balance {formatPoints(entry.balance_after)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {tab === "fees" && (
           <div className="space-y-6">
             <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
@@ -1137,33 +951,31 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         {tab === "sales" && (
           <div className="space-y-8">
             <div>
-              <h2 className="mb-5 text-xl font-bold">Pending Payments ({sellerPendingPayments})</h2>
-              {pendingAuctionOrders.length === 0 ? (
+              <h2 className="mb-5 text-xl font-bold">Live Shows ({liveShowCount})</h2>
+              {sellerLiveShows.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-gray-400">
                   <div className="mb-3 text-4xl">🔔</div>
-                  <p>No pending auction payments right now.</p>
+                  <p>No live shows right now.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {pendingAuctionOrders.map((order) => (
-                    <div key={order.id} className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4">
+                  {sellerLiveShows.map((show) => (
+                    <div key={show.id} className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4">
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-black text-white">{order.show_products?.title ?? "Live auction item"}</p>
-                          <p className="text-xs text-yellow-100">Buyer: {order.profiles?.username ? `@${order.profiles.username}` : order.buyer_id}</p>
-                          <p className="mt-1 text-xs text-yellow-100">Winning Bid: ${Number(order.winning_bid).toFixed(2)}</p>
-                          <p className="text-xs text-yellow-100">Status: Awaiting Payment</p>
-                          <p className="text-xs text-yellow-100">Time Remaining: {formatTimeRemaining(order.payment_deadline ?? "")}</p>
-                          <p className="text-xs text-yellow-100">Order ID: {order.id}</p>
+                          <p className="text-sm font-black text-white">{show.title}</p>
+                          <p className="text-xs text-yellow-100">Status: {show.status}</p>
+                          <p className="mt-1 text-xs text-yellow-100">Viewers: {show.viewer_count ?? 0}</p>
+                          <p className="text-xs text-yellow-100">Show ID: {show.id}</p>
                         </div>
                         <div className="flex flex-wrap gap-2 lg:justify-end">
-                          <button className="rounded-xl bg-yellow-400 px-4 py-2 font-bold text-black" onClick={() => router.push(`/dashboard?tab=sales`) }>
-                            View Order
+                          <button className="rounded-xl bg-yellow-400 px-4 py-2 font-bold text-black" onClick={() => router.push(`/live/${show.id}`)}>
+                            Open Room
                           </button>
-                          <button className="rounded-xl border border-white/20 px-4 py-2 font-semibold text-white" onClick={() => router.push(`/messages`) }>
-                            Message Buyer
+                          <button className="rounded-xl border border-white/20 px-4 py-2 font-semibold text-white" onClick={() => router.push(`/messages`)}>
+                            Message Team
                           </button>
-                          <button className="rounded-xl border border-red-400/30 px-4 py-2 font-semibold text-red-200" onClick={() => router.push(`/support`) }>
+                          <button className="rounded-xl border border-red-400/30 px-4 py-2 font-semibold text-red-200" onClick={() => router.push(`/support`)}>
                             Report Issue
                           </button>
                         </div>
@@ -1238,18 +1050,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             </div>
 
             <div>
-              <h2 className="mb-5 text-xl font-bold">Auction Payment Status</h2>
+              <h2 className="mb-5 text-xl font-bold">Live Show Status</h2>
               <div className="grid gap-3 md:grid-cols-3">
-                {paidAuctionOrders.map((order) => (
-                  <div key={order.id} className="rounded-2xl border border-green-400/20 bg-green-400/10 p-4 text-sm text-green-100">
-                    <div className="font-black">{order.show_products?.title ?? "Paid auction"}</div>
-                    <div>{paymentStatusLabel(order.payment_status)}</div>
-                  </div>
-                ))}
-                {expiredAuctionOrders.map((order) => (
-                  <div key={order.id} className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
-                    <div className="font-black">{order.show_products?.title ?? "Expired auction"}</div>
-                    <div>{paymentStatusLabel(order.payment_status)}</div>
+                {sellerLiveShows.slice(0, 3).map((show) => (
+                  <div key={show.id} className="rounded-2xl border border-green-400/20 bg-green-400/10 p-4 text-sm text-green-100">
+                    <div className="font-black">{show.title}</div>
+                    <div>{show.status}</div>
                   </div>
                 ))}
               </div>
@@ -1316,7 +1122,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!supabase || !profile || (!isSellerVerificationApproved(verificationStatus) && !adminBypass)) return;
+                      if (!supabase || !profile || !isSellerVerificationApproved(verificationStatus)) return;
                       const payload = {
                         seller_id: profile.id,
                         title: liveShowTitle,
@@ -1349,10 +1155,10 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                       setSellerLiveShows(rows);
                       setActiveLiveShowId(createdRoom?.id ?? rows[0]?.id ?? null);
                     }}
-                    disabled={!isSellerVerificationApproved(verificationStatus) && !adminBypass}
+                    disabled={!isSellerVerificationApproved(verificationStatus)}
                     className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black disabled:opacity-50"
                   >
-                    {isSellerVerificationApproved(verificationStatus) || adminBypass ? "Create live room" : "Verification required"}
+                    {isSellerVerificationApproved(verificationStatus) ? "Create live room" : "Verification required"}
                   </button>
                   <button type="button" onClick={() => setLiveShowStatusMessage("Seller rooms load independently by show_id.")} className="rounded-xl border border-white/20 px-4 py-3 text-gray-300 hover:bg-white/5">
                     Room isolation note

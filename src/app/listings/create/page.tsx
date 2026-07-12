@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { MAX_IMAGE_SIZE_BYTES, uploadImageFile } from "@/lib/uploads";
 
 const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"];
@@ -39,24 +40,36 @@ export default function CreateListingPage() {
     grade_company: "",
     grade_score: "",
     status: "active",
-    package_type: "card envelope",
   });
 
-  const shippingTypes = [
-    { value: "card envelope", label: "Card envelope", helper: "Best for singles and PWE-eligible mail." },
-    { value: "bubble mailer", label: "Bubble mailer", helper: "Best for small protected shipments." },
-    { value: "box", label: "Box", helper: "Best for larger or multi-item packages." },
-  ] as const;
-
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    let active = true;
+
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
         router.push("/auth?redirectTo=/listings/create");
         return;
       }
 
-      setUserId(user.id);
+      try {
+        await bootstrapUserAccount({
+          userId: user.id,
+          email: user.email,
+          fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+          avatarUrl: user.user_metadata?.avatar_url ?? null,
+        });
+      } catch {
+        if (!active) return;
+        setMessage({ type: "error", text: "We couldn’t finish setting up your seller account yet. Please refresh and try again." });
+        return;
+      }
+
+      if (active) setUserId(user.id);
     });
+
+    return () => {
+      active = false;
+    };
   }, [router, supabase]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -64,7 +77,7 @@ export default function CreateListingPage() {
   };
 
   const fetchPriceGuide = async () => {
-    if (!form.card_name) return;
+    if (!form.card_name || !form.set_name) return;
     setPriceGuideLoading(true);
     setPriceGuideError(null);
     try {
@@ -80,7 +93,10 @@ export default function CreateListingPage() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || !userId || !supabase) return;
+    if (!files || !userId || !supabase) {
+      setMessage({ type: "error", text: "Please wait for your account to finish loading." });
+      return;
+    }
 
     setUploading(true);
     setMessage(null);
@@ -142,16 +158,17 @@ export default function CreateListingPage() {
         status: form.status,
       };
 
-      const { data: listing, error } = await supabase
-        .from("listings")
-        .insert(payload as never)
-        .select("id")
-        .single<{ id: string }>();
+      const response = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
 
-      if (error) {
-        setMessage({ type: "error", text: error.message ?? "Failed to create listing." });
-      } else if (listing) {
-        router.push(`/listings/${listing.id}`);
+      if (!response.ok) {
+        setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
+      } else if (data.listing?.id) {
+        router.push(`/listings/${data.listing.id}`);
       }
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to create listing." });
@@ -209,7 +226,7 @@ export default function CreateListingPage() {
                   <button
                     type="button"
                     onClick={fetchPriceGuide}
-                    disabled={priceGuideLoading || !form.card_name}
+                    disabled={priceGuideLoading || !form.card_name || !form.set_name}
                     className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs font-semibold text-yellow-400 hover:bg-yellow-400/20 disabled:opacity-50"
                   >
                     {priceGuideLoading ? "Loading..." : "Get price guide"}
@@ -331,28 +348,6 @@ export default function CreateListingPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4 space-y-4">
-                  <div>
-                    <div className="text-sm font-semibold text-yellow-400">Shipping setup</div>
-                    <p className="mt-1 text-xs text-gray-500">Pick the product weight and package type. We’ll recommend USPS options automatically.</p>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-1">
-                    <label className="block text-sm text-gray-300">
-                      Package type
-                      <select name="package_type" value={form.package_type} onChange={handleChange} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none">
-                        {shippingTypes.map((type) => <option key={type.value} value={type.value} className="bg-gray-900">{type.label}</option>)}
-                      </select>
-                    </label>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {shippingTypes.map((type) => (
-                      <div key={type.value} className={`rounded-xl border px-4 py-3 text-xs ${form.package_type === type.value ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-white/10 bg-[#13131f] text-gray-400"}`}>
-                        <div className="font-semibold">{type.label}</div>
-                        <div className="mt-1">{type.helper}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
 
               </div>
 

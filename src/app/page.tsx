@@ -218,13 +218,13 @@ export default async function Home() {
           <div className="flex items-center gap-2 sm:gap-3">
             {!isLoggedIn ? (
               <>
-                <Link href="/login" className="hidden rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 sm:inline-flex">
+                <Link href="/auth" className="hidden rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 sm:inline-flex">
                   Sign In
                 </Link>
-                <Link href="/signup" className="hidden rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300 sm:inline-flex">
+                <Link href="/auth" className="hidden rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300 sm:inline-flex">
                   Sign Up
                 </Link>
-                <Link href="/auth?mode=login&redirectTo=/dashboard" className="hidden rounded-xl bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-gray-100 sm:inline-flex">
+                <Link href="/auth" className="hidden rounded-xl bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-gray-100 sm:inline-flex">
                   Continue with Google
                 </Link>
               </>
@@ -259,9 +259,9 @@ export default async function Home() {
           <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
             {!isLoggedIn ? (
               <>
-                <Link href="/login" className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Sign In</Link>
-                <Link href="/signup" className="rounded-xl bg-yellow-400 px-3 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">Sign Up</Link>
-                <Link href="/auth?mode=login&redirectTo=/dashboard" className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-black transition hover:bg-gray-100">
+                <Link href="/auth" className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Sign In</Link>
+                <Link href="/auth" className="rounded-xl bg-yellow-400 px-3 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">Sign Up</Link>
+                <Link href="/auth" className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-black transition hover:bg-gray-100">
                   Continue with Google
                 </Link>
               </>
@@ -311,8 +311,8 @@ export default async function Home() {
                   <Link href="/listings" className="rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/5">Shop Marketplace</Link>
                   {!isLoggedIn ? (
                     <>
-                      <Link href="/login" className="rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/5">Sign In</Link>
-                      <Link href="/auth?mode=login&redirectTo=/dashboard" className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-black transition hover:bg-gray-100">
+                      <Link href="/auth" className="rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/5">Sign In</Link>
+                      <Link href="/auth" className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-black transition hover:bg-gray-100">
                         Continue with Google
                       </Link>
                     </>

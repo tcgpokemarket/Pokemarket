@@ -23,7 +23,7 @@ export default function SignIn() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/dashboard";
-  const callbackUrl = `/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`;
+  const callbackUrl = `/auth/signin?redirectTo=${encodeURIComponent(redirectTo)}`;
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);

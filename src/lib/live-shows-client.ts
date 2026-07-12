@@ -1,4 +1,3 @@
-import type { Database } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
 
 export type LiveShowDirectoryItem = {
@@ -15,38 +14,30 @@ export type LiveShowDirectoryItem = {
 };
 
 function normalizeRoom(row: Record<string, any>): LiveShowDirectoryItem {
-  const title = row.title ?? row.show_products?.title ?? "Live room";
-  const description = row.description ?? row.show_products?.subtitle ?? null;
   const createdAt = row.created_at ?? new Date().toISOString();
   return {
     id: row.id,
-    title,
-    description,
+    title: row.title ?? "Live room",
+    description: row.description ?? null,
     status: row.status ?? "scheduled",
-    viewer_count: row.viewer_count ?? row.viewers ?? 0,
+    viewer_count: row.viewer_count ?? 0,
     seller_id: row.seller_id,
     created_at: createdAt,
     updated_at: row.updated_at ?? createdAt,
-    thumbnail: row.thumbnail ?? row.show_products?.image_url ?? null,
-    auction_settings: row.auction_settings ?? { featured: Boolean(row.featured) },
+    thumbnail: row.thumbnail ?? null,
+    auction_settings: row.auction_settings ?? null,
   };
 }
 
 async function fetchRoomsForSeller(sellerId: string) {
   const supabase = createClient();
-  const [liveRooms, scheduledRooms, upcomingRooms] = await Promise.all([
-    supabase.from("auction_orders").select("*").eq("seller_id", sellerId).eq("status", "live"),
-    supabase.from("auction_orders").select("*").eq("seller_id", sellerId).eq("status", "scheduled"),
-    supabase.from("auction_orders").select("*").eq("seller_id", sellerId).eq("status", "upcoming"),
-  ]);
+  const { data } = await supabase
+    .from("live_shows")
+    .select("id, seller_id, title, description, thumbnail, status, viewer_count, updated_at, created_at, auction_settings")
+    .eq("seller_id", sellerId)
+    .order("created_at", { ascending: false });
 
-  const rooms = [
-    ...(liveRooms.data ?? []),
-    ...(scheduledRooms.data ?? []),
-    ...(upcomingRooms.data ?? []),
-  ].map((row) => normalizeRoom(row as Record<string, any>));
-
-  return rooms.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  return (data ?? []).map((row) => normalizeRoom(row as Record<string, any>));
 }
 
 export async function listLiveShowsBySeller(sellerId: string): Promise<LiveShowDirectoryItem[]> {
@@ -60,7 +51,12 @@ export async function listLiveShowsBySeller(sellerId: string): Promise<LiveShowD
 export async function listActiveLiveShows(): Promise<LiveShowDirectoryItem[]> {
   try {
     const supabase = createClient();
-    const { data } = await supabase.from("auction_orders").select("*").eq("status", "live").order("created_at", { ascending: false }).limit(12);
+    const { data } = await supabase
+      .from("live_shows")
+      .select("id, seller_id, title, description, thumbnail, status, viewer_count, updated_at, created_at, auction_settings")
+      .eq("status", "live")
+      .order("created_at", { ascending: false })
+      .limit(12);
     return (data ?? []).map((row) => normalizeRoom(row as Record<string, any>));
   } catch {
     return [];
@@ -70,7 +66,11 @@ export async function listActiveLiveShows(): Promise<LiveShowDirectoryItem[]> {
 export async function listFeaturedLiveShows(): Promise<LiveShowDirectoryItem[]> {
   try {
     const supabase = createClient();
-    const { data } = await supabase.from("auction_orders").select("*").order("created_at", { ascending: false }).limit(12);
+    const { data } = await supabase
+      .from("live_shows")
+      .select("id, seller_id, title, description, thumbnail, status, viewer_count, updated_at, created_at, auction_settings")
+      .order("created_at", { ascending: false })
+      .limit(12);
     return (data ?? [])
       .map((row) => normalizeRoom(row as Record<string, any>))
       .filter((room) => Boolean((room.auction_settings as { featured?: boolean } | null | undefined)?.featured));
@@ -82,7 +82,12 @@ export async function listFeaturedLiveShows(): Promise<LiveShowDirectoryItem[]> 
 export async function listUpcomingLiveShows(): Promise<LiveShowDirectoryItem[]> {
   try {
     const supabase = createClient();
-    const { data } = await supabase.from("auction_orders").select("*").eq("status", "upcoming").order("created_at", { ascending: false }).limit(12);
+    const { data } = await supabase
+      .from("live_shows")
+      .select("id, seller_id, title, description, thumbnail, status, viewer_count, updated_at, created_at, auction_settings")
+      .in("status", ["scheduled", "upcoming"])
+      .order("created_at", { ascending: false })
+      .limit(12);
     return (data ?? []).map((row) => normalizeRoom(row as Record<string, any>));
   } catch {
     return [];

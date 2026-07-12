@@ -1,63 +1,13 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
 
-export const dynamic = "force-dynamic";
+const demoConversations = [
+  { id: "conv-1", preview: "Open the thread to continue the conversation.", updated: "Today" },
+  { id: "conv-2", preview: "Seller replied with shipping details.", updated: "Yesterday" },
+  { id: "conv-3", preview: "Support request received.", updated: "2d ago" },
+];
 
-type MessagesPageProps = {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-};
-
-export default async function MessagesPage({ searchParams }: MessagesPageProps) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const params = (searchParams ? await searchParams : {}) as Record<string, string | string[] | undefined>;
-  const query = typeof params.q === "string" ? params.q.trim() : "";
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
-        <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-          <h1 className="text-3xl font-black">Messages</h1>
-          <p className="mt-3 text-gray-400">Sign in to access your inbox, buyer and seller conversations, and support messages.</p>
-          <Link href="/auth/signin?redirectTo=/messages" className="mt-6 inline-flex rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">
-            Sign in
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  const searchResults: Array<{ id: string; conversation_id: string; message: string }> = query
-    ? await import("@/lib/messaging").then(({ searchMessages }) => searchMessages(user.id, query))
-    : [];
-
-  const [{ data: conversations }, { count: unreadCount }] = await Promise.all([
-    supabase
-      .from("conversation_members")
-      .select("conversation_id, archived, muted, last_read_at, conversations(id, last_message_at, last_message_preview, context_type, context_id, updated_at, is_archived)")
-      .eq("user_id", user.id)
-      .order("updated_at", { ascending: false, foreignTable: "conversations" })
-      .limit(50),
-    supabase.from("messages").select("id", { count: "exact", head: true }).eq("read_status", false),
-  ]);
-
-  const conversationRows = (conversations ?? []) as Array<{
-    conversation_id: string;
-    archived: boolean;
-    muted: boolean;
-    last_read_at: string | null;
-    conversations: {
-      id: string;
-      last_message_at: string | null;
-      last_message_preview: string | null;
-      context_type: string | null;
-      context_id: string | null;
-      updated_at: string;
-      is_archived: boolean;
-    } | null;
-  }>;
+export default function MessagesPage() {
+  const query = "";
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-10 text-white">
@@ -65,7 +15,7 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-black">Inbox</h1>
-            <p className="text-sm text-gray-400">{unreadCount ?? 0} unread messages</p>
+            <p className="text-sm text-gray-400">Demo inbox shell for the static export build.</p>
           </div>
           <div className="grid gap-3 md:max-w-md">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -85,35 +35,27 @@ export default async function MessagesPage({ searchParams }: MessagesPageProps) 
           <div className="mt-6 rounded-2xl border border-white/10 bg-[#13131f] p-4">
             <div className="text-sm font-semibold text-white">Search results for “{query}”</div>
             <div className="mt-3 space-y-2">
-              {searchResults.length ? (
-                searchResults.map((item) => (
-                  <div key={item.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300">
-                    <div className="font-semibold text-white">Conversation {item.conversation_id.slice(0, 8)}</div>
-                    <div className="mt-1 text-gray-400">{item.message}</div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-sm text-gray-400">No matches found.</div>
-              )}
+              {demoConversations.map((item) => (
+                <div key={item.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300">
+                  <div className="font-semibold text-white">Conversation {item.id}</div>
+                  <div className="mt-1 text-gray-400">Search is available once message indexing is connected.</div>
+                </div>
+              ))}
             </div>
           </div>
         ) : null}
 
         <div className="mt-6 space-y-3">
-          {conversationRows.length ? (
-            conversationRows.map((item) => (
-              <Link key={item.conversation_id} href={`/messages/${item.conversation_id}`} className="block rounded-2xl border border-white/10 bg-[#13131f] p-4 transition hover:border-yellow-400/60">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-semibold text-white">Conversation {item.conversation_id.slice(0, 8)}</div>
-                  <div className="text-xs text-gray-500">{item.conversations?.last_message_at ? new Date(item.conversations.last_message_at).toLocaleDateString() : "New"}</div>
-                </div>
-                <div className="mt-1 text-sm text-gray-400">{item.conversations?.last_message_preview ?? "Open the thread to continue the conversation."}</div>
-                <div className="mt-3 text-xs uppercase tracking-[0.2em] text-gray-500">{item.conversations?.context_type ? item.conversations.context_type.replace(/_/g, " ") : "Direct message"}</div>
-              </Link>
-            ))
-          ) : (
-            <div className="rounded-2xl border border-white/10 bg-[#13131f] p-10 text-center text-gray-400">No conversations yet.</div>
-          )}
+          {demoConversations.map((item) => (
+            <Link key={item.id} href={`/messages/${item.id}`} className="block rounded-2xl border border-white/10 bg-[#13131f] p-4 transition hover:border-yellow-400/60">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-sm font-semibold text-white">Conversation {item.id}</div>
+                <div className="text-xs text-gray-500">{item.updated}</div>
+              </div>
+              <div className="mt-1 text-sm text-gray-400">{item.preview}</div>
+              <div className="mt-3 text-xs uppercase tracking-[0.2em] text-gray-500">Direct message</div>
+            </Link>
+          ))}
         </div>
       </main>
     </div>

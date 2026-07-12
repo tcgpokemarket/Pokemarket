@@ -7,7 +7,18 @@ const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "tcgpokemarketadmin@gmail.com"
   .map((email) => email.trim().toLowerCase())
   .filter(Boolean);
 
+function normalizeRole(value: unknown): AppRole | null {
+  const role = String(value ?? "").trim().toLowerCase();
+  if (role === "buyer" || role === "seller" || role === "moderator" || role === "support" || role === "admin" || role === "super_admin") {
+    return role;
+  }
+  return null;
+}
+
 export function getAppRole(user: User | null | undefined): AppRole {
+  const metadataRole = normalizeRole(user?.app_metadata?.role) ?? normalizeRole(user?.user_metadata?.role);
+  if (metadataRole) return metadataRole;
+
   const email = user?.email?.toLowerCase() ?? "";
   if (ADMIN_EMAILS.includes(email)) return "admin";
   return "buyer";
@@ -15,6 +26,10 @@ export function getAppRole(user: User | null | undefined): AppRole {
 
 export function isAdmin(user: User | null | undefined) {
   return getAppRole(user) === "admin" || getAppRole(user) === "super_admin";
+}
+
+export function bypassVerificationFor(user: User | null | undefined) {
+  return isAdmin(user);
 }
 
 export function requireAuthenticated(user: User | null | undefined) {

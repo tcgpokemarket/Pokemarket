@@ -4,19 +4,15 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
-import { isAdminUser } from "@/lib/admin-access";
-import type { SellerVerificationStatus } from "@/lib/seller-verification";
-import { recordAuditEvent } from "@/lib/audit-log";
+import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
+import { getAppRole } from "@/lib/security";
+import { getEffectiveSellerVerificationStatus, type SellerVerificationStatus } from "@/lib/seller-verification";
+import type { User } from "@supabase/supabase-js";
 type VerificationRow = {
   status?: SellerVerificationStatus | null;
   rejection_reason?: string | null;
   more_information_request?: string | null;
   verified_at?: string | null;
-};
-type VerificationResponse = {
-  adminBypass?: boolean;
-  status?: SellerVerificationStatus | null;
-  verification?: VerificationRow | null;
 };
 
 const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"];
@@ -37,11 +33,18 @@ export default function SellPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
   const [verificationData, setVerificationData] = useState<VerificationRow | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const isAdmin = getAppRole(currentUser) === "admin" || getAppRole(currentUser) === "super_admin";
+  const effectiveVerificationStatus = getEffectiveSellerVerificationStatus(currentUser, verificationStatus);
+  const canSell = isAdmin || effectiveVerificationStatus === "approved";
+  const hideVerificationUi = isAdmin;
+  const blockSelling = !canSell;
+
+
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [priceGuideLoading, setPriceGuideLoading] = useState(false);
   const [priceGuideError, setPriceGuideError] = useState<string | null>(null);
-  const adminBypass = verificationData === null && verificationStatus === "approved";
 
   const [form, setForm] = useState({
     card_name: "",
@@ -56,15 +59,7 @@ export default function SellPage() {
     grade_company: "",
     grade_score: "",
     status: "active",
-    weight_oz: "1",
-    package_type: "card envelope",
   });
-
-  const shippingTypes = [
-    { value: "card envelope", label: "Card envelope", helper: "Best for singles and PWE-eligible mail." },
-    { value: "bubble mailer", label: "Bubble mailer", helper: "Best for small protected shipments." },
-    { value: "box", label: "Box", helper: "Best for larger or multi-item packages." },
-  ] as const;
 
   useEffect(() => {
     let active = true;
@@ -75,34 +70,31 @@ export default function SellPage() {
         return;
       }
 
-      setUserId(user.id);
-      const localAdminBypass = isAdminUser(user);
-      const response = localAdminBypass ? null : await fetch("/api/seller-verification/me", { credentials: "include" });
-      const data = response ? (await response.json()) as VerificationResponse : null;
-      const verification = data?.verification ?? null;
-      const adminBypass = localAdminBypass || Boolean(data?.adminBypass);
+      try {
+        await bootstrapUserAccount({
+          userId: user.id,
+          email: user.email,
+          fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+          avatarUrl: user.user_metadata?.avatar_url ?? null,
+        });
+      } catch {
+        if (!active) return;
+        setMessage({ type: "error", text: "We couldn’t finish setting up your seller account yet. Please refresh and try again." });
+        return;
+      }
 
       if (!active) return;
 
-      setVerificationStatus(adminBypass ? "approved" : (data?.status ?? verification?.status ?? "not_started"));
-      setVerificationData(adminBypass ? null : verification ? {
+      setUserId(user.id);
+      setCurrentUser(user);
+      const { data } = await supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle();
+      const verification = data as VerificationRow | null;
+      setVerificationStatus(getEffectiveSellerVerificationStatus(user, verification?.status ?? "not_started"));
+      setVerificationData(verification ? {
         rejection_reason: verification.rejection_reason,
         more_information_request: verification.more_information_request,
         verified_at: verification.verified_at,
       } : null);
-      if (adminBypass) {
-        recordAuditEvent({
-          event_type: "admin.action",
-          actor_id: user.id,
-          action: "admin_verification_bypass_seller_page",
-          resource_type: "seller_verification",
-          resource_id: user.id,
-          previous_value: { verificationStatus: verification?.status ?? "not_started" },
-          new_value: { bypass: true },
-          ip_address: null,
-          user_agent: navigator.userAgent,
-        });
-      }
     });
 
     return () => {
@@ -131,18 +123,17 @@ export default function SellPage() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || !userId || !supabase) return;
+    if (!files || !userId || !supabase) {
+      setMessage({ type: "error", text: "Please wait for your account to finish loading." });
+      return;
+    }
     setUploading(true);
 
     const urls: string[] = [];
     for (const file of Array.from(files)) {
-      const ext = file.name.split(".").pop();
-      const path = `listings/${userId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("listing-images").upload(path, file, { upsert: true });
-      if (!error) {
-        const { data } = supabase.storage.from("listing-images").getPublicUrl(path);
-        urls.push(data.publicUrl);
-      }
+      const { uploadImageFile } = await import("@/lib/uploads");
+      const uploaded = await uploadImageFile({ supabase, target: "listing", ownerId: userId, file });
+      urls.push(uploaded.publicUrl);
     }
     setImageUrls((prev) => [...prev, ...urls]);
     setUploading(false);
@@ -150,11 +141,15 @@ export default function SellPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId || !supabase) return;
+    if (!userId || !supabase) {
+      setMessage({ type: "error", text: "Please wait for your account to finish loading." });
+      return;
+    }
     setLoading(true);
     setMessage(null);
 
     const payload = {
+      seller_id: userId,
       card_name: form.card_name,
       set_name: form.set_name,
       card_number: form.card_number || null,
@@ -168,23 +163,21 @@ export default function SellPage() {
       grade_score: form.grade_score ? parseFloat(form.grade_score) : null,
       images: imageUrls,
       status: form.status,
-      weight_oz: Number(form.weight_oz || 0),
-      package_type: form.package_type,
     };
 
-    const res = await fetch("/api/listings", {
+    const response = await fetch("/api/listings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
+    const data = await response.json().catch(() => ({}));
 
-    const data = await res.json();
-
-    if (!res.ok) {
+    if (!response.ok) {
       setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
-    } else {
+    } else if (data.listing?.id) {
       router.push(`/listings/${data.listing.id}`);
     }
+
     setLoading(false);
   };
 
@@ -210,16 +203,20 @@ export default function SellPage() {
           <h1 className="text-3xl font-black mb-2">Create a Listing</h1>
           <p className="text-gray-400">List your cards and sealed products for collectors who want clear details, fair pricing, and fast checkout.</p>
           <div className="mt-4 space-y-3 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4">
-            <SellerVerificationStatusCard
-              status={verificationStatus}
-              rejectionReason={verificationData?.rejection_reason}
-              moreInfo={verificationData?.more_information_request}
-              verifiedAt={verificationData?.verified_at}
-            />
-            {!adminBypass && verificationStatus !== "approved" && (
-              <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
-                Selling is locked until identity verification is approved. You can still prepare your listing here, but publishing will stay disabled.
-              </div>
+            {!hideVerificationUi && (
+              <>
+                <SellerVerificationStatusCard
+                  status={verificationStatus}
+                  rejectionReason={verificationData?.rejection_reason}
+                  moreInfo={verificationData?.more_information_request}
+                  verifiedAt={verificationData?.verified_at}
+                />
+                {verificationStatus !== "approved" && (
+                  <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
+                    Selling is locked until identity verification is approved. You can still prepare your listing here, but publishing will stay disabled.
+                  </div>
+                )}
+              </>
             )}
             <div>
               <div className="text-sm font-semibold text-yellow-400">Competitive seller fees</div>
@@ -341,33 +338,6 @@ export default function SellPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4 space-y-4">
-            <div>
-              <div className="text-sm font-semibold text-yellow-400">Shipping setup</div>
-              <p className="mt-1 text-xs text-gray-500">Pick the product weight and package type. We’ll recommend USPS options automatically.</p>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block text-sm text-gray-300">
-                Product weight (oz)
-                <input name="weight_oz" type="number" min="0" step="0.1" value={form.weight_oz} onChange={handleChange} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
-              </label>
-              <label className="block text-sm text-gray-300">
-                Package type
-                <select name="package_type" value={form.package_type} onChange={handleChange} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none">
-                  {shippingTypes.map((type) => <option key={type.value} value={type.value} className="bg-gray-900">{type.label}</option>)}
-                </select>
-              </label>
-            </div>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {shippingTypes.map((type) => (
-                <div key={type.value} className={`rounded-xl border px-4 py-3 text-xs ${form.package_type === type.value ? "border-yellow-400 bg-yellow-400/10 text-yellow-300" : "border-white/10 bg-[#13131f] text-gray-400"}`}>
-                  <div className="font-semibold">{type.label}</div>
-                  <div className="mt-1">{type.helper}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
             <h2 className="font-bold text-lg">Pricing</h2>
             <div className="grid grid-cols-2 gap-4">
@@ -391,7 +361,7 @@ export default function SellPage() {
 
           <div className="flex items-center justify-end gap-4">
             <button type="button" onClick={() => router.back()} className="px-6 py-3 rounded-xl border border-white/20 text-gray-300 hover:bg-white/5">Cancel</button>
-            <button type="submit" disabled={loading || (!adminBypass && verificationStatus !== "approved")} className="px-6 py-3 rounded-xl bg-yellow-400 text-black font-bold hover:bg-yellow-300 disabled:opacity-50">{loading ? "Publishing..." : (adminBypass || verificationStatus === "approved") ? "Publish Listing" : "Verification Required"}</button>
+            <button type="submit" disabled={loading || blockSelling} className="px-6 py-3 rounded-xl bg-yellow-400 text-black font-bold hover:bg-yellow-300 disabled:opacity-50">{loading ? "Publishing..." : canSell ? "Publish Listing" : "Verification Required"}</button>
           </div>
         </form>
       </div>

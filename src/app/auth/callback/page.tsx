@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-function safeRedirect(value: string | null) {
+function getSafeRedirect(value: string | null) {
   if (!value || !value.startsWith("/")) return "/dashboard";
   if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/dashboard";
   return value;
@@ -14,7 +14,8 @@ export default function AuthCallbackPage() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    router.replace(safeRedirect(searchParams.get("redirectTo")));
+    const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
+    router.replace(redirectTo);
   }, [router, searchParams]);
 
   return (

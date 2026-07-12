@@ -7,24 +7,24 @@ const BASE_URL = "https://tcg-poke-market.sintra.site";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-
 type ListingWithSeller = Listing & {
   profiles?: Pick<Profile, "id" | "username" | "seller_rating" | "total_sales" | "avatar_url"> | null;
 };
 
-export const dynamic = "force-dynamic";
-export const dynamicParams = true;
+type PublicListing = Pick<Listing, "id">;
 
-const STATIC_LISTING_PARAMS: Array<{ id: string }> = [];
-
-type StaticListing = Pick<Listing, "id">;
-
-async function fetchPublicRows<T>(table: string, select: string, filters: Array<[string, string]> = []) {
+function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
   url.searchParams.set("select", select);
+  url.searchParams.set("limit", String(limit));
   for (const [key, value] of filters) url.searchParams.set(key, value);
+  return url;
+}
 
-  const response = await fetch(url.toString(), {
+async function fetchPublicRows<T>(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return [] as T[];
+
+  const response = await fetch(buildRestUrl(table, select, filters, limit).toString(), {
     headers: {
       apikey: SUPABASE_ANON_KEY,
       Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
@@ -35,6 +35,18 @@ async function fetchPublicRows<T>(table: string, select: string, filters: Array<
 
   if (!response.ok) return [] as T[];
   return (await response.json()) as T[];
+}
+
+async function fetchListingIds() {
+  const rows = await fetchPublicRows<PublicListing>("listings", "id", [["order", "created_at.desc"]], 2000);
+  return rows.map((row) => ({ id: row.id }));
+}
+
+export const dynamicParams = false;
+
+export async function generateStaticParams(): Promise<Array<{ id: string }>> {
+  const rows = await fetchListingIds();
+  return rows.length ? rows : [{ id: "preview" }];
 }
 
 function formatListingTitle(listing: ListingWithSeller) {
@@ -50,6 +62,8 @@ function buildDescription(listing: ListingWithSeller) {
 }
 
 async function getListing(id: string) {
+  if (id === "preview") return null;
+
   const rows = await fetchPublicRows<ListingWithSeller>(
     "listings",
     "*,profiles:profiles!seller_id(id,username,seller_rating,total_sales,avatar_url)",
@@ -58,15 +72,46 @@ async function getListing(id: string) {
   return rows[0] ?? null;
 }
 
-export function generateStaticParams(): Array<{ id: string }> {
-  return STATIC_LISTING_PARAMS;
+function getPreviewListing(): ListingWithSeller {
+  return {
+    id: "preview",
+    seller_id: "preview-seller",
+    card_name: "Sample Pokémon Card",
+    set_name: "Preview Set",
+    card_number: "001",
+    rarity: "Rare",
+    condition: "Near Mint",
+    grade_company: null,
+    grade_score: null,
+    price: 0,
+    quantity: 1,
+    images: [],
+    description: "This preview page keeps the route exportable while the real marketplace listings load from Supabase.",
+    shipping_profile_id: null,
+    shipping_paid_by: null,
+    weight_oz: null,
+    package_type: null,
+    category: "single",
+    status: "active",
+    views: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    profiles: null,
+  };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const listing = await getListing(id);
+  const listing = (await getListing(id)) ?? getPreviewListing();
 
-  if (!listing) {
+  if (id === "preview") {
+    return {
+      title: "Preview listing",
+      description: "Sample listing data used to keep the export route available.",
+    };
+  }
+
+  if (listing.id === "preview") {
     return {
       title: "Listing not found",
       description: "This Pokémon card listing is no longer available.",
@@ -100,11 +145,22 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const listing = await getListing(id);
+  const listing = (await getListing(id)) ?? getPreviewListing();
 
-  if (!listing) {
-    notFound();
+  if (listing.id === "preview") {
+    return (
+      <div className="min-h-screen bg-[#0f0f1a] text-white">
+        <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4 text-center">
+          <div className="mb-4 text-6xl">🃏</div>
+          <h1 className="text-3xl font-black">Listing not found</h1>
+          <p className="mt-3 text-gray-400">The live listing feed is currently empty, so this route uses a safe placeholder until real marketplace records are available.</p>
+          <a href="/listings" className="mt-6 rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Back to listings</a>
+        </div>
+      </div>
+    );
   }
+
+
 
   const title = formatListingTitle(listing);
   const description = buildDescription(listing);

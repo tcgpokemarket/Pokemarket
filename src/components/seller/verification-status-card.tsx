@@ -1,18 +1,23 @@
 import Link from "next/link";
+import { getAppRole } from "@/lib/security";
 import { sellerVerificationLabel, type SellerVerificationStatus } from "@/lib/seller-verification";
+import type { User } from "@supabase/supabase-js";
 
 export default function SellerVerificationStatusCard({
   status,
   rejectionReason,
   moreInfo,
   verifiedAt,
+  user,
 }: {
   status?: SellerVerificationStatus | null;
   rejectionReason?: string | null;
   moreInfo?: string | null;
   verifiedAt?: string | null;
+  user?: User | null;
 }) {
   const label = sellerVerificationLabel(status ?? "not_started");
+  const isAdmin = getAppRole(user) === "admin" || getAppRole(user) === "super_admin";
   const tone =
     status === "approved"
       ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-300"
@@ -31,11 +36,12 @@ export default function SellerVerificationStatusCard({
       {verifiedAt && status === "approved" && <div className="mt-2 text-sm text-emerald-200">Approved {new Date(verifiedAt).toLocaleDateString()}</div>}
       {status === "rejected" && rejectionReason && <div className="mt-2 text-sm text-red-200">Reason: {rejectionReason}</div>}
       {status === "more_information_required" && moreInfo && <div className="mt-2 text-sm text-blue-200">Need: {moreInfo}</div>}
-      {status !== "approved" && (
+      {status !== "approved" && !isAdmin && (
         <Link href="/sell/verification" className="mt-4 inline-flex rounded-xl bg-white px-4 py-2 text-sm font-semibold text-black transition hover:bg-gray-100">
           Complete verification
         </Link>
-      )}
+      )
+      }
     </div>
   );
 }

@@ -1,24 +1,27 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { deleteUploadedFile } from "@/lib/uploads";
-import type { Database } from "@/lib/supabase/types";
+import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 
-export async function DELETE(_: Request, { params }: { params: { id: string } }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
+export async function DELETE(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { data: listing, error } = await supabase
-    .from("listings")
-    .select("id, seller_id, images, status")
-    .eq("id", params.id)
-    .single<{ id: string; seller_id: string; images: string[] | null; status: string }>();
+  const { id } = await params;
+  const { data: listing, error: lookupError } = await supabase.from("listings").select("id, seller_id").eq("id", id).maybeSingle<{ id: string; seller_id: string }>();
 
-  if (error || !listing) {
+  if (lookupError) {
+    return NextResponse.json({ error: lookupError.message }, { status: 400 });
+  }
+
+  if (!listing) {
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
   }
 
@@ -26,28 +29,11 @@ export async function DELETE(_: Request, { params }: { params: { id: string } })
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  if (listing.status === "sold") {
-    return NextResponse.json({ error: "Sold listings cannot be deleted" }, { status: 409 });
+  const { error } = await supabase.from("listings").delete().eq("id", id);
+
+  if (error) {
+    return NextResponse.json({ error: error.message ?? "Failed to remove listing." }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  for (const imageUrl of listing.images ?? []) {
-    try {
-      const bucketPrefix = "/storage/v1/object/public/listing-images/";
-      const index = imageUrl.indexOf(bucketPrefix);
-      if (index === -1) continue;
-      const path = decodeURIComponent(imageUrl.slice(index + bucketPrefix.length));
-      await deleteUploadedFile({ supabase: admin as import("@supabase/supabase-js").SupabaseClient<Database>, target: "listing", path });
-    } catch {
-      continue;
-    }
-  }
-
-  const { error: deleteError } = await admin.from("listings").delete().eq("id", params.id);
-
-  if (deleteError) {
-    return NextResponse.json({ error: deleteError.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ success: true });
 }

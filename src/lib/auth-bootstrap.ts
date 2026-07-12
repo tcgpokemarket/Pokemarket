@@ -1,5 +1,4 @@
 import { createAdminClient } from "@/lib/supabase/admin";
-import { issueSignupBonus } from "@/lib/rewards";
 
 function normalizeEmail(value?: string | null) {
   return value?.trim().toLowerCase() ?? null;
@@ -100,8 +99,6 @@ export async function bootstrapUserAccount(input: {
 
     if (error) throw new Error(error.message);
   }
-
-  await issueSignupBonus(input.userId);
 
   return { username };
 }

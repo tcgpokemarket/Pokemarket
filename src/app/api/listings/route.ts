@@ -1,144 +1,48 @@
 import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { canBypassSellerVerification, isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
-import { recordAuditEvent } from "@/lib/audit-log";
+import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
+import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 
-const PAGE_SIZE = 24;
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-async function getVerificationStatus(userId: string): Promise<SellerVerificationStatus> {
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("seller_verifications").select("status").eq("user_id", userId).maybeSingle();
-  if (error) throw new Error(error.message);
-  return ((data as { status?: SellerVerificationStatus } | null)?.status ?? "not_started") as SellerVerificationStatus;
-}
-
-export async function GET(req: Request) {
-  const supabase = await createClient();
-  const { searchParams } = new URL(req.url);
-  const query = (searchParams.get("query") ?? "").trim();
-  const category = (searchParams.get("category") ?? "").trim();
-  const condition = (searchParams.get("condition") ?? "").trim();
-  const seller = (searchParams.get("seller") ?? "").trim();
-  const page = Math.max(1, Number(searchParams.get("page") ?? 1));
-  const from = (page - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
-
-  let request = supabase
-    .from("listings")
-    .select("*, profiles:seller_id(username, seller_rating), sellers:seller_id(display_name, storefront_slug, rating, verified, avatar_url)", { count: "exact" })
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
-
-  if (query) {
-    request = request.or(
-      `card_name.ilike.%${query}%,set_name.ilike.%${query}%,card_number.ilike.%${query}%,rarity.ilike.%${query}%,description.ilike.%${query}%`
-    );
-  }
-  if (category && category !== "all") request = request.eq("category", category);
-  if (condition && condition !== "all") request = request.eq("condition", condition);
-  if (seller) request = request.eq("seller_id", seller);
-
-  const { data, count, error } = await request.range(from, to);
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  return NextResponse.json({ listings: data ?? [], count: count ?? 0, page, pageSize: PAGE_SIZE });
-}
-
-export async function POST(req: Request) {
-  const supabase = await createClient();
+export async function POST(request: Request) {
+  const supabase = await createServerSupabaseClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const verificationStatus = await getVerificationStatus(user.id);
-  const adminBypass = canBypassSellerVerification(user);
-  if (!isSellerVerificationApproved(verificationStatus) && !adminBypass) {
-    recordAuditEvent({
-      event_type: "api.denied",
-      actor_id: user.id,
-      action: "create_listing_blocked_verification",
-      resource_type: "listing",
-      resource_id: user.id,
-      previous_value: { verificationStatus },
-      new_value: null,
-      ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
-      user_agent: req.headers.get("user-agent"),
-    });
-    return NextResponse.json({ error: "Identity verification is required before creating listings." }, { status: 403 });
-  }
+  await bootstrapUserAccount({
+    userId: user.id,
+    email: user.email,
+    fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+    avatarUrl: user.user_metadata?.avatar_url ?? null,
+  });
 
-  if (adminBypass) {
-    recordAuditEvent({
-      event_type: "admin.action",
-      actor_id: user.id,
-      action: "admin_verification_bypass_listing_create",
-      resource_type: "listing",
-      resource_id: user.id,
-      previous_value: { verificationStatus },
-      new_value: { bypass: true },
-      ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
-      user_agent: req.headers.get("user-agent"),
-    });
-  }
-
-  const body = (await req.json()) as {
-    card_name?: string;
-    set_name?: string;
-    card_number?: string | null;
-    rarity?: string | null;
-    condition?: string;
-    category?: string;
-    price?: number;
-    quantity?: number;
-    description?: string | null;
-    grade_company?: string | null;
-    grade_score?: number | null;
-    images?: string[];
-    status?: string;
-  };
-
-  if (!body.card_name || !body.set_name || !body.condition || !body.category || typeof body.price !== "number") {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-  }
-
-  const listingPayload = {
+  const body = await request.json();
+  const payload = {
     seller_id: user.id,
-    card_name: body.card_name,
-    set_name: body.set_name,
-    card_number: body.card_number ?? null,
-    rarity: body.rarity ?? null,
-    condition: body.condition as any,
-    category: body.category as any,
-    price: body.price,
-    quantity: body.quantity ?? 1,
-    description: body.description ?? null,
-    grade_company: body.grade_company ?? null,
-    grade_score: body.grade_score ?? null,
-    images: body.images ?? [],
-    status: body.status ?? "active",
+    card_name: String(body.card_name ?? "").trim(),
+    set_name: String(body.set_name ?? "").trim(),
+    card_number: body.card_number ? String(body.card_number).trim() : null,
+    rarity: body.rarity ? String(body.rarity).trim() : null,
+    condition: String(body.condition ?? "Near Mint"),
+    category: String(body.category ?? "single"),
+    price: Number(body.price ?? 0),
+    quantity: Number.isFinite(Number(body.quantity)) ? Math.max(1, Number(body.quantity)) : 1,
+    description: body.description ? String(body.description).trim() : null,
+    grade_company: body.grade_company ? String(body.grade_company).trim() : null,
+    grade_score: body.grade_score === null || body.grade_score === undefined || body.grade_score === "" ? null : Number(body.grade_score),
+    images: Array.isArray(body.images) ? (body.images as unknown[]).filter((value): value is string => typeof value === "string") : [],
+    status: String(body.status ?? "active"),
   };
 
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin.from("listings").insert(listingPayload as any).select("*").single();
+  const { data, error } = await supabase.from("listings").insert(payload as never).select("id").single<{ id: string }>();
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ listing: data });
-  } catch {
-    const { data, error } = await supabase.from("listings").insert(listingPayload as any).select("*").single();
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ listing: data });
+  if (error) {
+    return NextResponse.json({ error: error.message ?? "Failed to create listing." }, { status: 400 });
   }
+
+  return NextResponse.json({ listing: data }, { status: 201 });
 }
