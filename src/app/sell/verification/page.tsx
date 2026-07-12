@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
+import { getAppRole } from "@/lib/security";
 import { sellerVerificationLabel, type SellerVerificationStatus } from "@/lib/seller-verification";
 import { uploadVerificationDocumentFile } from "@/lib/uploads";
+import type { User } from "@supabase/supabase-js";
 
 type VerificationForm = {
   legal_name: string;
@@ -35,6 +37,7 @@ export default function SellerVerificationPage() {
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [verificationId, setVerificationId] = useState<string | null>(null);
   const [status, setStatus] = useState<SellerVerificationStatus | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [form, setForm] = useState<VerificationForm>({
     legal_name: "",
     date_of_birth: "",
@@ -59,6 +62,9 @@ export default function SellerVerificationPage() {
         return;
       }
 
+      setCurrentUser(user);
+      const isAdmin = getAppRole(user) === "admin" || getAppRole(user) === "super_admin";
+
       const [{ data: verification }, { data: profileData }] = await Promise.all([
         supabase.from("seller_verifications").select("*").eq("user_id", user.id).maybeSingle(),
         supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
@@ -79,7 +85,7 @@ export default function SellerVerificationPage() {
 
       if (currentVerification) {
         setVerificationId(currentVerification.id);
-        setStatus(currentVerification.status);
+        setStatus(isAdmin ? "approved" : currentVerification.status);
         setForm((current) => ({
           ...current,
           legal_name: currentVerification.legal_name ?? profile?.full_name ?? "",
@@ -90,6 +96,10 @@ export default function SellerVerificationPage() {
           moreInfo: currentVerification.more_information_request,
           verifiedAt: currentVerification.verified_at,
         }));
+
+        if (isAdmin) {
+          setMessage({ type: "success", text: "Admin verification bypass enabled." });
+        }
 
         const { data: docs } = await supabase
           .from("seller_verification_documents")
@@ -183,8 +193,9 @@ export default function SellerVerificationPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Please sign in again.");
 
+      const isAdmin = getAppRole(user) === "admin" || getAppRole(user) === "super_admin";
       const requiredFiles = [uploads["id-front"], uploads.selfie];
-      if (requiredFiles.some((item) => !item)) {
+      if (!isAdmin && requiredFiles.some((item) => !item)) {
         throw new Error("Please upload the required identity documents.");
       }
 
@@ -194,15 +205,15 @@ export default function SellerVerificationPage() {
         date_of_birth: form.date_of_birth,
         residential_address: form.residential_address,
         phone_number: form.phone_number,
-        status: "pending_review",
+        status: isAdmin ? "approved" : "pending_review",
         submitted_at: new Date().toISOString(),
       };
       const { data, error } = await supabase.from("seller_verifications").upsert(submitPayload as never, { onConflict: "user_id" }).select("id, status").single<{ id: string; status: SellerVerificationStatus }>();
       if (error) throw error;
 
       setVerificationId(data?.id ?? verificationId);
-      setStatus("pending_review");
-      setMessage({ type: "success", text: "Verification submitted for review." });
+      setStatus(isAdmin ? "approved" : "pending_review");
+      setMessage({ type: "success", text: isAdmin ? "Admin access verified." : "Verification submitted for review." });
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Unable to submit verification." });
     } finally {

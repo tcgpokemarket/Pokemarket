@@ -40,6 +40,7 @@ export default function SellPage() {
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [priceGuideLoading, setPriceGuideLoading] = useState(false);
   const [priceGuideError, setPriceGuideError] = useState<string | null>(null);
+  const adminBypass = verificationData === null && verificationStatus === "approved";
 
   const [form, setForm] = useState({
     card_name: "",
@@ -213,7 +214,7 @@ export default function SellPage() {
               moreInfo={verificationData?.more_information_request}
               verifiedAt={verificationData?.verified_at}
             />
-            {verificationStatus !== "approved" && (
+            {!adminBypass && verificationStatus !== "approved" && (
               <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
                 Selling is locked until identity verification is approved. You can still prepare your listing here, but publishing will stay disabled.
               </div>
@@ -388,7 +389,7 @@ export default function SellPage() {
 
           <div className="flex items-center justify-end gap-4">
             <button type="button" onClick={() => router.back()} className="px-6 py-3 rounded-xl border border-white/20 text-gray-300 hover:bg-white/5">Cancel</button>
-            <button type="submit" disabled={loading || verificationStatus !== "approved"} className="px-6 py-3 rounded-xl bg-yellow-400 text-black font-bold hover:bg-yellow-300 disabled:opacity-50">{loading ? "Publishing..." : verificationStatus === "approved" ? "Publish Listing" : "Verification Required"}</button>
+            <button type="submit" disabled={loading || (!adminBypass && verificationStatus !== "approved")} className="px-6 py-3 rounded-xl bg-yellow-400 text-black font-bold hover:bg-yellow-300 disabled:opacity-50">{loading ? "Publishing..." : (adminBypass || verificationStatus === "approved") ? "Publish Listing" : "Verification Required"}</button>
           </div>
         </form>
       </div>
