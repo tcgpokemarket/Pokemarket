@@ -5,11 +5,17 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
 import type { SellerVerificationStatus } from "@/lib/seller-verification";
+import { recordAuditEvent } from "@/lib/audit-log";
 type VerificationRow = {
   status?: SellerVerificationStatus | null;
   rejection_reason?: string | null;
   more_information_request?: string | null;
   verified_at?: string | null;
+};
+type VerificationResponse = {
+  adminBypass?: boolean;
+  status?: SellerVerificationStatus | null;
+  verification?: VerificationRow | null;
 };
 
 const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"];
@@ -59,6 +65,8 @@ export default function SellPage() {
   ] as const;
 
   useEffect(() => {
+    let active = true;
+
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
         router.push("/auth?redirectTo=/sell");
@@ -66,15 +74,37 @@ export default function SellPage() {
       }
 
       setUserId(user.id);
-      const { data } = await supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle();
-      const verification = data as VerificationRow | null;
-      setVerificationStatus(verification?.status ?? "not_started");
-      setVerificationData(verification ? {
+      const response = await fetch("/api/seller-verification/me", { credentials: "include" });
+      const data = (await response.json()) as VerificationResponse;
+      const verification = data.verification ?? null;
+      const adminBypass = Boolean(data.adminBypass);
+
+      if (!active) return;
+
+      setVerificationStatus(adminBypass ? "approved" : (data.status ?? verification?.status ?? "not_started"));
+      setVerificationData(adminBypass ? null : verification ? {
         rejection_reason: verification.rejection_reason,
         more_information_request: verification.more_information_request,
         verified_at: verification.verified_at,
       } : null);
+      if (adminBypass) {
+        recordAuditEvent({
+          event_type: "admin.action",
+          actor_id: user.id,
+          action: "admin_verification_bypass_seller_page",
+          resource_type: "seller_verification",
+          resource_id: user.id,
+          previous_value: { verificationStatus: verification?.status ?? "not_started" },
+          new_value: { bypass: true },
+          ip_address: null,
+          user_agent: navigator.userAgent,
+        });
+      }
     });
+
+    return () => {
+      active = false;
+    };
   }, [router, supabase]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {

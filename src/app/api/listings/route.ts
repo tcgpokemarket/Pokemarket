@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
+import { canBypassSellerVerification, isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
 import { recordAuditEvent } from "@/lib/audit-log";
 
 const PAGE_SIZE = 24;
@@ -56,7 +56,8 @@ export async function POST(req: Request) {
   }
 
   const verificationStatus = await getVerificationStatus(user.id);
-  if (!isSellerVerificationApproved(verificationStatus)) {
+  const adminBypass = canBypassSellerVerification(user);
+  if (!isSellerVerificationApproved(verificationStatus) && !adminBypass) {
     recordAuditEvent({
       event_type: "api.denied",
       actor_id: user.id,
@@ -69,6 +70,20 @@ export async function POST(req: Request) {
       user_agent: req.headers.get("user-agent"),
     });
     return NextResponse.json({ error: "Identity verification is required before creating listings." }, { status: 403 });
+  }
+
+  if (adminBypass) {
+    recordAuditEvent({
+      event_type: "admin.action",
+      actor_id: user.id,
+      action: "admin_verification_bypass_listing_create",
+      resource_type: "listing",
+      resource_id: user.id,
+      previous_value: { verificationStatus },
+      new_value: { bypass: true },
+      ip_address: req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+      user_agent: req.headers.get("user-agent"),
+    });
   }
 
   const body = (await req.json()) as {

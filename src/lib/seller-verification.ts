@@ -1,8 +1,14 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { User } from "@supabase/supabase-js";
+import { isAdminUser } from "@/lib/admin-access";
 
 type SellerVerificationStatus = "not_started" | "pending_review" | "approved" | "rejected" | "more_information_required" | "suspended";
 export type { SellerVerificationStatus };
 export type SellerVerificationDocumentType = string;
+
+export function canBypassSellerVerification(user: User | null | undefined) {
+  return isAdminUser(user);
+}
 
 type SellerVerificationRow = {
   id: string;
