@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle<{ id: string }>();
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle();
 
   if (profileError) {
     console.error("[listings.publish] profile lookup failed", { authUserId: user.id, error: profileError.message });
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "We couldn’t find your seller profile yet. Please refresh and try again." }, { status: 400 });
   }
 
-  const { data, error } = await (supabase.from("listings") as any).insert(payload).select("id").single<{ id: string }>();
+  const { data, error } = await (supabase.from("listings") as any).insert(payload).select("id").single();
 
   if (error) {
     console.error("[listings.publish] insert failed", {

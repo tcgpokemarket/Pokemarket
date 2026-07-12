@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import ListingCard from "@/components/listings/ListingCard";
 import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
@@ -12,18 +13,27 @@ export default function ListingsPage() {
   const [category, setCategory] = useState("all");
   const [condition, setCondition] = useState("all");
   const supabase = useMemo(() => createClient(), []);
+  const searchParams = useSearchParams();
+  const sellerFilter = searchParams.get("seller") ?? "";
 
   useEffect(() => {
-    supabase
+    const request = supabase
       .from("listings")
       .select("*, profiles:seller_id(username, seller_rating)")
       .eq("status", "active")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        setListings((data ?? []) as Listing[]);
-        setLoading(false);
-      });
-  }, [supabase]);
+      .order("created_at", { ascending: false });
+
+    if (sellerFilter) {
+      request.eq("seller_id", sellerFilter);
+    }
+
+    request.then(({ data }) => {
+      setListings((data ?? []) as Listing[]);
+      setLoading(false);
+    });
+  }, [sellerFilter, supabase]);
+
+  const sellerLabel = sellerFilter ? `Seller shop filter active` : null;
 
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase();
@@ -59,6 +69,7 @@ export default function ListingsPage() {
           <h1 className="mb-2 text-3xl font-black">Browse Pokémon TCG Listings</h1>
           <p className="max-w-2xl text-gray-400">Search Pokémon singles, sealed products, graded cards, and accessories from trusted sellers.</p>
           <p className="mt-2 text-sm text-gray-500">{filtered.length.toLocaleString()} listings shown</p>
+          {sellerLabel && <p className="mt-2 text-sm font-medium text-yellow-400">{sellerLabel}</p>}
         </div>
 
         <div className="mb-8 grid gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 lg:grid-cols-4">

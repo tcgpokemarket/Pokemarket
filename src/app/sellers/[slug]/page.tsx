@@ -16,6 +16,7 @@ const DEFAULT_POLICIES = [
 const DEFAULT_CATEGORIES = ["Singles", "Sealed", "Graded", "Accessories"];
 
 type SellerStoreRow = {
+  seller_id: string;
   name: string;
   slug: string;
   description: string | null;
@@ -25,6 +26,9 @@ type SellerStoreRow = {
   featured: boolean;
   theme: Record<string, string> | null;
 };
+
+
+type SellerStorefrontRow = Pick<SellerStorefront, "storefront_slug">;
 
 type SellerStorefront = {
   id: string;
@@ -87,8 +91,8 @@ async function fetchPublicRows<T>(table: string, select: string, filters: Array<
 export const dynamicParams = false;
 
 export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
-  const rows = await fetchPublicRows<Pick<SellerStoreRow, "slug">>("seller_stores", "slug", [["slug", "not.is.null"]], 2000);
-  const slugs = rows.filter((row): row is { slug: string } => Boolean(row.slug)).map((row) => ({ slug: row.slug }));
+  const rows = await fetchPublicRows<SellerStorefrontRow>("sellers", "storefront_slug", [["storefront_slug", "not.is.null"]], 2000);
+  const slugs = rows.filter((row): row is { storefront_slug: string } => Boolean(row.storefront_slug)).map((row) => ({ slug: row.storefront_slug }));
   return slugs.length ? slugs : [{ slug: "preview" }];
 }
 
@@ -115,7 +119,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
   const { slug } = await params;
   const [sellerRow] = await fetchPublicRows<SellerStorefront>("sellers", "*", [["storefront_slug", `eq.${slug}`]], 1);
   const sellerData = sellerRow ?? getPreviewSeller(slug);
-  if (sellerData.id === slug && slug === "preview") {
+  if (!sellerRow && slug === "preview") {
     return (
       <div className="min-h-screen bg-[#0f0f1a] text-white">
         <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4 text-center">
@@ -133,7 +137,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
     fetchPublicRows<Listing>("listings", "*", [["seller_id", `eq.${sellerData.id}`], ["status", "eq.active"]], 2000),
     fetchPublicRows<{ id: string; title: string | null; body: string | null; rating: number }>("seller_reviews", "*", [["seller_id", `eq.${sellerData.id}`]], 6),
     fetchPublicRows<ProfileRow>("profiles", "username, full_name, is_seller, avatar_url, seller_rating, total_sales", [["id", `eq.${sellerData.id}`]], 1),
-    fetchPublicRows<SellerStoreRow>("seller_stores", "*", [["seller_id", `eq.${sellerData.id}`]], 1),
+    fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme", [["seller_id", `eq.${sellerData.id}`]], 1),
     fetchPublicRows<LiveShowRow>("live_shows", "id, title, description, status, viewer_count, scheduled_start", [["seller_id", `eq.${sellerData.id}`]], 12),
   ]);
 
@@ -142,15 +146,26 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
   const listings = listingsResult ?? [];
   const reviews = reviewsResult ?? [];
   const liveShows = liveShowsResult ?? [];
-  const shopName = store?.name ?? sellerData.display_name;
-  const shopSlug = store?.slug ?? sellerData.storefront_slug;
+  const sellerStorefront = store ?? {
+    seller_id: sellerData.id,
+    name: sellerData.display_name,
+    slug: sellerData.storefront_slug,
+    description: null,
+    banner_url: sellerData.banner_url,
+    logo_url: sellerData.avatar_url,
+    verified: sellerData.verified,
+    featured: false,
+    theme: null,
+  };
+  const shopName = sellerStorefront.name;
+  const shopSlug = sellerStorefront.slug;
   const sellerSales = profile?.total_sales ?? sellerData.sales_count;
   const sellerRating = profile?.seller_rating ?? sellerData.rating;
   const sellerStatus = profile?.is_seller || sellerData.verified ? "Approved seller" : "Seller not approved";
   const activeLiveShows = liveShows.filter((show) => show.status === "live" || show.status === "scheduled");
   const soldItems = listings.filter((listing) => listing.status === "sold").slice(0, 6);
-  const policies = store?.description ? [store.description, ...DEFAULT_POLICIES] : DEFAULT_POLICIES;
-  const storeTheme = store?.theme ?? null;
+  const policies = sellerStorefront.description ? [sellerStorefront.description, ...DEFAULT_POLICIES] : DEFAULT_POLICIES;
+  const storeTheme = sellerStorefront.theme ?? null;
   const accent = storeTheme?.accent ?? "#e22400";
   const secondary = storeTheme?.secondary ?? "#ffab01";
   const highlight = storeTheme?.highlight ?? "#fefb41";
@@ -226,7 +241,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                 <div className="flex flex-wrap gap-2 text-sm">
                   <Link href={`/messages?shop=${shopSlug}`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Message seller</Link>
                   <Link href="/social" className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Follow shop</Link>
-                  <Link href={`/listings?seller=${sellerData.id}`} className="rounded-full bg-yellow-400 px-4 py-2 font-semibold text-black transition hover:bg-yellow-300">Browse inventory</Link>
+                  <Link href={`/listings?seller=${shopSlug}`} className="rounded-full bg-yellow-400 px-4 py-2 font-semibold text-black transition hover:bg-yellow-300">Browse inventory</Link>
                 </div>
               </div>
 
@@ -345,7 +360,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
               <h3 className="text-lg font-black">Shop search</h3>
               <form action="/listings" method="get" className="mt-4 space-y-3">
-                <input name="seller" defaultValue={sellerData.id} type="hidden" />
+                <input name="seller" defaultValue={shopSlug} type="hidden" />
                 <input name="query" placeholder="Search this shop" className="w-full rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3 text-sm text-white outline-none" />
                 <button className="w-full rounded-2xl bg-yellow-400 px-4 py-3 font-bold text-black">Search shop inventory</button>
               </form>
