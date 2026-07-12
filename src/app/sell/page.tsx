@@ -169,17 +169,23 @@ export default function SellPage() {
     };
 
     try {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 20000);
       const response = await fetch("/api/listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
+        signal: controller.signal,
       });
+      window.clearTimeout(timeout);
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
       } else if (data.listing?.id) {
         router.push(`/listings/${data.listing.id}`);
+      } else {
+        setMessage({ type: "error", text: "Publish failed. Please try again." });
       }
     } catch {
       setMessage({ type: "error", text: "Publish failed. Please try again." });
