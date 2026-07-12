@@ -1,4 +1,10 @@
-import type { LegalDoc } from "@/lib/legal-docs";
+import type { LEGAL_DOCS } from "@/lib/legal-docs";
+
+type LegalDoc = (typeof LEGAL_DOCS)[keyof typeof LEGAL_DOCS] & {
+  jurisdictionNote?: string;
+  attorneyReviewNote?: string;
+  sections: { title: string; body: string[] }[];
+};
 
 export default function LegalDocumentPage({ doc }: { doc: LegalDoc }) {
   return (
