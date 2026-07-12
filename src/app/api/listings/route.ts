@@ -125,12 +125,22 @@ export async function POST(req: Request) {
     shipping_paid_by: body.shipping_paid_by ?? "buyer",
   };
 
-  const admin = createAdminClient();
-  const { data, error } = await admin.from("listings").insert(listingPayload as any).select("*").single();
+  try {
+    const admin = createAdminClient();
+    const { data, error } = await admin.from("listings").insert(listingPayload as any).select("*").single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ listing: data });
+  } catch {
+    const { data, error } = await supabase.from("listings").insert(listingPayload as any).select("*").single();
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ listing: data });
   }
-
-  return NextResponse.json({ listing: data });
 }
