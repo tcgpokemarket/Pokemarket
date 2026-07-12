@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { Listing, Order, Profile, SellerWallet } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
+import { isAdminUser } from "@/lib/admin-access";
 import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
 import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
 import { calculateLiveShowInsights, createLiveShowSnapshot, getLiveShow } from "@/lib/live-commerce";
@@ -155,6 +156,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
 
   const [tab, setTab] = useState<Tab>(orderTab === "sales" ? "sales" : "overview");
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; email?: string | null } | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
   const [verificationDetails, setVerificationDetails] = useState<VerificationRow | null>(null);
   const [sellerRecord, setSellerRecord] = useState<SellerRow | null>(null);
@@ -190,6 +192,8 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         return;
       }
 
+      setCurrentUser({ id: user.id, email: user.email ?? null });
+
       const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: auctionOrdersData }, { data: sellerData }, { data: storeData }, rewardsData] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
@@ -207,10 +211,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       const sellerRow = sellerData as SellerRow | null;
       const storeRow = storeData as StoreRow | null;
       const verificationRow = verificationData as VerificationRow | null;
+      const adminBypass = Boolean(user.email && user.email.toLowerCase() === "tcgpokemarketadmin@gmail.com");
 
       setProfile(profileRow);
-      setVerificationStatus(verificationRow?.status ?? profileRow?.verification_status ?? "not_started");
-      setVerificationDetails(verificationRow ? {
+      setVerificationStatus(adminBypass ? "approved" : (verificationRow?.status ?? profileRow?.verification_status ?? "not_started"));
+      setVerificationDetails(adminBypass ? null : verificationRow ? {
         rejection_reason: verificationRow.rejection_reason,
         more_information_request: verificationRow.more_information_request,
         verified_at: verificationRow.verified_at,
@@ -632,7 +637,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                 moreInfo={verificationDetails?.more_information_request}
                 verifiedAt={verificationDetails?.verified_at}
               />
-              {!isSellerVerificationApproved(verificationStatus) && (
+              {!isSellerVerificationApproved(verificationStatus) && !isAdminUser(currentUser ? ({ email: currentUser.email ?? undefined } as any) : undefined) && (
                 <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
                   Identity verification is required before you can create listings or start live auctions.
                 </div>
