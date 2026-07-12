@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const bootstrap = await bootstrapUserAccount({
+  await bootstrapUserAccount({
     userId: user.id,
     email: user.email,
     fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
@@ -21,22 +21,8 @@ export async function POST(request: Request) {
   });
 
   const body = await request.json();
-  const { data: seller, error: sellerError } = await supabase
-    .from("sellers")
-    .select("id")
-    .eq("id", bootstrap.sellerId)
-    .maybeSingle<{ id: string }>();
-
-  if (sellerError) {
-    return NextResponse.json({ error: sellerError.message ?? "Failed to resolve seller account." }, { status: 400 });
-  }
-
-  if (!seller?.id) {
-    return NextResponse.json({ error: "Seller account is not ready yet. Please refresh and try again." }, { status: 400 });
-  }
-
   const payload = {
-    seller_id: seller.id,
+    seller_id: user.id,
     card_name: String(body.card_name ?? "").trim(),
     set_name: String(body.set_name ?? "").trim(),
     card_number: body.card_number ? String(body.card_number).trim() : null,
@@ -48,14 +34,49 @@ export async function POST(request: Request) {
     description: body.description ? String(body.description).trim() : null,
     grade_company: body.grade_company ? String(body.grade_company).trim() : null,
     grade_score: body.grade_score === null || body.grade_score === undefined || body.grade_score === "" ? null : Number(body.grade_score),
+    shipping_profile_id: body.shipping_profile_id ? String(body.shipping_profile_id).trim() : null,
     images: Array.isArray(body.images) ? (body.images as unknown[]).filter((value): value is string => typeof value === "string") : [],
     status: String(body.status ?? "active"),
   };
 
+  console.info("[listings.publish]", {
+    authUserId: user.id,
+    sellerId: user.id,
+    shippingProfileId: payload.shipping_profile_id,
+    imageCount: payload.images.length,
+    images: payload.images,
+    listingPayload: {
+      ...payload,
+      images: `[${payload.images.length} images]`,
+    },
+  });
+
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle<{ id: string }>();
+
+  if (profileError) {
+    console.error("[listings.publish] profile lookup failed", { authUserId: user.id, error: profileError.message });
+    return NextResponse.json({ error: profileError.message ?? "Failed to resolve seller profile." }, { status: 400 });
+  }
+
+  if (!profile?.id) {
+    console.error("[listings.publish] missing profile", { authUserId: user.id });
+    return NextResponse.json({ error: "Seller profile is not ready yet. Please refresh and try again." }, { status: 400 });
+  }
+
   const { data, error } = await (supabase.from("listings") as any).insert(payload).select("id").single<{ id: string }>();
 
   if (error) {
-    return NextResponse.json({ error: error.message ?? "Failed to create listing." }, { status: 400 });
+    console.error("[listings.publish] insert failed", {
+      authUserId: user.id,
+      sellerId: payload.seller_id,
+      shippingProfileId: payload.shipping_profile_id,
+      images: payload.images,
+      error: error.message,
+      details: error.details,
+      hint: error.hint,
+      code: error.code,
+    });
+    return NextResponse.json({ error: "We couldn’t publish this listing right now. Please try again." }, { status: 400 });
   }
 
   return NextResponse.json({ listing: data }, { status: 201 });
