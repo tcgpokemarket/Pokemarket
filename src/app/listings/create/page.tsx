@@ -134,14 +134,17 @@ export default function CreateListingPage() {
         status: form.status,
       };
 
-      const submit = supabase.from("listings").insert(payload as any).select("*").single<{ id: string }>();
-      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Publishing timed out. Please try again.")), 20000));
-      const { data, error } = await Promise.race([submit, timeout]);
+      const response = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
 
-      if (error) {
-        setMessage({ type: "error", text: error.message ?? "Failed to create listing." });
+      if (!response.ok) {
+        setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
       } else {
-        router.push(`/listings/${data.id}`);
+        router.push(`/listings/${data.listing.id}`);
       }
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to create listing." });
