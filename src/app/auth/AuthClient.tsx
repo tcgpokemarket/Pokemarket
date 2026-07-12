@@ -22,6 +22,7 @@ function Spinner() {
 function safeRedirect(value: string | null) {
   if (!value || !value.startsWith("/")) return "/dashboard";
   if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/dashboard";
+  if (value.startsWith("/api/")) return "/dashboard";
   return value;
 }
 
