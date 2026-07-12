@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await bootstrapUserAccount({
+  const bootstrap = await bootstrapUserAccount({
     userId: user.id,
     email: user.email,
     fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
@@ -21,8 +21,22 @@ export async function POST(request: Request) {
   });
 
   const body = await request.json();
+  const { data: seller, error: sellerError } = await supabase
+    .from("sellers")
+    .select("id")
+    .eq("id", bootstrap.sellerId)
+    .maybeSingle<{ id: string }>();
+
+  if (sellerError) {
+    return NextResponse.json({ error: sellerError.message ?? "Failed to resolve seller account." }, { status: 400 });
+  }
+
+  if (!seller?.id) {
+    return NextResponse.json({ error: "Seller account is not ready yet. Please refresh and try again." }, { status: 400 });
+  }
+
   const payload = {
-    seller_id: user.id,
+    seller_id: seller.id,
     card_name: String(body.card_name ?? "").trim(),
     set_name: String(body.set_name ?? "").trim(),
     card_number: body.card_number ? String(body.card_number).trim() : null,
@@ -38,7 +52,7 @@ export async function POST(request: Request) {
     status: String(body.status ?? "active"),
   };
 
-  const { data, error } = await supabase.from("listings").insert(payload as never).select("id").single<{ id: string }>();
+  const { data, error } = await (supabase.from("listings") as any).insert(payload).select("id").single<{ id: string }>();
 
   if (error) {
     return NextResponse.json({ error: error.message ?? "Failed to create listing." }, { status: 400 });

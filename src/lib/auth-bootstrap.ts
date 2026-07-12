@@ -23,15 +23,41 @@ export async function bootstrapUserAccount(input: {
   const email = normalizeEmail(input.email);
   const fallbackName = input.fullName?.trim() || email?.split("@")[0] || "Marketplace user";
   const usernameBase = fallbackName.replace(/\s+/g, "-");
+  const sellerId = input.userId;
+  const storefrontSlug = buildUsername(usernameBase, input.userId);
 
-  const [{ data: existingProfile }, { data: existingWallet }, { data: existingPrivacy }, { data: existingEmails }] = await Promise.all([
+  const [{ data: existingProfile }, { data: existingSeller }, { data: existingWallet }, { data: existingPrivacy }, { data: existingEmails }] = await Promise.all([
     admin.from("profiles").select("id, username").eq("id", input.userId).maybeSingle<{ id: string; username: string | null }>(),
-    admin.from("seller_wallets").select("seller_id").eq("seller_id", input.userId).maybeSingle<{ seller_id: string }>(),
+    admin.from("sellers").select("id, storefront_slug").eq("id", sellerId).maybeSingle<{ id: string; storefront_slug: string }>(),
+    admin.from("seller_wallets").select("seller_id").eq("seller_id", sellerId).maybeSingle<{ seller_id: string }>(),
     admin.from("profile_privacy_settings").select("user_id").eq("user_id", input.userId).maybeSingle<{ user_id: string }>(),
     admin.from("email_preferences").select("notification_type").eq("user_id", input.userId).limit(1),
   ]);
 
-  const username = existingProfile?.username ?? buildUsername(usernameBase, input.userId);
+  const username = existingProfile?.username ?? storefrontSlug;
+
+  if (!existingSeller) {
+    const { error } = await (admin as any).from("sellers").upsert(
+      {
+        id: sellerId,
+        display_name: fallbackName,
+        storefront_slug: storefrontSlug,
+        bio: null,
+        avatar_url: input.avatarUrl ?? null,
+        banner_url: null,
+        verified: false,
+        rating: 0,
+        follower_count: 0,
+        sales_count: 0,
+        total_revenue: 0,
+        total_listings: 0,
+        total_live_shows: 0,
+      },
+      { onConflict: "id" },
+    );
+
+    if (error) throw new Error(error.message);
+  }
 
   if (!existingProfile) {
     const { error } = await (admin as any).from("profiles").upsert(
@@ -40,7 +66,7 @@ export async function bootstrapUserAccount(input: {
         username,
         full_name: input.fullName ?? fallbackName,
         avatar_url: input.avatarUrl ?? null,
-        is_seller: false,
+        is_seller: true,
         seller_rating: 0,
         total_sales: 0,
       },
@@ -56,7 +82,7 @@ export async function bootstrapUserAccount(input: {
   if (!existingWallet) {
     const { error } = await (admin as any).from("seller_wallets").upsert(
       {
-        seller_id: input.userId,
+        seller_id: sellerId,
         available_balance: 0,
         pending_balance: 0,
         frozen_balance: 0,
@@ -100,5 +126,5 @@ export async function bootstrapUserAccount(input: {
     if (error) throw new Error(error.message);
   }
 
-  return { username };
+  return { username, sellerId, storefrontSlug };
 }

@@ -142,7 +142,6 @@ export default function CreateListingPage() {
 
     try {
       const payload = {
-        seller_id: userId,
         card_name: form.card_name,
         set_name: form.set_name,
         card_number: form.card_number || null,
