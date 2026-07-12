@@ -157,6 +157,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [tab, setTab] = useState<Tab>(orderTab === "sales" ? "sales" : "overview");
   const [profile, setProfile] = useState<Profile | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; email?: string | null } | null>(null);
+  const [adminBypass, setAdminBypass] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
   const [verificationDetails, setVerificationDetails] = useState<VerificationRow | null>(null);
   const [sellerRecord, setSellerRecord] = useState<SellerRow | null>(null);
@@ -193,6 +194,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       }
 
       setCurrentUser({ id: user.id, email: user.email ?? null });
+      setAdminBypass(isAdminUser(user));
 
       const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: auctionOrdersData }, { data: sellerData }, { data: storeData }, rewardsData] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
@@ -211,7 +213,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       const sellerRow = sellerData as SellerRow | null;
       const storeRow = storeData as StoreRow | null;
       const verificationRow = verificationData as VerificationRow | null;
-      const adminBypass = Boolean(user.email && user.email.toLowerCase() === "tcgpokemarketadmin@gmail.com");
+      const adminBypass = isAdminUser(user);
 
       setProfile(profileRow);
       setVerificationStatus(adminBypass ? "approved" : (verificationRow?.status ?? profileRow?.verification_status ?? "not_started"));
@@ -637,7 +639,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                 moreInfo={verificationDetails?.more_information_request}
                 verifiedAt={verificationDetails?.verified_at}
               />
-              {!isSellerVerificationApproved(verificationStatus) && !isAdminUser(currentUser ? ({ email: currentUser.email ?? undefined } as any) : undefined) && (
+              {!isSellerVerificationApproved(verificationStatus) && !adminBypass && (
                 <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
                   Identity verification is required before you can create listings or start live auctions.
                 </div>
@@ -1314,7 +1316,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!supabase || !profile || !isSellerVerificationApproved(verificationStatus)) return;
+                      if (!supabase || !profile || (!isSellerVerificationApproved(verificationStatus) && !adminBypass)) return;
                       const payload = {
                         seller_id: profile.id,
                         title: liveShowTitle,
@@ -1347,10 +1349,10 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                       setSellerLiveShows(rows);
                       setActiveLiveShowId(createdRoom?.id ?? rows[0]?.id ?? null);
                     }}
-                    disabled={!isSellerVerificationApproved(verificationStatus)}
+                    disabled={!isSellerVerificationApproved(verificationStatus) && !adminBypass}
                     className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black disabled:opacity-50"
                   >
-                    {isSellerVerificationApproved(verificationStatus) ? "Create live room" : "Verification required"}
+                    {isSellerVerificationApproved(verificationStatus) || adminBypass ? "Create live room" : "Verification required"}
                   </button>
                   <button type="button" onClick={() => setLiveShowStatusMessage("Seller rooms load independently by show_id.")} className="rounded-xl border border-white/20 px-4 py-3 text-gray-300 hover:bg-white/5">
                     Room isolation note
