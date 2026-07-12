@@ -61,7 +61,7 @@ export async function POST(request: Request) {
     },
   });
 
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle();
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle<{ id: string }>();
 
   if (profileError) {
     console.error("[listings.publish] profile lookup failed", { authUserId: user.id, error: profileError.message });
@@ -74,6 +74,7 @@ export async function POST(request: Request) {
   }
 
   const { data, error } = await (supabase.from("listings") as any).insert(payload).select("id").single();
+  const listing = data as { id: string } | null;
 
   if (error) {
     console.error("[listings.publish] insert failed", {
@@ -89,5 +90,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "We couldn’t publish this listing right now. Please try again." }, { status: 400 });
   }
 
-  return NextResponse.json({ listing: data }, { status: 201 });
+  return NextResponse.json({ listing }, { status: 201 });
 }

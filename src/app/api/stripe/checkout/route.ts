@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { stripe } from "@/lib/stripe";
+import { createStripeClient } from "@/lib/stripe";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { calculateFeeBreakdown } from "@/lib/seller-fees";
 
@@ -77,6 +77,7 @@ export async function POST(request: Request) {
   const fees = calculateFeeBreakdown({ itemSubtotal, shipping, salesTax, orders: [] });
   const totalDue = fees.totalDue;
 
+  const stripe = createStripeClient();
   const checkoutSession = await stripe.checkout.sessions.create({
     mode: "payment",
     submit_type: "pay",
