@@ -39,7 +39,6 @@ export default function CreateListingPage() {
     grade_company: "",
     grade_score: "",
     status: "active",
-    weight_oz: "1",
     package_type: "card envelope",
   });
 
@@ -133,7 +132,6 @@ export default function CreateListingPage() {
         grade_score: form.grade_score ? parseFloat(form.grade_score) : null,
         images: imageUrls,
         status: form.status,
-        weight_oz: Number(form.weight_oz || 0),
       };
 
       const submit = supabase.from("listings").insert(payload as any).select("*").single<{ id: string }>();
@@ -328,11 +326,7 @@ export default function CreateListingPage() {
                     <div className="text-sm font-semibold text-yellow-400">Shipping setup</div>
                     <p className="mt-1 text-xs text-gray-500">Pick the product weight and package type. We’ll recommend USPS options automatically.</p>
                   </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="block text-sm text-gray-300">
-                      Product weight (oz)
-                      <input name="weight_oz" type="number" min="0" step="0.1" value={form.weight_oz} onChange={handleChange} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
-                    </label>
+                  <div className="grid gap-4 sm:grid-cols-1">
                     <label className="block text-sm text-gray-300">
                       Package type
                       <select name="package_type" value={form.package_type} onChange={handleChange} className="mt-2 w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none">
