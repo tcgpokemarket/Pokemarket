@@ -100,7 +100,6 @@ export async function POST(req: Request) {
     grade_score?: number | null;
     images?: string[];
     status?: string;
-    shipping_paid_by?: "buyer" | "seller";
   };
 
   if (!body.card_name || !body.set_name || !body.condition || !body.category || typeof body.price !== "number") {
@@ -122,7 +121,6 @@ export async function POST(req: Request) {
     grade_score: body.grade_score ?? null,
     images: body.images ?? [],
     status: body.status ?? "active",
-    shipping_paid_by: body.shipping_paid_by ?? "buyer",
   };
 
   try {
