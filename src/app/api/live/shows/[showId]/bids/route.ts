@@ -16,6 +16,7 @@ import { getLiveShowDetails } from "@/lib/live-shows-client";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordSecurityEvent } from "@/lib/audit-log";
+import { issueLiveBidReward } from "@/lib/rewards";
 
 export async function POST(req: Request, { params }: { params: Promise<{ showId: string }> }) {
   const { showId } = await params;
@@ -168,6 +169,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ showId:
     payload: { productId: product.id, amount: finalDisplayBid, bidderId: user.id, swipeNonce: body.nonce, bidStep: increment, maxBidEnabled: maxBiddingEnabled },
     created_by: user.id,
   });
+
+  await issueLiveBidReward(user.id, showId, { productId: product.id, amount: finalDisplayBid, bidStep: increment });
 
   return NextResponse.json({ ok: true, nextBid: proxyResult.displayedBid, secondsLeft: nextSecondsLeft, isLeader: proxyResult.winnerId === user.id, maxBidEnabled: maxBiddingEnabled });
 }

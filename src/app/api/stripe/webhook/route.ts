@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { incrementSellerTotals, incrementTotalSales } from "@/lib/supabase/fees";
 import { getDeliveryReleaseAt, shouldReleaseFromEscrow, buildEscrowLedgerKey } from "@/lib/escrow";
 import { queueEmail } from "@/lib/notifications";
+import { issuePurchaseRewards } from "@/lib/rewards";
 
 async function recordWebhookEvent(
   supabase: ReturnType<typeof createAdminClient>,
@@ -150,6 +151,16 @@ export async function POST(req: Request) {
     .eq("id", order.id)
     .is("completed_at", null)
     .or("status.eq.pending,status.eq.paid,status.eq.escrow");
+
+  await issuePurchaseRewards({
+    id: order.id,
+    buyer_id: order.buyer_id,
+    seller_id: order.seller_id,
+    total_amount: toNumber(session.metadata?.totalAmount, order.total_amount),
+    marketplace_fee_amount: toNumber(session.metadata?.marketplaceFeeAmount, order.marketplace_fee_amount ?? 0),
+    referral_source_user_id: session.metadata?.referralSourceUserId || order.referral_source_user_id,
+    referral_attribution_id: order.referral_attribution_id,
+  }, null);
 
   await (supabase as any).from("escrow_ledger").upsert({
     order_id: order.id,
