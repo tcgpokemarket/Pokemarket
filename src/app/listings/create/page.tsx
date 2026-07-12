@@ -134,17 +134,16 @@ export default function CreateListingPage() {
         status: form.status,
       };
 
-      const response = await fetch("/api/listings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json().catch(() => ({}));
+      const { data: listing, error } = await supabase
+        .from("listings")
+        .insert(payload as never)
+        .select("id")
+        .single<{ id: string }>();
 
-      if (!response.ok) {
-        setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
-      } else {
-        router.push(`/listings/${data.listing.id}`);
+      if (error) {
+        setMessage({ type: "error", text: error.message ?? "Failed to create listing." });
+      } else if (listing) {
+        router.push(`/listings/${listing.id}`);
       }
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to create listing." });
