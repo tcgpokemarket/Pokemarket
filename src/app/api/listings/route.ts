@@ -102,7 +102,6 @@ export async function POST(req: Request) {
     status?: string;
     shipping_paid_by?: "buyer" | "seller";
     weight_oz?: number | null;
-    package_type?: string | null;
   };
 
   if (!body.card_name || !body.set_name || !body.condition || !body.category || typeof body.price !== "number") {
@@ -126,7 +125,6 @@ export async function POST(req: Request) {
     status: body.status ?? "active",
     shipping_paid_by: body.shipping_paid_by ?? "buyer",
     weight_oz: body.weight_oz ?? null,
-    package_type: body.package_type ?? null,
   };
 
   const { data, error } = await supabase.from("listings").insert(listingPayload as any).select("*").single();

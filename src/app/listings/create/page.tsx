@@ -134,7 +134,6 @@ export default function CreateListingPage() {
         images: imageUrls,
         status: form.status,
         weight_oz: Number(form.weight_oz || 0),
-        package_type: form.package_type,
       };
 
       const submit = supabase.from("listings").insert(payload as any).select("*").single<{ id: string }>();
