@@ -38,7 +38,61 @@ const SUPPORT_CARD = (
   <SupportInlineCard title="Need seller support?" description="Get help with listings, fees, payouts, live shows, or seller tools." href="/support" />
 );
 
-type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live";
+type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live" | "rewards";
+
+type RewardsAccount = {
+  available_points: number;
+  pending_points: number;
+  redeemed_points: number;
+  lifetime_points: number;
+  last_login_bonus_at: string | null;
+  points_expire_at: string | null;
+};
+
+type RewardsLedgerRow = {
+  id: string;
+  entry_type: string;
+  points: number;
+  balance_after: number;
+  created_at: string;
+};
+
+type RewardsOption = {
+  id: string;
+  option_key: string;
+  display_name: string;
+  redemption_type: string;
+  points_cost: number;
+  credit_amount: number | null;
+};
+
+type RewardsSnapshot = {
+  account: RewardsAccount | null;
+  ledger: RewardsLedgerRow[];
+  options: RewardsOption[];
+};
+
+const DEFAULT_REWARDS_ACCOUNT: RewardsAccount = {
+  available_points: 0,
+  pending_points: 0,
+  redeemed_points: 0,
+  lifetime_points: 0,
+  last_login_bonus_at: null,
+  points_expire_at: null,
+};
+
+function formatPoints(value: number) {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+function formatDateTime(value: string | null) {
+  return value ? new Date(value).toLocaleString() : "—";
+}
+
+function pointsBadge(points: number) {
+  return points >= 0 ? `+${formatPoints(points)}` : formatPoints(points);
+}
+
 
 type DashboardOrder = Order & {
   listings?: { card_name?: string; images?: string[] } | null;
@@ -119,6 +173,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [purchases, setPurchases] = useState<DashboardOrder[]>([]);
   const [sales, setSales] = useState<DashboardOrder[]>([]);
   const [auctionOrders, setAuctionOrders] = useState<AuctionOrder[]>([]);
+  const [rewardsSnapshot, setRewardsSnapshot] = useState<RewardsSnapshot | null>(null);
   const pendingAuctionOrders = useMemo(() => auctionOrders.filter((order) => order.payment_status === "payment_pending"), [auctionOrders]);
   const paidAuctionOrders = useMemo(() => auctionOrders.filter((order) => order.payment_status === "paid"), [auctionOrders]);
   const expiredAuctionOrders = useMemo(() => auctionOrders.filter((order) => ["expired", "failed"].includes(order.payment_status)), [auctionOrders]);
@@ -135,7 +190,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         return;
       }
 
-      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: auctionOrdersData }, { data: sellerData }, { data: storeData }] = await Promise.all([
+      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: auctionOrdersData }, { data: sellerData }, { data: storeData }, rewardsData] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
         supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
@@ -145,6 +200,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         supabase.from("auction_orders").select("*, show_products(title, subtitle, image_url), profiles:buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
         supabase.from("sellers").select("*").eq("id", user.id).maybeSingle(),
         supabase.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
+        fetch("/api/rewards").then(async (response) => (response.ok ? response.json() : null)).catch(() => null),
       ]);
 
       const profileRow = profileData as Profile | null;
@@ -172,6 +228,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       setPurchases((purchaseData ?? []) as DashboardOrder[]);
       setSales((salesData ?? []) as DashboardOrder[]);
       setAuctionOrders((auctionOrdersData ?? []) as AuctionOrder[]);
+      setRewardsSnapshot(rewardsData as RewardsSnapshot | null);
       setLoading(false);
     };
 
@@ -522,7 +579,15 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     { key: "sales", label: `Sales (${sales.length})` },
     { key: "fees", label: "Fees & Earnings" },
     { key: "live", label: "Live Studio" },
+    { key: "rewards", label: "Rewards" },
   ];
+
+  const rewardsAccount = rewardsSnapshot?.account ?? DEFAULT_REWARDS_ACCOUNT;
+  const rewardsOptions = rewardsSnapshot?.options ?? [];
+  const rewardsLedger = rewardsSnapshot?.ledger ?? [];
+  const rewardsProgress = rewardsAccount.available_points > 0 ? Math.min(100, (rewardsAccount.available_points / 1000) * 100) : 0;
+
+
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -673,6 +738,24 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               </div>
 
               <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-6">
+                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Rewards</div>
+                <h3 className="mt-2 text-xl font-black">{formatPoints(rewardsAccount.available_points)} points ready</h3>
+                <p className="mt-2 text-sm text-gray-300">Earn from signup, purchases, live bids, referrals, and admin bonuses.</p>
+                <div className="mt-4 space-y-2 text-sm text-gray-300">
+                  <div className="flex items-center justify-between"><span>Pending points</span><span>{formatPoints(rewardsAccount.pending_points)}</span></div>
+                  <div className="flex items-center justify-between"><span>Redeemed points</span><span>{formatPoints(rewardsAccount.redeemed_points)}</span></div>
+                  <div className="flex items-center justify-between"><span>Lifetime points</span><span>{formatPoints(rewardsAccount.lifetime_points)}</span></div>
+                </div>
+                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${rewardsProgress}%` }} />
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <Link href="/rewards" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white hover:border-yellow-400/40">Open rewards center</Link>
+                  <Link href="/dashboard?tab=rewards" className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white hover:border-yellow-400/40">View in dashboard</Link>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-6">
                 <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Referral rewards</div>
                 <h3 className="mt-2 text-xl font-black">Share your invite link</h3>
                 <p className="mt-2 text-sm text-gray-300">Invite buyers, sellers, or creators to TcgPoké Market and track rewards tied to their activity.</p>
@@ -815,6 +898,91 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                   <div className="flex items-center justify-between"><span>Auto label readiness</span><span>{liveInsights.shippingPerformance}%</span></div>
                   <div className="flex items-center justify-between"><span>Combined shipping</span><span>Enabled</span></div>
                   <div className="flex items-center justify-between"><span>Fraud/trust monitoring</span><span>{showTrustScore >= 80 ? "Healthy" : "Watch"}</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {tab === "rewards" && (
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Rewards center</div>
+                  <h2 className="mt-2 text-2xl font-black">{formatPoints(rewardsAccount.available_points)} available points</h2>
+                  <p className="mt-2 text-sm text-gray-400">Rewards are issued from signup, orders, live bids, referrals, and admin bonuses.</p>
+                </div>
+                <Link href="/rewards" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">Open full rewards page</Link>
+              </div>
+              <div className="mt-6 grid gap-4 md:grid-cols-4">
+                {[
+                  { label: "Available", value: rewardsAccount.available_points },
+                  { label: "Pending", value: rewardsAccount.pending_points },
+                  { label: "Redeemed", value: rewardsAccount.redeemed_points },
+                  { label: "Lifetime", value: rewardsAccount.lifetime_points },
+                ].map((stat) => (
+                  <div key={stat.label} className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+                    <div className="text-xs uppercase tracking-widest text-gray-500">{stat.label}</div>
+                    <div className="mt-2 text-2xl font-black">{formatPoints(stat.value)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                <h3 className="text-lg font-bold">Redeem options</h3>
+                <div className="mt-4 space-y-3">
+                  {rewardsOptions.length === 0 ? (
+                    <div className="rounded-xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-400">No redemption options available.</div>
+                  ) : rewardsOptions.map((option) => (
+                    <div key={option.id} className="rounded-xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="font-semibold text-white">{option.display_name}</span>
+                        <span>{formatPoints(option.points_cost)} pts</span>
+                      </div>
+                      <div className="mt-1 text-xs uppercase tracking-widest text-yellow-400">{option.redemption_type.replaceAll("_", " ")}</div>
+                      <button
+                        onClick={async () => {
+                          const response = await fetch("/api/rewards/redeem", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ optionId: option.id }),
+                          });
+                          if (!response.ok) {
+                            return;
+                          }
+                          const refreshed = await fetch("/api/rewards").then((res) => res.json()).catch(() => null);
+                          if (refreshed) setRewardsSnapshot(refreshed as RewardsSnapshot);
+                        }}
+                        disabled={rewardsAccount.available_points < option.points_cost}
+                        className="mt-3 w-full rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs font-semibold text-yellow-400 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {rewardsAccount.available_points < option.points_cost ? "Not enough points" : "Redeem now"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
+                <h3 className="text-lg font-bold">Recent rewards</h3>
+                <div className="mt-4 space-y-3">
+                  {rewardsLedger.length === 0 ? (
+                    <div className="rounded-xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-400">No rewards activity yet.</div>
+                  ) : rewardsLedger.slice(0, 6).map((entry) => (
+                    <div key={entry.id} className="rounded-xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="font-semibold text-white">{entry.entry_type.replaceAll("_", " ")}</span>
+                        <span className="font-black text-yellow-400">{pointsBadge(entry.points)}</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-xs text-gray-500">
+                        <span>{formatDateTime(entry.created_at)}</span>
+                        <span>Balance {formatPoints(entry.balance_after)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

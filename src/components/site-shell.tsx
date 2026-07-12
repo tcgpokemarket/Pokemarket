@@ -13,6 +13,7 @@ const primaryNav = [
   { label: "Categories", href: "/cards" },
   { label: "Sell", href: "/sell" },
   { label: "Wallet", href: "/dashboard?tab=overview" },
+  { label: "Rewards", href: "/rewards" },
   { label: "Messages", href: "/messages" },
   { label: "Notifications", href: "/dashboard?tab=overview" },
   { label: "Community", href: "/social" },
