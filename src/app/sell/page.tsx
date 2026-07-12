@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
+import { isAdminUser } from "@/lib/admin-access";
 import type { SellerVerificationStatus } from "@/lib/seller-verification";
 import { recordAuditEvent } from "@/lib/audit-log";
 type VerificationRow = {
@@ -75,14 +76,15 @@ export default function SellPage() {
       }
 
       setUserId(user.id);
-      const response = await fetch("/api/seller-verification/me", { credentials: "include" });
-      const data = (await response.json()) as VerificationResponse;
-      const verification = data.verification ?? null;
-      const adminBypass = Boolean(data.adminBypass);
+      const localAdminBypass = isAdminUser(user);
+      const response = localAdminBypass ? null : await fetch("/api/seller-verification/me", { credentials: "include" });
+      const data = response ? (await response.json()) as VerificationResponse : null;
+      const verification = data?.verification ?? null;
+      const adminBypass = localAdminBypass || Boolean(data?.adminBypass);
 
       if (!active) return;
 
-      setVerificationStatus(adminBypass ? "approved" : (data.status ?? verification?.status ?? "not_started"));
+      setVerificationStatus(adminBypass ? "approved" : (data?.status ?? verification?.status ?? "not_started"));
       setVerificationData(adminBypass ? null : verification ? {
         rejection_reason: verification.rejection_reason,
         more_information_request: verification.more_information_request,
