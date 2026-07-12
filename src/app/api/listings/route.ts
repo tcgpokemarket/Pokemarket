@@ -70,7 +70,7 @@ export async function POST(request: Request) {
 
   if (!profile?.id) {
     console.error("[listings.publish] missing profile", { authUserId: user.id });
-    return NextResponse.json({ error: "Seller profile is not ready yet. Please refresh and try again." }, { status: 400 });
+    return NextResponse.json({ error: "We couldn’t find your seller profile yet. Please refresh and try again." }, { status: 400 });
   }
 
   const { data, error } = await (supabase.from("listings") as any).insert(payload).select("id").single<{ id: string }>();

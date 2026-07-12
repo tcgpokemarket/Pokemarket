@@ -168,20 +168,24 @@ export default function SellPage() {
       status: form.status,
     };
 
-    const response = await fetch("/api/listings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await response.json().catch(() => ({}));
+    try {
+      const response = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
 
-    if (!response.ok) {
-      setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
-    } else if (data.listing?.id) {
-      router.push(`/listings/${data.listing.id}`);
+      if (!response.ok) {
+        setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
+      } else if (data.listing?.id) {
+        router.push(`/listings/${data.listing.id}`);
+      }
+    } catch {
+      setMessage({ type: "error", text: "Publish failed. Please try again." });
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   const isGraded = form.category === "graded";
