@@ -149,7 +149,6 @@ export default function SellPage() {
     setMessage(null);
 
     const payload = {
-      seller_id: userId,
       card_name: form.card_name,
       set_name: form.set_name,
       card_number: form.card_number || null,
@@ -161,6 +160,10 @@ export default function SellPage() {
       description: form.description || null,
       grade_company: form.grade_company || null,
       grade_score: form.grade_score ? parseFloat(form.grade_score) : null,
+      shipping_profile_id: null,
+      shipping_paid_by: "seller",
+      weight_oz: 1,
+      package_type: "card envelope",
       images: imageUrls,
       status: form.status,
     };

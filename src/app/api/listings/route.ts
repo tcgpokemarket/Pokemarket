@@ -20,7 +20,11 @@ export async function POST(request: Request) {
     avatarUrl: user.user_metadata?.avatar_url ?? null,
   });
 
-  const body = await request.json();
+  const body = await request.json().catch(() => ({}));
+  const shippingProfileId = body.shipping_profile_id ? String(body.shipping_profile_id).trim() : null;
+  const shippingPaidBy = body.shipping_paid_by === "seller" ? "seller" : body.shipping_paid_by === "buyer" ? "buyer" : null;
+  const weightOz = body.weight_oz === null || body.weight_oz === undefined || body.weight_oz === "" ? null : Number(body.weight_oz);
+  const packageType = body.package_type ? String(body.package_type).trim() : null;
   const payload = {
     seller_id: user.id,
     card_name: String(body.card_name ?? "").trim(),
@@ -34,7 +38,10 @@ export async function POST(request: Request) {
     description: body.description ? String(body.description).trim() : null,
     grade_company: body.grade_company ? String(body.grade_company).trim() : null,
     grade_score: body.grade_score === null || body.grade_score === undefined || body.grade_score === "" ? null : Number(body.grade_score),
-    shipping_profile_id: body.shipping_profile_id ? String(body.shipping_profile_id).trim() : null,
+    shipping_profile_id: shippingProfileId,
+    shipping_paid_by: shippingPaidBy,
+    weight_oz: weightOz,
+    package_type: packageType,
     images: Array.isArray(body.images) ? (body.images as unknown[]).filter((value): value is string => typeof value === "string") : [],
     status: String(body.status ?? "active"),
   };
@@ -43,6 +50,9 @@ export async function POST(request: Request) {
     authUserId: user.id,
     sellerId: user.id,
     shippingProfileId: payload.shipping_profile_id,
+    shippingPaidBy: payload.shipping_paid_by,
+    weightOz: payload.weight_oz,
+    packageType: payload.package_type,
     imageCount: payload.images.length,
     images: payload.images,
     listingPayload: {
