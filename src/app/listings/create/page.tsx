@@ -118,38 +118,39 @@ export default function CreateListingPage() {
     setLoading(true);
     setMessage(null);
 
-    const payload = {
-      card_name: form.card_name,
-      set_name: form.set_name,
-      card_number: form.card_number || null,
-      rarity: form.rarity || null,
-      condition: form.condition,
-      category: form.category,
-      price: parseFloat(form.price),
-      quantity: parseInt(form.quantity),
-      description: form.description || null,
-      grade_company: form.grade_company || null,
-      grade_score: form.grade_score ? parseFloat(form.grade_score) : null,
-      images: imageUrls,
-      status: form.status,
-      weight_oz: Number(form.weight_oz || 0),
-      package_type: form.package_type,
-    };
+    try {
+      const payload = {
+        card_name: form.card_name,
+        set_name: form.set_name,
+        card_number: form.card_number || null,
+        rarity: form.rarity || null,
+        condition: form.condition,
+        category: form.category,
+        price: parseFloat(form.price),
+        quantity: parseInt(form.quantity),
+        description: form.description || null,
+        grade_company: form.grade_company || null,
+        grade_score: form.grade_score ? parseFloat(form.grade_score) : null,
+        images: imageUrls,
+        status: form.status,
+        weight_oz: Number(form.weight_oz || 0),
+        package_type: form.package_type,
+      };
 
-    const res = await fetch("/api/listings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      const submit = supabase.from("listings").insert(payload as any).select("*").single<{ id: string }>();
+      const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Publishing timed out. Please try again.")), 20000));
+      const { data, error } = await Promise.race([submit, timeout]);
 
-    const data = await res.json();
-
-    if (!res.ok) {
-      setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
-    } else {
-      router.push(`/listings/${data.listing.id}`);
+      if (error) {
+        setMessage({ type: "error", text: error.message ?? "Failed to create listing." });
+      } else {
+        router.push(`/listings/${data.id}`);
+      }
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to create listing." });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const isGraded = form.category === "graded";
