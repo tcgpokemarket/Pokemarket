@@ -21,6 +21,7 @@ export default function CreateListingPage() {
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [priceGuideLoading, setPriceGuideLoading] = useState(false);
@@ -49,9 +50,15 @@ export default function CreateListingPage() {
   ] as const;
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user) router.push("/auth?redirectTo=/listings/create");
-      else setUserId(user.id);
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) {
+        router.push("/auth?redirectTo=/listings/create");
+        return;
+      }
+
+      setUserId(user.id);
+      const { data: profile } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle();
+      setProfileId((profile as { id?: string } | null)?.id ?? null);
     });
   }, [router, supabase]);
 
@@ -76,7 +83,7 @@ export default function CreateListingPage() {
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files || !userId || !supabase) return;
+    if (!files || !userId || !profileId || !supabase) return;
 
     setUploading(true);
     setMessage(null);
@@ -113,13 +120,13 @@ export default function CreateListingPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!userId || !supabase) return;
+    if (!userId || !profileId || !supabase) return;
     setLoading(true);
     setMessage(null);
 
     try {
       const payload = {
-        seller_id: userId,
+        seller_id: profileId,
         card_name: form.card_name,
         set_name: form.set_name,
         card_number: form.card_number || null,
