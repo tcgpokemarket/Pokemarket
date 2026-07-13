@@ -11,7 +11,6 @@ type ListingWithSeller = Listing & {
   profiles?: Pick<Profile, "id" | "username" | "seller_rating" | "total_sales" | "avatar_url"> | null;
 };
 
-type PublicListing = Pick<Listing, "id">;
 
 function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
@@ -38,7 +37,7 @@ async function fetchPublicRows<T>(table: string, select: string, filters: Array<
 }
 
 async function fetchListingIds() {
-  const rows = await fetchPublicRows<PublicListing>("listings", "id", [["order", "created_at.desc"]], 2000);
+  const rows = await fetchPublicRows<{ id: string }>("listings", "id", [["status", "eq.active"]], 2000);
   return rows.map((row) => ({ id: row.id }));
 }
 
