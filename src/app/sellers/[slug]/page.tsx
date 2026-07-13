@@ -30,6 +30,12 @@ type SellerStoreRow = {
 
 type SellerStorefrontRow = Pick<SellerStorefront, "storefront_slug">;
 
+type SellerStoreListRow = {
+  seller_id: string;
+  name: string;
+  slug: string | null;
+};
+
 type SellerStorefront = {
   id: string;
   display_name: string;
@@ -91,8 +97,8 @@ async function fetchPublicRows<T>(table: string, select: string, filters: Array<
 export const dynamicParams = false;
 
 export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
-  const rows = await fetchPublicRows<SellerStorefrontRow>("sellers", "storefront_slug", [["storefront_slug", "not.is.null"]], 2000);
-  const slugs = rows.filter((row): row is { storefront_slug: string } => Boolean(row.storefront_slug)).map((row) => ({ slug: row.storefront_slug }));
+  const rows = await fetchPublicRows<SellerStoreListRow>("seller_stores", "seller_id, name, slug", [["slug", "not.is.null"]], 2000);
+  const slugs = rows.filter((row) => Boolean(row.slug)).map((row) => ({ slug: row.slug as string }));
   return slugs.length ? slugs : [{ slug: "preview" }];
 }
 
@@ -117,8 +123,22 @@ function getPreviewSeller(slug: string): SellerStorefront {
 
 export default async function SellerStorefrontPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const [sellerRow] = await fetchPublicRows<SellerStorefront>("sellers", "*", [["storefront_slug", `eq.${slug}`]], 1);
-  const sellerData = sellerRow ?? getPreviewSeller(slug);
+  const [sellerRow] = await fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme", [["slug", `eq.${slug}`]], 1);
+  const sellerData = sellerRow ? {
+    id: sellerRow.seller_id,
+    display_name: sellerRow.name,
+    storefront_slug: sellerRow.slug,
+    bio: sellerRow.description,
+    avatar_url: sellerRow.logo_url,
+    banner_url: sellerRow.banner_url,
+    verified: sellerRow.verified,
+    rating: sellerRow.verified ? 5 : 0,
+    follower_count: sellerRow.featured ? 1 : 0,
+    sales_count: sellerRow.featured ? 1 : 0,
+    total_revenue: 0,
+    total_listings: 0,
+    total_live_shows: 0,
+  } : getPreviewSeller(slug);
   if (!sellerRow && slug === "preview") {
     return (
       <div className="min-h-screen bg-[#0f0f1a] text-white">
