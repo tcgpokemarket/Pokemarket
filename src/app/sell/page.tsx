@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
-import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { getAppRole } from "@/lib/security";
 import { getEffectiveSellerVerificationStatus, type SellerVerificationStatus } from "@/lib/seller-verification";
 import type { User } from "@supabase/supabase-js";
@@ -67,19 +66,6 @@ export default function SellPage() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
         router.push("/auth?redirectTo=/sell");
-        return;
-      }
-
-      try {
-        await bootstrapUserAccount({
-          userId: user.id,
-          email: user.email,
-          fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-          avatarUrl: user.user_metadata?.avatar_url ?? null,
-        });
-      } catch {
-        if (!active) return;
-        setMessage({ type: "error", text: "We couldn’t finish setting up your seller account yet. Please refresh and try again." });
         return;
       }
 

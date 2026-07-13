@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { MAX_IMAGE_SIZE_BYTES, uploadImageFile } from "@/lib/uploads";
 
 const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"];
@@ -48,19 +47,6 @@ export default function CreateListingPage() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
         router.push("/auth?redirectTo=/listings/create");
-        return;
-      }
-
-      try {
-        await bootstrapUserAccount({
-          userId: user.id,
-          email: user.email,
-          fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-          avatarUrl: user.user_metadata?.avatar_url ?? null,
-        });
-      } catch {
-        if (!active) return;
-        setMessage({ type: "error", text: "We couldn’t finish setting up your seller account yet. Please refresh and try again." });
         return;
       }
 
