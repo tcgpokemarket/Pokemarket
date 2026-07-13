@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getAppRole } from "@/lib/security";
 
 const PUBLIC_PATHS = [
+  "/",
   "/auth",
   "/auth/signin",
   "/auth/callback",
@@ -17,6 +18,7 @@ const PUBLIC_PATHS = [
   "/cards",
   "/collection",
   "/help",
+  "/support",
   "/live",
   "/listings",
   "/policies",
@@ -29,11 +31,15 @@ const PUBLIC_PATHS = [
   "/dmca",
 ] as const;
 
+const PUBLIC_PREFIXES = ["/profile/", "/sellers/"] as const;
+
 function isPathMatch(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
 function isPublicPath(pathname: string) {
+  if (pathname.startsWith("/profile/") || pathname.startsWith("/sellers/")) return true;
+  if (pathname === "/listings" || (pathname.startsWith("/listings/") && pathname !== "/listings/create")) return true;
   return PUBLIC_PATHS.some((route) => isPathMatch(pathname, route));
 }
 

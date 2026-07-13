@@ -4,6 +4,7 @@ import { applySecurityHeaders } from "./headers";
 import type { AppRole } from "./lib/security";
 
 const PUBLIC_PATHS = [
+  "/",
   "/auth",
   "/auth/signin",
   "/auth/callback",
@@ -14,6 +15,7 @@ const PUBLIC_PATHS = [
   "/cards",
   "/collection",
   "/help",
+  "/support",
   "/live",
   "/listings",
   "/policies",
@@ -26,16 +28,28 @@ const PUBLIC_PATHS = [
   "/dmca",
 ] as const;
 
+const PUBLIC_PREFIXES = ["/profile/", "/sellers/"] as const;
+
+const PUBLIC_API_PATHS = [
+  "/api/stripe/webhook",
+] as const;
+
 function isPathMatch(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
 function isPublicPath(pathname: string) {
-  return PUBLIC_PATHS.some((route) => isPathMatch(pathname, route));
+  if (pathname.startsWith("/profile/") || pathname.startsWith("/sellers/")) return true;
+  if (pathname === "/listings" || pathname.startsWith("/listings/") && pathname !== "/listings/create") return true;
+  return PUBLIC_PATHS.some((route) => pathname === route || pathname === `${route}/`);
 }
 
 function isApiPath(pathname: string) {
   return pathname.startsWith("/api/");
+}
+
+function isPublicApiPath(pathname: string) {
+  return PUBLIC_API_PATHS.some((route) => isPathMatch(pathname, route));
 }
 
 function getSafeRedirect(value: string | null) {
@@ -55,7 +69,9 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = isPathMatch(pathname, "/auth") || pathname === "/login" || pathname === "/signup";
   const isPublicPage = isPublicPath(pathname);
   const isProtectedPage = !isPublicPage && !isAuthPage && !isApiPath(pathname);
-  const isProtectedApi = isApiPath(pathname);
+  const isProtectedApi = isApiPath(pathname) && !isPublicApiPath(pathname);
+  const isApiRoute = isApiPath(pathname);
+  const requiresAuth = isProtectedPage || (isApiRoute && !isPublicApiPath(pathname));
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(
@@ -83,8 +99,8 @@ export async function middleware(request: NextRequest) {
     return applySecurityHeaders(NextResponse.redirect(url));
   }
 
-  if ((isProtectedPage || isProtectedApi) && !user) {
-    if (isProtectedApi) {
+  if (requiresAuth && !user) {
+    if (isApiRoute) {
       return applySecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
     }
 
