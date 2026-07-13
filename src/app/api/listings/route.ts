@@ -13,12 +13,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  await bootstrapUserAccount({
-    userId: user.id,
-    email: user.email,
-    fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
-    avatarUrl: user.user_metadata?.avatar_url ?? null,
-  });
+  try {
+    await bootstrapUserAccount({
+      userId: user.id,
+      email: user.email,
+      fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+      avatarUrl: user.user_metadata?.avatar_url ?? null,
+    });
+  } catch (error) {
+    console.warn("[listings.publish] seller bootstrap failed", {
+      authUserId: user.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 
   const body = await request.json().catch(() => ({}));
   const payload = {
