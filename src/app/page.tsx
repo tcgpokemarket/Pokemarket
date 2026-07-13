@@ -27,6 +27,8 @@ function isSealedListing(listing: HomepageListing) {
   return listing.category === "sealed";
 }
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "TcgPoké Market | Live Pokémon Auctions & Marketplace",
   description: "Shop live Pokémon breaks, auctions, singles, sealed products, and collector storefronts with secure checkout and seller tools.",

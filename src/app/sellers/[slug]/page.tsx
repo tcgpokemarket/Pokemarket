@@ -52,6 +52,8 @@ type SellerStorefront = {
   total_live_shows: number;
 };
 
+export const dynamic = "force-dynamic";
+
 type ProfileRow = {
   username: string | null;
   full_name: string | null;

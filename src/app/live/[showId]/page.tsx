@@ -7,6 +7,8 @@ import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
+export const dynamic = "force-dynamic";
+
 function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
   url.searchParams.set("select", select);
