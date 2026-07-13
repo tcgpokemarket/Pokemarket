@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 
 export const dynamic = "force-dynamic";
@@ -56,11 +57,30 @@ export async function POST(request: Request) {
     },
   });
 
-  const { data: profile, error: profileError } = await supabase.from("profiles").select("id").eq("id", user.id).maybeSingle<{ id: string }>();
+  const admin = createAdminClient();
+  let { data: profile, error: profileError } = await admin.from("profiles").select("id").eq("id", user.id).maybeSingle<{ id: string }>();
 
   if (profileError) {
     console.error("[listings.publish] profile lookup failed", { authUserId: user.id, error: profileError.message });
     return NextResponse.json({ error: profileError.message ?? "Failed to resolve seller profile." }, { status: 400 });
+  }
+
+  if (!profile?.id) {
+    const bootstrapResult = await bootstrapUserAccount({
+      userId: user.id,
+      email: user.email,
+      fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+      avatarUrl: user.user_metadata?.avatar_url ?? null,
+    }).catch((error) => {
+      console.error("[listings.publish] bootstrap retry failed", { authUserId: user.id, error: error instanceof Error ? error.message : String(error) });
+      return null;
+    });
+
+    if (bootstrapResult) {
+      const retry = await admin.from("profiles").select("id").eq("id", user.id).maybeSingle<{ id: string }>();
+      profile = retry.data;
+      profileError = retry.error;
+    }
   }
 
   if (!profile?.id) {

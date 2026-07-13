@@ -119,21 +119,19 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         return;
       }
 
-      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: sellerData }, { data: storeData }] = await Promise.all([
+      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: storeData }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
         supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
         supabase.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
         supabase.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
         supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("sellers").select("*").eq("id", user.id).maybeSingle(),
         supabase.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
       ]);
 
       const sellerLiveShowsData = await listLiveShowsBySeller(user.id);
 
       const profileRow = profileData as Profile | null;
-      const sellerRow = sellerData as SellerRow | null;
       const storeRow = storeData as StoreRow | null;
       const verificationRow = verificationData as VerificationRow | null;
 
@@ -145,12 +143,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         more_information_request: verificationRow.more_information_request,
         verified_at: verificationRow.verified_at,
       } : null);
-      setSellerRecord(sellerRow);
+      setSellerRecord(storeRow as SellerRow | null);
       setStoreRecord(storeRow);
       setProfileAvatarUrl(profileRow?.avatar_url ?? null);
       setProfileBannerUrl(null);
-      setSellerAvatarUrl(sellerRow?.avatar_url ?? null);
-      setSellerBannerUrl(sellerRow?.banner_url ?? null);
+      setSellerAvatarUrl(storeRow?.logo_url ?? null);
+      setSellerBannerUrl(storeRow?.banner_url ?? null);
       setStoreLogoUrl(storeRow?.logo_url ?? null);
       setStoreBannerUrl(storeRow?.banner_url ?? null);
       setWallet(walletData ?? null);

@@ -35,7 +35,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "No seller asset provided." }, { status: 400 });
     }
 
-    const { error } = await (admin.from("sellers") as any).update(updates as any).eq("id", user.id);
+    const { error } = await (admin.from("seller_stores") as any).update(updates as any).eq("seller_id", user.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ success: true });
   }

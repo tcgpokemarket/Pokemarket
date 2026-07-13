@@ -186,10 +186,7 @@ export async function POST(req: Request) {
     }, { onConflict: "order_id,entry_type,reference_id" });
   }
 
-  const [{ data: sellerProfile }, { data: sellerRecord }] = await Promise.all([
-    (supabase as any).from("profiles").select("*").eq("id", order.seller_id).maybeSingle(),
-    (supabase as any).from("sellers").select("*").eq("id", order.seller_id).maybeSingle(),
-  ]);
+  const { data: sellerProfile } = await (supabase as any).from("profiles").select("*").eq("id", order.seller_id).maybeSingle();
 
   if (sellerProfile) {
     await (supabase as any)
@@ -198,12 +195,10 @@ export async function POST(req: Request) {
       .eq("id", order.seller_id);
   }
 
-  if (sellerRecord) {
-    await (supabase as any)
-      .from("sellers")
-      .update(incrementSellerTotals(sellerRecord, toNumber(order.total_amount, 0), 0, 0))
-      .eq("id", order.seller_id);
-  }
+  await (supabase as any)
+    .from("seller_stores")
+    .update({ verified: true })
+    .eq("seller_id", order.seller_id);
 
   await (supabase as any)
     .from("listings")

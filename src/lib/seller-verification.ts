@@ -302,21 +302,17 @@ export async function reviewSellerVerification(input: {
       avatarUrl: currentRow.profiles?.avatar_url ?? null,
       verified: true,
     });
-    await (admin as any).from("sellers").upsert({
-      id: currentRow.user_id,
-      display_name: displayName,
-      storefront_slug: storeSlug,
-      bio: currentRow.legal_name ? `Seller identity verified for ${currentRow.legal_name}.` : null,
+    await (admin as any).from("seller_stores").upsert({
+      seller_id: currentRow.user_id,
+      name: displayName,
+      slug: storeSlug,
+      description: currentRow.legal_name ? `Seller identity verified for ${currentRow.legal_name}.` : null,
       avatar_url: currentRow.profiles?.avatar_url ?? null,
       banner_url: null,
       verified: true,
-      rating: 0,
-      follower_count: 0,
-      sales_count: 0,
-      total_revenue: 0,
-      total_listings: 0,
-      total_live_shows: 0,
-    }, { onConflict: "id" });
+      featured: true,
+      theme: { accent: "#e22400", secondary: "#ffab01", highlight: "#fefb41" },
+    }, { onConflict: "seller_id" });
   }
 
   await addSellerVerificationHistory({

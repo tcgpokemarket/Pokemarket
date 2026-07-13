@@ -109,11 +109,23 @@ export async function getHomepageData(): Promise<HomepageData> {
     const supabase = await createClient();
     const [listingsResult, sellersResult] = await Promise.all([
       supabase.from("listings").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(12),
-      supabase.from("sellers").select("*").order("sales_count", { ascending: false }).limit(8),
+      supabase.from("seller_stores").select("seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme").order("created_at", { ascending: false }).limit(8),
     ]);
 
     const trendingMarketplace = (listingsResult.data ?? []).map(mapListing);
-    const featuredSellers = (sellersResult.data ?? []).map((seller) => mapSeller(seller as SellerRow)).filter(Boolean) as HomepageSeller[];
+    const featuredSellers = ((sellersResult.data ?? []) as Array<{ seller_id: string; name: string; slug: string; logo_url: string | null; verified: boolean; featured: boolean }>).map((seller) => mapSeller({
+      id: seller.seller_id,
+      full_name: seller.name,
+      username: seller.slug,
+      avatar_url: seller.logo_url,
+      seller_rating: seller.verified ? 5 : 0,
+      total_sales: seller.featured ? 1 : 0,
+      display_name: seller.name,
+      storefront_slug: seller.slug,
+      verified: seller.verified,
+      rating: seller.verified ? 5 : 0,
+      sales_count: seller.featured ? 1 : 0,
+    } as SellerRow)).filter(Boolean) as HomepageSeller[];
 
     return {
       liveNow: [],
