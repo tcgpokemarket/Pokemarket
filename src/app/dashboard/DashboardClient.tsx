@@ -506,7 +506,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     { key: "listings", label: `Listings (${listings.length})` },
     { key: "purchases", label: `Purchases (${purchases.length})` },
     { key: "sales", label: `Sales (${sales.length})` },
-    { key: "fees", label: "Fees & Earnings" },
+    { key: "fees", label: "Seller Fees" },
     { key: "live", label: "Live Studio" },
   ];
 

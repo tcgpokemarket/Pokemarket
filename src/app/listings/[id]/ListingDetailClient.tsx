@@ -47,38 +47,40 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
     // Shipping pricing is handled at checkout.
   }, [id, initialListing]);
 
-
   const handleBuy = async () => {
-    if (!user) { router.push(`/auth?redirectTo=/listings/${id}`); return; }
+    if (!user) {
+      router.push(`/auth?redirectTo=/listings/${id}`);
+      return;
+    }
     if (!supabase) return;
     setBuying(true);
     const res = await fetch("/api/stripe/checkout", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        listingId: id,
-        quantity: 1,
-      }),
+      body: JSON.stringify({ listingId: id, quantity: 1 }),
     });
     const data = await res.json();
     if (data.url) window.location.href = data.url;
-    else { alert(data.error ?? "Checkout failed. Please try again."); setBuying(false); }
+    else {
+      alert(data.error ?? "Checkout failed. Please try again.");
+      setBuying(false);
+    }
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center">
-        <div className="text-gray-400 text-lg animate-pulse">Loading listing...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a]">
+        <div className="text-lg text-gray-400 animate-pulse">Loading listing...</div>
       </div>
     );
   }
 
   if (!listing) {
     return (
-      <div className="min-h-screen bg-[#0f0f1a] flex items-center justify-center text-center">
+      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] text-center">
         <div>
-          <div className="text-6xl mb-4">🃏</div>
-          <h2 className="text-2xl font-bold mb-2">Listing not found</h2>
+          <div className="mb-4 text-6xl">🃏</div>
+          <h2 className="mb-2 text-2xl font-bold">Listing not found</h2>
           <a href="/listings" className="text-yellow-400 hover:underline">Back to listings</a>
         </div>
       </div>
@@ -90,121 +92,81 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-[#0f0f1a]/90 backdrop-blur-sm border-b border-white/10">
-        <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-16">
-          <a href="/" className="flex items-center gap-2 font-black text-xl">
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0f0f1a]/90 backdrop-blur-sm">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+          <a href="/" className="flex items-center gap-2 text-xl font-black">
             <span className="text-2xl">⚡</span>
             <span className="text-white">TCG</span><span className="text-yellow-400">Poke</span><span className="text-white">Market</span>
           </a>
           <div className="flex items-center gap-4">
-            <a href="/listings" className="text-gray-300 hover:text-white text-sm">← Back to listings</a>
-            <a href="/auth" className="bg-yellow-400 text-black text-sm font-bold px-4 py-2 rounded-lg hover:bg-yellow-300">Sign In</a>
+            <a href="/listings" className="text-sm text-gray-300 hover:text-white">← Back to listings</a>
+            <a href="/auth" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">Sign In</a>
           </div>
         </div>
       </nav>
 
-      <div className="pt-24 pb-16 max-w-5xl mx-auto px-4">
-        <div className="grid md:grid-cols-2 gap-10">
-          <div>
-            <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden mb-3 aspect-[3/4] flex items-center justify-center">
+      <div className="mx-auto max-w-6xl px-4 pb-12 pt-20 sm:px-6 lg:px-8 lg:pt-24">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start">
+          <div className="space-y-3">
+            <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
               {listing.images?.length ? (
-                <img src={listing.images[selectedImage]} alt={listing.card_name} className="w-full h-full object-contain p-4" />
+                <img src={listing.images[selectedImage]} alt={listing.card_name} className="h-full w-full object-contain p-3 sm:p-4" />
               ) : (
-                <span className="text-8xl">🃏</span>
+                <span className="text-7xl sm:text-8xl">🃏</span>
               )}
             </div>
             {listing.images && listing.images.length > 1 && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 overflow-x-auto pb-1">
                 {listing.images.map((img, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedImage(i)}
-                    className={`w-16 h-16 rounded-xl overflow-hidden border-2 transition-colors ${i === selectedImage ? "border-yellow-400" : "border-white/10"}`}
+                    className={`h-14 w-14 shrink-0 overflow-hidden rounded-xl border transition-colors ${i === selectedImage ? "border-yellow-400" : "border-white/10"}`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-cover" />
+                    <img src={img} alt="" className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>
             )}
           </div>
 
-          <div>
-            <div className="mb-2">
-              <span className={`text-xs font-semibold ${conditionColor}`}>{listing.condition}</span>
-              {listing.grade_company && (
-                <span className="ml-2 bg-yellow-400 text-black text-xs font-black px-2 py-0.5 rounded">
-                  {listing.grade_company} {listing.grade_score}
-                </span>
-              )}
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em]">
+              <span className={conditionColor}>{listing.condition}</span>
+              {listing.grade_company && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{listing.grade_company} {listing.grade_score}</span>}
             </div>
-            <h1 className="text-3xl font-black mb-1">{listing.card_name}</h1>
-            <p className="text-gray-400 mb-1">{listing.set_name}{listing.card_number ? ` · #${listing.card_number}` : ""}</p>
-            {listing.rarity && <p className="text-gray-500 text-sm mb-6">{listing.rarity}</p>}
-
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
-              <div className="flex items-end gap-3 mb-2">
-                <span className="text-4xl font-black">${listing.price.toFixed(2)}</span>
-                {priceDiff !== null && (
-                  <span className={`text-sm font-semibold mb-1 ${priceDiff > 5 ? "text-red-400" : priceDiff < -5 ? "text-green-400" : "text-gray-400"}`}>
-                    {priceDiff > 0 ? "+" : ""}{priceDiff.toFixed(1)}% vs market
-                  </span>
-                )}
-              </div>
-              {marketPrice && (
-                <p className="text-gray-500 text-xs">Market avg: ${marketPrice.toFixed(2)}</p>
-              )}
-              <p className="text-gray-400 text-sm mt-1">{listing.quantity} available</p>
+            <div>
+              <h1 className="text-2xl font-black leading-tight sm:text-3xl">{listing.card_name}</h1>
+              <p className="mt-1 text-sm text-gray-400">{listing.set_name}{listing.card_number ? ` · #${listing.card_number}` : ""}{listing.rarity ? ` · ${listing.rarity}` : ""}</p>
             </div>
 
-            {listing.description && (
-              <div className="mb-6">
-                <h3 className="text-sm font-semibold text-gray-300 mb-2">Description</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">{listing.description}</p>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
+              <div className="flex items-end gap-3">
+                <span className="text-3xl font-black sm:text-4xl">${listing.price.toFixed(2)}</span>
+                {priceDiff !== null && <span className={`pb-1 text-xs font-semibold ${priceDiff > 5 ? "text-red-400" : priceDiff < -5 ? "text-green-400" : "text-gray-400"}`}>{priceDiff > 0 ? "+" : ""}{priceDiff.toFixed(1)}% vs market</span>}
               </div>
-            )}
-
-            <div className="mb-6 rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4 text-sm text-gray-300">
-              <div className="font-semibold text-yellow-400">Transparent seller pricing</div>
-              <p className="mt-1">
-                Buyers see a clear breakdown at checkout, including item subtotal, shipping, sales tax, payment processing fee, marketplace fee, and seller payout.
-              </p>
+              <div className="mt-2 text-sm text-gray-300">{listing.quantity} available{marketPrice ? ` · Market avg $${marketPrice.toFixed(2)}` : ""}</div>
             </div>
 
-            <button
-              onClick={handleBuy}
-              disabled={buying || listing.status !== "active" || listing.seller_id === user?.id}
-              className="w-full bg-yellow-400 text-black font-bold py-4 rounded-xl text-lg hover:bg-yellow-300 transition-all disabled:opacity-50 disabled:cursor-not-allowed mb-3"
-            >
-              {buying ? "Redirecting to checkout..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}
-            </button>
+            {listing.description && <p className="text-sm leading-6 text-gray-400">{listing.description}</p>}
 
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5">
-              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Payout summary</div>
-              <div className="mt-3 space-y-2 text-sm text-gray-300">
-                <div className="flex items-center justify-between"><span>Seller payout</span><span>Generated after order completion</span></div>
-              </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <button onClick={handleBuy} disabled={buying || listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">{buying ? "Redirecting..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}</button>
+              <button className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Add to Cart</button>
+              <button className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Make Offer</button>
+              <button className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Share Listing</button>
+              <button className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
             </div>
 
-            {!user && (
-              <p className="text-center text-gray-500 text-sm">
-                <a href={`/auth?redirectTo=/listings/${id}`} className="text-yellow-400 hover:underline">Sign in</a> to purchase
-              </p>
-            )}
-
-            {listing.profiles && (
-              <div className="mt-6 bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-full bg-yellow-400/20 flex items-center justify-center text-yellow-400 font-black text-lg">
-                  {listing.profiles.username?.[0]?.toUpperCase() ?? "?"}
-                </div>
-                <div>
-                  <p className="font-semibold text-sm">{listing.profiles.username ?? "Seller"}</p>
-                  <div className="flex items-center gap-3 text-xs text-gray-400 mt-0.5">
-                    {listing.profiles.seller_rating > 0 && <span className="text-yellow-400">★ {listing.profiles.seller_rating.toFixed(1)}</span>}
-                    <span>{listing.profiles.total_sales} sales</span>
-                  </div>
-                </div>
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
+              <div>
+                <p className="text-sm font-semibold text-white">Seller</p>
+                <p className="text-sm text-gray-400">{listing.profiles?.username ?? "Seller"}</p>
               </div>
-            )}
+              <div className="text-right text-sm text-gray-400">
+                {listing.profiles?.seller_rating ? <div className="text-yellow-400">★ {listing.profiles.seller_rating.toFixed(1)}</div> : null}
+              </div>
+            </div>
           </div>
         </div>
       </div>
