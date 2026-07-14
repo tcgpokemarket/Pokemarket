@@ -295,8 +295,8 @@ export default function AuctionSetupClient({ sellerName, sellerUsername, listing
                               className="w-20 bg-transparent text-right text-white outline-none"
                             />
                           </label>
-                          <label className="flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1">
-                            Seconds
+                          <label className="flex flex-col gap-1 rounded-full border border-white/10 bg-black/20 px-3 py-2 text-xs text-gray-300">
+                            <span>Auction seconds</span>
                             <input
                               type="number"
                               min="5"
