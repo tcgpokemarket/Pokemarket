@@ -406,7 +406,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   };
 
   const saveSellerAssets = async (updates: {
-    profile?: { avatar_url?: string | null };
+    profile?: { avatar_url?: string | null; seller_state?: string | null };
     seller?: { avatar_url?: string | null; banner_url?: string | null };
     store?: { banner_url?: string | null; logo_url?: string | null };
   }) => {
@@ -418,6 +418,9 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target: "profile", ...updates.profile }),
       });
+      if (updates.profile?.seller_state !== undefined) {
+        setProfile((current) => (current ? { ...current, seller_state: updates.profile?.seller_state ?? null } : current));
+      }
     }
     if (updates.seller) {
       await fetch("/api/profile-assets", {

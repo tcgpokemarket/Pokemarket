@@ -4,6 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createStripeClient } from "@/lib/stripe";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { calculateFeeBreakdown } from "@/lib/seller-fees";
+import { calculateSalesTax } from "@/lib/sales-tax";
+import { resolveCheckoutLocation } from "@/lib/checkout-location";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -73,7 +75,17 @@ export async function POST(request: Request) {
 
   const itemSubtotal = Number(listing.price) * quantity;
   const shipping = 0;
-  const salesTax = 0;
+  const { data: sellerProfile } = await admin.from("profiles").select("seller_state").eq("id", user.id).maybeSingle<{ seller_state: string | null }>();
+  const sellerState = sellerProfile?.seller_state ?? null;
+  const checkoutLocation = resolveCheckoutLocation({
+    shippingAddress: body.shippingAddress ?? null,
+    geo: body.geo ?? null,
+  });
+  const { tax: salesTax } = calculateSalesTax(itemSubtotal + shipping, {
+    sellerState,
+    buyerState: checkoutLocation.state,
+    buyerCountry: checkoutLocation.country,
+  });
   const fees = calculateFeeBreakdown({ itemSubtotal, shipping, salesTax, orders: [] });
   const totalDue = fees.totalDue;
 
@@ -107,6 +119,8 @@ export async function POST(request: Request) {
       item_subtotal: itemSubtotal.toFixed(2),
       shipping_amount: shipping.toFixed(2),
       sales_tax_amount: salesTax.toFixed(2),
+      buyer_state: checkoutLocation.state ?? "",
+      seller_state: sellerState ?? "",
       payment_processing_fee_amount: fees.paymentProcessingFee.toFixed(2),
       marketplace_fee_amount: fees.marketplaceFee.toFixed(2),
       seller_payout_amount: fees.sellerPayout.toFixed(2),
