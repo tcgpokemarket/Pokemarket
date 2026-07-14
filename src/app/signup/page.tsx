@@ -1,5 +1,5 @@
-import { redirect } from "next/navigation";
+import SignupWizard from "./signup-wizard";
 
 export default function SignupPage() {
-  redirect("/auth");
+  return <SignupWizard />;
 }
