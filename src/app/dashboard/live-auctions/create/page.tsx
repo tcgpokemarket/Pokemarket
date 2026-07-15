@@ -1,8 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import { isSellerVerificationApproved } from "@/lib/seller-verification";
+import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
 import type { Listing, LiveShow } from "@/lib/supabase/types";
 import AuctionSetupClient from "./auction-setup-client";
+
+type SellerProfile = {
+  id: string;
+  username: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
+  verification_status: SellerVerificationStatus | null;
+  is_seller: boolean | null;
+};
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +30,7 @@ export default async function CreateAuctionPage() {
       .from("profiles")
       .select("id, username, full_name, avatar_url, verification_status, is_seller")
       .eq("id", user.id)
-      .maybeSingle(),
+      .maybeSingle<SellerProfile>(),
     supabase
       .from("listings")
       .select("id, seller_id, card_name, set_name, card_number, rarity, condition, grade_company, grade_score, price, quantity, images, description, shipping_profile_id, category, status, views, created_at, updated_at")

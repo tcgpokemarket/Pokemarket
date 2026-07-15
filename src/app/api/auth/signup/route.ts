@@ -1,26 +1,33 @@
 import { NextResponse } from "next/server";
+import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
+  const supabase = await createServerSupabaseClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => ({}));
-  const userId = String(body.userId ?? "").trim();
-  const email = String(body.email ?? "").trim().toLowerCase();
   const fullName = String(body.fullName ?? "").trim();
   const username = String(body.username ?? "").trim();
   const accountType = String(body.accountType ?? "").trim();
   const sellerState = String(body.sellerState ?? "").trim().toUpperCase() || null;
   const referralCode = String(body.referralCode ?? "").trim().toUpperCase();
   const avatarUrl = typeof body.avatarUrl === "string" ? body.avatarUrl : null;
+  const email = user.email?.toLowerCase() ?? "";
 
-  if (!userId || !email || !fullName || !username || !accountType) {
+  if (!fullName || !username || !accountType) {
     return NextResponse.json({ error: "Missing signup details." }, { status: 400 });
   }
 
   const admin = createAdminClient();
   const fallbackName = fullName || email.split("@")[0] || "Marketplace user";
+  const userId = user.id;
 
   const [{ data: existingProfile }, { data: existingSeller }, { data: existingWallet }, { data: existingPrivacy }, { data: existingEmails }] = await Promise.all([
     admin.from("profiles").select("id, username").eq("id", userId).maybeSingle<{ id: string; username: string | null }>(),

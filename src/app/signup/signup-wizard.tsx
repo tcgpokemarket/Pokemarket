@@ -198,8 +198,6 @@ export default function SignupWizard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.id,
-          email: form.email.trim(),
           fullName: form.fullName.trim(),
           username,
           accountType: form.accountType,

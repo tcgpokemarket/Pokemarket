@@ -5,7 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 function getSafeRedirect(value: string | null) {
   if (!value || !value.startsWith("/")) return "/dashboard";
-  if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/dashboard";
+  if (
+    value.startsWith("/auth") ||
+    value.startsWith("/api") ||
+    value.startsWith("//") ||
+    value === "/login" ||
+    value === "/signup"
+  ) {
+    return "/dashboard";
+  }
   return value;
 }
 
