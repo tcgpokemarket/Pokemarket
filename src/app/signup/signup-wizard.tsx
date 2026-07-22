@@ -96,10 +96,6 @@ export default function SignupWizard() {
   });
 
   useEffect(() => {
-    setForm((current) => (current.referralCode === referralCode ? current : { ...current, referralCode }));
-  }, [referralCode]);
-
-  useEffect(() => {
     const client = createClient();
     client.auth.getUser().then(({ data: { user } }) => {
       if (user) router.replace(redirectTo);
