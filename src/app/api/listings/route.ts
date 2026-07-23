@@ -46,6 +46,27 @@ export async function POST(request: Request) {
     status: String(body.status ?? "active"),
   };
 
+  const validationErrors: string[] = [];
+  if (!payload.card_name) validationErrors.push("card_name is required");
+  if (!payload.set_name) validationErrors.push("set_name is required");
+  if (!payload.condition) validationErrors.push("condition is required");
+  if (!payload.category) validationErrors.push("category is required");
+  if (!Number.isFinite(payload.price) || payload.price <= 0) validationErrors.push("price must be greater than 0");
+  if (!Number.isFinite(payload.quantity) || payload.quantity < 1) validationErrors.push("quantity must be at least 1");
+  if (!["active", "draft", "sold", "removed"].includes(payload.status)) validationErrors.push("status is invalid");
+
+  if (validationErrors.length) {
+    console.error("[listings.publish] validation failed", {
+      authUserId: user.id,
+      errors: validationErrors,
+      payload: {
+        ...payload,
+        images: `[${payload.images.length} images]`,
+      },
+    });
+    return NextResponse.json({ error: `Invalid listing payload: ${validationErrors.join(", ")}` }, { status: 400 });
+  }
+
   console.info("[listings.publish]", {
     authUserId: user.id,
     sellerId: user.id,
@@ -58,6 +79,7 @@ export async function POST(request: Request) {
   });
 
   const admin = createAdminClient();
+  const clientForInsert = admin;
   let { data: profile, error: profileError } = await admin.from("profiles").select("id").eq("id", user.id).maybeSingle<{ id: string }>();
 
   if (profileError) {
@@ -88,20 +110,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "We couldn’t find your seller profile yet. Please refresh and try again." }, { status: 400 });
   }
 
-  const { data, error } = await (supabase.from("listings") as any).insert(payload).select("id").single();
+  const { data, error } = await (clientForInsert.from("listings") as any).insert(payload).select("id").single();
   const listing = data as { id: string } | null;
 
   if (error) {
     console.error("[listings.publish] insert failed", {
       authUserId: user.id,
       sellerId: payload.seller_id,
-        images: payload.images,
+      images: payload.images,
       error: error.message,
       details: error.details,
       hint: error.hint,
       code: error.code,
+      payload,
     });
-    return NextResponse.json({ error: "We couldn’t publish this listing right now. Please try again." }, { status: 400 });
+    return NextResponse.json({ error: error.message ?? "We couldn’t publish this listing right now. Please try again.", details: error.details ?? null, hint: error.hint ?? null, code: error.code ?? null }, { status: 400 });
   }
 
   return NextResponse.json({ listing }, { status: 201 });

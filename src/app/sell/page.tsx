@@ -112,6 +112,7 @@ export default function SellPage() {
       card_number: form.card_number || null,
       rarity: form.rarity || null,
       condition: form.condition,
+      category: "single",
       price: parseFloat(form.price),
       quantity: parseInt(form.quantity),
       description: form.description || null,
@@ -124,6 +125,7 @@ export default function SellPage() {
     };
 
     try {
+      console.info("[sell.publish] submit", { userId, category: payload.category, imageCount: payload.images.length, status: payload.status });
       const controller = new AbortController();
       const timeout = window.setTimeout(() => controller.abort(), 20000);
       const response = await fetch("/api/listings", {
@@ -133,12 +135,14 @@ export default function SellPage() {
         signal: controller.signal,
       });
       window.clearTimeout(timeout);
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({} as { error?: string; details?: string | null; hint?: string | null; code?: string | null; listing?: { id: string } }));
 
       if (!response.ok) {
-        setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
+        console.error("[sell.publish] failed", data);
+        setMessage({ type: "error", text: data.error ? `${data.error}${data.details ? ` (${data.details})` : ""}` : "Failed to create listing." });
       } else if (data.listing?.id) {
-        router.push(`/listings/${data.listing.id}`);
+        router.push(`/listings/${data.listing.id}?published=1`);
+        router.refresh();
       } else {
         setMessage({ type: "error", text: "Publish failed. Please try again." });
       }

@@ -143,17 +143,28 @@ export default function CreateListingPage() {
         status: form.status,
       };
 
+      console.info("[listings.create.publish] submit", {
+        userId,
+        category: payload.category,
+        imageCount: payload.images.length,
+        status: payload.status,
+      });
+
       const response = await fetch("/api/listings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json().catch(() => ({} as { error?: string; details?: string | null; hint?: string | null; code?: string | null; listing?: { id: string } }));
 
       if (!response.ok) {
-        setMessage({ type: "error", text: data.error ?? "Failed to create listing." });
+        console.error("[listings.create.publish] failed", data);
+        setMessage({ type: "error", text: data.error ? `${data.error}${data.details ? ` (${data.details})` : ""}` : "Failed to create listing." });
       } else if (data.listing?.id) {
-        router.push(`/listings/${data.listing.id}`);
+        router.push(`/listings/${data.listing.id}?published=1`);
+        router.refresh();
+      } else {
+        setMessage({ type: "error", text: "Publish failed. Please try again." });
       }
     } catch (error) {
       setMessage({ type: "error", text: error instanceof Error ? error.message : "Failed to create listing." });
