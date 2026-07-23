@@ -29,8 +29,8 @@ export function isListingImageUrl(url: string) {
 }
 
 function bucketForTarget(target: string) {
-  if (target === "seller-store") return "store-images";
-  if (target === "live-show") return "live-show-images";
+  if (target === "seller-store") return "seller-assets";
+  if (target === "live-show") return "live-show-media";
   if (target === "verification") return "verification-documents";
   return "listing-images";
 }
@@ -56,7 +56,7 @@ export async function uploadImageFile({
 }) {
   const bucket = bucketForTarget(target);
   const path = buildStoragePath(target, ownerId, prefix, file.name);
-  const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true });
+  const { error } = await supabase.storage.from(bucket).upload(path, file);
   if (error) throw error;
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
   return {
