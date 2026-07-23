@@ -64,6 +64,8 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const [auctionOrders, setAuctionOrders] = useState<Array<{ id: string; payment_status: string; payment_deadline: string; winning_bid: number; buyer_id: string; show_products?: { title?: string } | null }>>([]);
   const [showMode, setShowMode] = useState<"viewer" | "host">("viewer");
   const [moderatorLog, setModeratorLog] = useState<Array<{ id: string; event_type: string; payload: unknown; created_at: string }>>([]);
+  const [moderationActions, setModerationActions] = useState<Array<{ id: string; target_user_id: string; target_username: string | null; action_type: string; active: boolean; reason: string | null; updated_at: string }>>([]);
+  const [targetUserLookup, setTargetUserLookup] = useState<Record<string, string>>({});
   const [monitorLayout, setMonitorLayout] = useState<"single" | "dual" | "video-only" | "controls-only">("single");
   const [streamHealth, setStreamHealth] = useState({ connection: "strong", cpu: "stable", network: "stable" });
   const [now, setNow] = useState(() => Date.now());
@@ -109,20 +111,47 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
 
   useEffect(() => {
     let mounted = true;
-    const loadModeratorLog = async () => {
-      const response = await fetch(`/api/live/shows/${show.id}/events`);
-      const data = await response.json().catch(() => ({}));
-      if (mounted && response.ok) {
-        setModeratorLog((data.events ?? []) as any);
+    const loadModeratorState = async () => {
+      const [eventsResponse, moderationResponse] = await Promise.all([
+        fetch(`/api/live/shows/${show.id}/events`),
+        fetch(`/api/live/shows/${show.id}/moderation`),
+      ]);
+      const eventsData = await eventsResponse.json().catch(() => ({}));
+      const moderationData = await moderationResponse.json().catch(() => ({}));
+      if (mounted) {
+        if (eventsResponse.ok) setModeratorLog((eventsData.events ?? []) as any);
+        if (moderationResponse.ok) {
+          setModerationActions((moderationData.actions ?? []) as any);
+          setTargetUserLookup((moderationData.users ?? {}) as Record<string, string>);
+        }
       }
     };
-    void loadModeratorLog();
-    const interval = setInterval(() => void loadModeratorLog(), 8000);
+    void loadModeratorState();
+    const interval = setInterval(() => void loadModeratorState(), 8000);
     return () => {
       mounted = false;
       clearInterval(interval);
     };
   }, [show.id]);
+
+  useEffect(() => {
+    const moderationChannel = supabase
+      .channel(`live-moderation:${show.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "live_show_moderation_actions", filter: `show_id=eq.${show.id}` }, () => {
+        void fetch(`/api/live/shows/${show.id}/moderation`).then(async (response) => {
+          const data = await response.json().catch(() => ({}));
+          if (response.ok) {
+            setModerationActions((data.actions ?? []) as any);
+            setTargetUserLookup((data.users ?? {}) as Record<string, string>);
+          }
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(moderationChannel);
+    };
+  }, [show.id, supabase]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -288,16 +317,46 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
     setStatusText(`${action.replaceAll("_", " ")} saved`);
   };
 
-  const removeBidder = async (bidderId: string) => {
-    await hostAction("remove_bidder", { bidderId });
+  const moderateUser = async (actionType: "remove_bidder" | "mute_user" | "ban_user", targetUserId: string, targetUsername: string | null) => {
+    if (!canShowHostControls) return;
+    const response = await fetch(`/api/live/shows/${show.id}/moderation`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actionType, targetUserId, targetUsername }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setStatusText(data.error ?? "Moderation update failed");
+      return;
+    }
+    setStatusText(data.message ?? "Moderation saved");
   };
 
-  const muteUser = async (userId: string) => {
-    await hostAction("mute_user", { userId });
+  const restoreModeration = async (actionId: string) => {
+    if (!canShowHostControls) return;
+    const response = await fetch(`/api/live/shows/${show.id}/moderation`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ actionId }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setStatusText(data.error ?? "Restore failed");
+      return;
+    }
+    setStatusText(data.message ?? "Restored");
   };
 
-  const banUser = async (userId: string) => {
-    await hostAction("ban_user", { userId });
+  const removeBidder = async (bidderId: string, bidderUsername: string | null) => {
+    await moderateUser("remove_bidder", bidderId, bidderUsername);
+  };
+
+  const muteUser = async (userId: string, username: string | null) => {
+    await moderateUser("mute_user", userId, username);
+  };
+
+  const banUser = async (userId: string, username: string | null) => {
+    await moderateUser("ban_user", userId, username);
   };
 
   const confirmWinner = async () => {
@@ -633,19 +692,42 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="mb-3 font-bold">Moderator actions</div>
               <div className="space-y-3">
-                {bidHistory.slice(0, 4).map((bid) => (
-                  <div key={bid.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">
-                    <div className="flex items-center justify-between gap-3">
-                      <span>{bid.username}</span>
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={() => void removeBidder(bid.username)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Remove bidder</button>
-                        <button onClick={() => void muteUser(bid.username)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Mute</button>
-                        <button onClick={() => void banUser(bid.username)} className="rounded-full border border-red-400/20 px-3 py-1 text-xs text-red-200">Ban</button>
+                {bidHistory.slice(0, 4).map((bid) => {
+                  const targetUserId = bid.bidder_id;
+                  const targetUsername = bid.username ?? targetUserLookup[targetUserId] ?? null;
+                  return (
+                    <div key={bid.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <span>{targetUsername ?? targetUserId}</span>
+                        <div className="flex flex-wrap gap-2">
+                          <button onClick={() => void removeBidder(targetUserId, targetUsername)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Remove bidder</button>
+                          <button onClick={() => void muteUser(targetUserId, targetUsername)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Mute</button>
+                          <button onClick={() => void banUser(targetUserId, targetUsername)} className="rounded-full border border-red-400/20 px-3 py-1 text-xs text-red-200">Ban</button>
+                        </div>
                       </div>
                     </div>
+                  );
+                })}
+                {!bidHistory.length && <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-gray-500">No bidders to moderate yet.</div>}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="mb-3 font-bold">Active moderation</div>
+              <div className="space-y-2">
+                {moderationActions.filter((action) => action.active).map((action) => (
+                  <div key={action.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-white">{action.action_type.replaceAll("_", " ")}</div>
+                        <div className="text-xs text-gray-400">{action.target_username ?? targetUserLookup[action.target_user_id] ?? action.target_user_id}</div>
+                      </div>
+                      <button onClick={() => void restoreModeration(action.id)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Restore</button>
+                    </div>
+                    {action.reason ? <div className="mt-2 text-xs text-gray-400">Reason: {action.reason}</div> : null}
                   </div>
                 ))}
-                {!bidHistory.length && <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-gray-500">No bidders to moderate yet.</div>}
+                {!moderationActions.filter((action) => action.active).length && <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-gray-500">No active moderation actions.</div>}
               </div>
             </div>
 

@@ -24,6 +24,13 @@ export async function GET(_: Request, { params }: { params: Promise<{ showId: st
     .order("created_at", { ascending: false })
     .limit(100);
 
+  const { data: moderationHistory } = await (admin as any)
+    .from("live_show_moderation_history")
+    .select("id, show_id, event_type, action_type, reason, details, created_at")
+    .eq("show_id", showId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -33,7 +40,20 @@ export async function GET(_: Request, { params }: { params: Promise<{ showId: st
     event_type: String(event.event_type ?? event.eventType ?? "event"),
   }));
 
-  return NextResponse.json({ events });
+  const moderationEvents = (moderationHistory ?? []).map((event: any) => ({
+    id: event.id,
+    show_id: event.show_id,
+    event_type: String(event.event_type ?? event.action_type ?? "moderation"),
+    payload: {
+      action_type: event.action_type,
+      reason: event.reason,
+      details: event.details,
+    },
+    created_by: null,
+    created_at: event.created_at,
+  }));
+
+  return NextResponse.json({ events: [...moderationEvents, ...events] });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ showId: string }> }) {

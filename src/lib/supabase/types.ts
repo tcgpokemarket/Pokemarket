@@ -872,6 +872,8 @@ export interface Database {
           amount: number
           is_auto_bid: boolean
           created_at: string
+          username?: string | null
+          bidder_username?: string | null
         }
         Insert: {
           id?: string
@@ -881,6 +883,7 @@ export interface Database {
           amount: number
           is_auto_bid?: boolean
           created_at?: string
+          username?: string | null
         }
         Update: Partial<Database['public']['Tables']['live_bids']['Insert']>
       }
@@ -929,6 +932,68 @@ export interface Database {
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['live_chat']['Insert']>
+      }
+      live_show_moderation_actions: {
+        Row: {
+          id: string
+          show_id: string
+          target_user_id: string
+          target_username: string | null
+          action_type: string
+          reason: string | null
+          active: boolean
+          moderator_id: string | null
+          metadata: Json
+          created_at: string
+          updated_at: string
+          restored_at: string | null
+          restored_by: string | null
+        }
+        Insert: {
+          id?: string
+          show_id: string
+          target_user_id: string
+          target_username?: string | null
+          action_type: string
+          reason?: string | null
+          active?: boolean
+          moderator_id?: string | null
+          metadata?: Json
+          created_at?: string
+          updated_at?: string
+          restored_at?: string | null
+          restored_by?: string | null
+        }
+        Update: Partial<Database['public']['Tables']['live_show_moderation_actions']['Insert']>
+      }
+      live_show_moderation_history: {
+        Row: {
+          id: string
+          show_id: string
+          action_id: string | null
+          actor_id: string | null
+          target_user_id: string
+          target_username: string | null
+          action_type: string
+          event_type: string
+          reason: string | null
+          details: Json
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          show_id: string
+          action_id?: string | null
+          actor_id?: string | null
+          target_user_id: string
+          target_username?: string | null
+          action_type: string
+          event_type: string
+          reason?: string | null
+          details?: Json
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['live_show_moderation_history']['Insert']>
       }
       viewers: {
         Row: {
@@ -1773,7 +1838,9 @@ export type LiveShowBid = {
   id: string
   show_id: string
   item_id: string
+  bidder_id: string
   username: string
+  bidder_username?: string | null
   amount: number
   created_at: string
 }

@@ -52,6 +52,19 @@ export async function POST(request: Request, { params }: { params: Promise<{ sho
     .eq("id", productId)
     .maybeSingle();
 
+  const moderationState = await (admin as any)
+    .from("live_show_moderation_actions")
+    .select("action_type, active")
+    .eq("show_id", showId)
+    .eq("target_user_id", user.id)
+    .eq("active", true);
+
+  if (moderationState.error) return NextResponse.json({ error: moderationState.error.message }, { status: 400 });
+  const activeActions = Array.isArray(moderationState.data) ? moderationState.data.map((row: any) => String(row.action_type)) : [];
+  if (activeActions.includes("ban_user") || activeActions.includes("remove_bidder")) {
+    return NextResponse.json({ error: "You are currently restricted from bidding in this show." }, { status: 403 });
+  }
+
   if (lookupError) return NextResponse.json({ error: lookupError.message }, { status: 400 });
   if (!product || product.show_id !== showId) return NextResponse.json({ error: "Product not found." }, { status: 404 });
 
@@ -97,15 +110,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ sho
   const nextSecondsLeft = applyAntiSnipingExtension(Number(product.seconds_left ?? 0), extensionSeconds);
   const now = new Date().toISOString();
 
+  const { data: bidderProfile } = await (admin as any).from("profiles").select("username, full_name").eq("id", user.id).maybeSingle();
+  const bidderUsername = bidderProfile?.username ?? bidderProfile?.full_name ?? user.user_metadata?.username ?? user.user_metadata?.full_name ?? user.email?.split("@")[0] ?? null;
+
   const bidPayload = {
     show_id: showId,
     product_id: productId,
     bidder_id: user.id,
     amount: nextAmount,
     is_auto_bid: false,
+    username: bidderUsername,
   } as const;
 
   const { error: insertError } = await (admin as any).from("live_bids").insert(bidPayload);
+  await (admin as any).from("live_show_moderation_history").insert({
+    show_id: showId,
+    action_type: "bid_placed",
+    event_type: "bid_placed",
+    actor_id: user.id,
+    target_user_id: user.id,
+    target_username: bidderUsername,
+    reason: null,
+    details: { productId, amount: nextAmount, secondsLeft: nextSecondsLeft, nonce: bidNonce || null },
+  });
   if (insertError) return NextResponse.json({ error: insertError.message }, { status: 400 });
 
   const { error: updateError } = await (admin as any)
