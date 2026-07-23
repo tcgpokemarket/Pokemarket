@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isListingImageUrl } from "@/lib/uploads";
+import { isAdminUser } from "@/lib/admin-access";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -17,9 +18,16 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   }
 
   const { id } = await params;
-  const { data: listing, error: lookupError } = await supabase.from("listings").select("id, seller_id, images").eq("id", id).maybeSingle<{ id: string; seller_id: string; images: string[] | null }>();
+  const admin = createAdminClient();
+
+  const { data: listing, error: lookupError } = await (admin as any)
+    .from("listings")
+    .select("id, seller_id, images, status")
+    .eq("id", id)
+    .maybeSingle();
 
   if (lookupError) {
+    console.error("[listings.delete] lookup failed", { listingId: id, authUserId: user.id, error: lookupError.message });
     return NextResponse.json({ error: lookupError.message }, { status: 400 });
   }
 
@@ -27,25 +35,68 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     return NextResponse.json({ error: "Listing not found" }, { status: 404 });
   }
 
-  if (listing.seller_id !== user.id) {
+  const canDelete = isAdminUser(user) || listing.seller_id === user.id;
+  if (!canDelete) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const admin = createAdminClient();
-  const imagePaths = (listing.images ?? []).map((url) => isListingImageUrl(url)).filter((value): value is { bucket: string; path: string } => Boolean(value)).map((value) => value.path);
+  const imagePaths = ((listing.images ?? []) as string[])
+    .map((url) => isListingImageUrl(url))
+    .filter((value): value is { bucket: string; path: string } => Boolean(value))
+    .map((value) => value.path);
 
-  const { error } = await supabase.from("listings").delete().eq("id", id);
+  const { data: orderRows, error: orderLookupError } = await (admin as any)
+    .from("orders")
+    .select("id")
+    .eq("listing_id", id)
+    .limit(1);
 
-  if (error) {
-    return NextResponse.json({ error: error.message ?? "Failed to remove listing." }, { status: 400 });
+  if (orderLookupError) {
+    console.error("[listings.delete] order lookup failed", { listingId: id, authUserId: user.id, error: orderLookupError.message });
+    return NextResponse.json({ error: orderLookupError.message }, { status: 400 });
+  }
+
+  const hadSales = Boolean(orderRows?.length);
+  const shouldSoftDelete = hadSales || listing.status === "sold";
+  const now = new Date().toISOString();
+
+  if (shouldSoftDelete) {
+    const { error: updateError } = await (admin as any)
+      .from("listings")
+      .update({ status: "removed", updated_at: now })
+      .eq("id", id);
+
+    if (updateError) {
+      console.error("[listings.delete] soft delete failed", { listingId: id, authUserId: user.id, error: updateError.message, status: listing.status, hadSales });
+      return NextResponse.json({ error: updateError.message ?? "Failed to archive listing." }, { status: 400 });
+    }
+  } else {
+    const cleanupActions = [
+      { table: "support_tickets", name: "support_tickets" },
+      { table: "live_show_items", name: "live_show_items" },
+    ] as const;
+
+    for (const action of cleanupActions) {
+      const { error: cleanupError } = await (admin as any).from(action.table).update({ listing_id: null }).eq("listing_id", id);
+      if (cleanupError) {
+        console.error("[listings.delete] dependency cleanup failed", { listingId: id, authUserId: user.id, table: action.name, error: cleanupError.message });
+        return NextResponse.json({ error: cleanupError.message ?? `Failed to clean up ${action.name}.` }, { status: 400 });
+      }
+    }
+
+    const { error: deleteError } = await (admin as any).from("listings").delete().eq("id", id);
+    if (deleteError) {
+      console.error("[listings.delete] hard delete failed", { listingId: id, authUserId: user.id, error: deleteError.message, status: listing.status, hadSales });
+      return NextResponse.json({ error: deleteError.message ?? "Failed to remove listing." }, { status: 400 });
+    }
   }
 
   if (imagePaths.length) {
     const cleanup = await admin.storage.from("listing-images").remove(imagePaths);
     if (cleanup.error) {
-      console.warn("[listings.delete] storage cleanup failed", { listingId: id, error: cleanup.error.message, imagePaths });
+      console.warn("[listings.delete] storage cleanup failed", { listingId: id, authUserId: user.id, error: cleanup.error.message, imagePaths });
     }
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, mode: shouldSoftDelete ? "soft-delete" : "hard-delete" });
 }

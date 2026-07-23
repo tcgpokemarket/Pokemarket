@@ -123,7 +123,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
         supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
-        supabase.from("listings").select("*").eq("seller_id", user.id).order("created_at", { ascending: false }),
+        supabase.from("listings").select("*").eq("seller_id", user.id).neq("status", "removed").order("created_at", { ascending: false }),
         supabase.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
         supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
         supabase.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
@@ -196,14 +196,21 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     router.push("/auth");
   };
 
-  const handleDeleteListing = async (id: string) => {
-    if (!confirm("Remove this listing?")) return;
+  const handleDeleteListing = async (id: string, cardName: string) => {
+    const confirmed = typeof window !== "undefined" ? window.confirm(`Delete ${cardName}? This will remove it from your store.`) : false;
+    if (!confirmed) return;
+
     const res = await fetch(`/api/listings/${id}`, { method: "DELETE" });
+    const payload = await res.json().catch(() => ({} as { error?: string; mode?: string }));
     if (!res.ok) {
-      alert((await res.json()).error ?? "Failed to remove listing.");
+      alert(payload.error ?? "Failed to remove listing.");
       return;
     }
-    setListings((l) => l.filter((x) => x.id !== id));
+
+    setListings((current) => current.filter((listing) => listing.id !== id));
+    setSales((current) => current.filter((order) => order.listing_id !== id));
+    window.dispatchEvent(new Event("tcg-listings-updated"));
+    router.refresh();
   };
 
   const [labelStatus, setLabelStatus] = useState<string | null>(null);
@@ -918,7 +925,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                     <span className="font-black text-white">${l.price.toFixed(2)}</span>
                     <div className="flex gap-2">
                       <a href={`/listings/${l.id}`} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:text-white">View</a>
-                      <button onClick={() => handleDeleteListing(l.id)} className="rounded-lg border border-red-400/30 px-3 py-1.5 text-xs text-red-400 transition-colors hover:text-red-300">Remove</button>
+                      <button onClick={() => handleDeleteListing(l.id, l.card_name)} className="rounded-lg border border-red-400/30 px-3 py-1.5 text-xs text-red-400 transition-colors hover:text-red-300">Remove</button>
                     </div>
                   </div>
                 ))}
