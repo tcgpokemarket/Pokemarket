@@ -71,16 +71,12 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
       return NextResponse.json({ error: updateError.message ?? "Failed to archive listing." }, { status: 400 });
     }
   } else {
-    const cleanupActions = [
-      { table: "support_tickets", name: "support_tickets" },
-      { table: "live_show_items", name: "live_show_items" },
-    ] as const;
+    const cleanupActions = [{ table: "live_show_items", name: "live_show_items" }] as const;
 
     for (const action of cleanupActions) {
       const { error: cleanupError } = await (admin as any).from(action.table).update({ listing_id: null }).eq("listing_id", id);
       if (cleanupError) {
-        console.error("[listings.delete] dependency cleanup failed", { listingId: id, authUserId: user.id, table: action.name, error: cleanupError.message });
-        return NextResponse.json({ error: cleanupError.message ?? `Failed to clean up ${action.name}.` }, { status: 400 });
+        console.warn("[listings.delete] dependency cleanup skipped", { listingId: id, authUserId: user.id, table: action.name, error: cleanupError.message });
       }
     }
 

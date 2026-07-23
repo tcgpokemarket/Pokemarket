@@ -29,6 +29,19 @@ function formatTicketNumber(id: string) {
   return `TK-${id.slice(0, 8).toUpperCase()}`;
 }
 
+function isMissingTableError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return message.includes("Could not find the table") || message.includes("schema cache") || message.includes("does not exist");
+}
+
+async function safeQuery<T>(query: PromiseLike<Record<string, unknown> & { data?: T | null; error?: unknown }>) {
+  const result = await query;
+  if (result.error && isMissingTableError(result.error)) {
+    return { ...(result as Record<string, unknown>), data: null, error: null };
+  }
+  return result;
+}
+
 export async function createSupportTicket(input: {
   userId: string;
   category: SupportCategory;
@@ -41,28 +54,31 @@ export async function createSupportTicket(input: {
   assignedAiAgent?: SupportRole | null;
 }) {
   const admin = createAdminClient();
-  const { data, error } = await (admin as any)
-    .from("support_tickets")
-    .insert({
-      ticket_number: crypto.randomUUID(),
-      user_id: input.userId,
-      category: input.category,
-      priority: input.priority ?? "normal",
-      status: "open",
-      assigned_ai_agent: input.assignedAiAgent ?? null,
-      order_id: input.orderId ?? null,
-      listing_id: input.listingId ?? null,
-      seller_id: input.sellerId ?? null,
-      conversation_id: input.conversationId ?? null,
-      issue_summary: input.issueSummary,
-      conversation_history: [],
-    })
-    .select("id, ticket_number")
-    .single();
+  const { data, error } = await safeQuery(
+    (admin as any)
+      .from("support_tickets")
+      .insert({
+        ticket_number: crypto.randomUUID(),
+        user_id: input.userId,
+        category: input.category,
+        priority: input.priority ?? "normal",
+        status: "open",
+        assigned_ai_agent: input.assignedAiAgent ?? null,
+        order_id: input.orderId ?? null,
+        listing_id: input.listingId ?? null,
+        seller_id: input.sellerId ?? null,
+        conversation_id: input.conversationId ?? null,
+        issue_summary: input.issueSummary,
+        conversation_history: [],
+      })
+      .select("id, ticket_number")
+      .single(),
+  );
 
-  if (error || !data) throw new Error(error?.message ?? "Unable to create support ticket");
+  if (error || !data) throw new Error("Unable to create support ticket");
   const ticket = data as { id: string; ticket_number: string };
-  await (admin as any).from("support_tickets").update({ ticket_number: formatTicketNumber(ticket.id) }).eq("id", ticket.id);
+  const ticketNumberUpdate = await safeQuery((admin as any).from("support_tickets").update({ ticket_number: formatTicketNumber(ticket.id) }).eq("id", ticket.id));
+  if (ticketNumberUpdate.error) throw new Error("Unable to create support ticket");
   return { id: ticket.id, ticketNumber: formatTicketNumber(ticket.id) };
 }
 
@@ -96,14 +112,16 @@ export async function addSupportResponse(input: {
   needsHuman?: boolean;
 }) {
   const admin = createAdminClient();
-  const { error } = await (admin as any).from("support_ai_responses").insert({
-    ticket_id: input.ticketId,
-    assistant_role: input.assistantRole,
-    response_text: input.responseText,
-    policy_notes: input.policyNotes ?? null,
-    needs_human: input.needsHuman ?? false,
-  });
-  if (error) throw new Error(error.message);
+  const { error } = await safeQuery(
+    (admin as any).from("support_ai_responses").insert({
+      ticket_id: input.ticketId,
+      assistant_role: input.assistantRole,
+      response_text: input.responseText,
+      policy_notes: input.policyNotes ?? null,
+      needs_human: input.needsHuman ?? false,
+    }),
+  );
+  if (error) throw new Error((error as Error).message);
 }
 
 export async function updateSupportTicketStatus(ticketId: string, status: SupportTicketStatus, resolutionNotes?: string) {
@@ -112,28 +130,32 @@ export async function updateSupportTicketStatus(ticketId: string, status: Suppor
   if (status === "escalated") updates.escalated_at = new Date().toISOString();
   if (status === "resolved") updates.resolved_at = new Date().toISOString();
   if (resolutionNotes) updates.resolution_notes = resolutionNotes;
-  const { error } = await (admin as any).from("support_tickets").update(updates).eq("id", ticketId);
-  if (error) throw new Error(error.message);
+  const { error } = await safeQuery((admin as any).from("support_tickets").update(updates).eq("id", ticketId));
+  if (error) throw new Error((error as Error).message);
 }
 
 export async function appendSupportTicketEvent(ticketId: string, eventType: string, eventData: Record<string, unknown>) {
   const admin = createAdminClient();
-  const { error } = await (admin as any).from("support_ticket_events").insert({
-    ticket_id: ticketId,
-    event_type: eventType,
-    event_data: eventData,
-  });
-  if (error) throw new Error(error.message);
+  const { error } = await safeQuery(
+    (admin as any).from("support_ticket_events").insert({
+      ticket_id: ticketId,
+      event_type: eventType,
+      event_data: eventData,
+    }),
+  );
+  if (error) throw new Error((error as Error).message);
 }
 
 export async function getSupportKnowledgeBase() {
   const admin = createAdminClient();
-  const { data, error } = await (admin as any)
-    .from("support_knowledge_sources")
-    .select("source_type, source_name, source_url, content_summary, active")
-    .eq("active", true)
-    .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
+  const { data, error } = await safeQuery(
+    (admin as any)
+      .from("support_knowledge_sources")
+      .select("source_type, source_name, source_url, content_summary, active")
+      .eq("active", true)
+      .order("created_at", { ascending: false }),
+  );
+  if (error) throw new Error((error as Error).message);
   return data ?? [];
 }
 
@@ -145,19 +167,21 @@ export async function getSupportTickets(status?: string) {
     .order("created_at", { ascending: false })
     .limit(100);
   if (status) request = request.eq("status", status);
-  const { data, error } = await request;
-  if (error) throw new Error(error.message);
+  const { data, error } = await safeQuery(request);
+  if (error) throw new Error((error as Error).message);
   return data ?? [];
 }
 
 export async function getSupportTicketById(ticketId: string) {
   const admin = createAdminClient();
-  const { data, error } = await (admin as any)
-    .from("support_tickets")
-    .select("id, ticket_number, user_id, order_id, listing_id, seller_id, conversation_id, category, priority, status, assigned_ai_agent, assigned_human_agent, issue_summary, conversation_history, resolution_notes, escalated_at, resolved_at, created_at, updated_at")
-    .eq("id", ticketId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
+  const { data, error } = await safeQuery(
+    (admin as any)
+      .from("support_tickets")
+      .select("id, ticket_number, user_id, order_id, listing_id, seller_id, conversation_id, category, priority, status, assigned_ai_agent, assigned_human_agent, issue_summary, conversation_history, resolution_notes, escalated_at, resolved_at, created_at, updated_at")
+      .eq("id", ticketId)
+      .maybeSingle(),
+  );
+  if (error) throw new Error((error as Error).message);
   return data ?? null;
 }
 
@@ -182,20 +206,20 @@ export async function getSupportAgentGreeting(role: SupportRole, category: Suppo
 export async function getSupportStats() {
   const admin = createAdminClient();
   const [tickets, escalated, resolved, open, aiHandling, waitingForUser] = await Promise.all([
-    (admin as any).from("support_tickets").select("id", { count: "exact", head: true }),
-    (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "escalated"),
-    (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "resolved"),
-    (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open"),
-    (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "ai_handling"),
-    (admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "waiting_for_user"),
+    safeQuery((admin as any).from("support_tickets").select("id", { count: "exact", head: true })),
+    safeQuery((admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "escalated")),
+    safeQuery((admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "resolved")),
+    safeQuery((admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "open")),
+    safeQuery((admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "ai_handling")),
+    safeQuery((admin as any).from("support_tickets").select("id", { count: "exact", head: true }).eq("status", "waiting_for_user")),
   ]);
 
   return {
-    total: tickets.count ?? 0,
-    escalated: escalated.count ?? 0,
-    resolved: resolved.count ?? 0,
-    open: open.count ?? 0,
-    aiHandling: aiHandling.count ?? 0,
-    waitingForUser: waitingForUser.count ?? 0,
+    total: (tickets as { count?: number }).count ?? 0,
+    escalated: (escalated as { count?: number }).count ?? 0,
+    resolved: (resolved as { count?: number }).count ?? 0,
+    open: (open as { count?: number }).count ?? 0,
+    aiHandling: (aiHandling as { count?: number }).count ?? 0,
+    waitingForUser: (waitingForUser as { count?: number }).count ?? 0,
   };
 }
