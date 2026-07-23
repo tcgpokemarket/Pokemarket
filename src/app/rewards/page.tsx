@@ -69,6 +69,9 @@ export default function RewardsPage() {
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<RewardsSnapshot>({ account: null, ledger: [], options: [], redemptions: [] });
+  const [redeeming, setRedeeming] = useState<string | null>(null);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -98,6 +101,48 @@ export default function RewardsPage() {
   }, [supabase]);
 
   const account = snapshot.account ?? DEFAULT_REWARDS_ACCOUNT;
+
+  async function handleRedeem(optionId: string, optionName: string) {
+    setRedeeming(optionId);
+    setRedeemError(null);
+    setRedeemSuccess(null);
+
+    try {
+      const res = await fetch("/api/rewards/redeem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ optionId }),
+      });
+      const json = await res.json() as { ok?: boolean; error?: string };
+
+      if (!res.ok || !json.ok) {
+        setRedeemError(json.error ?? "Redemption failed. Please try again.");
+        return;
+      }
+
+      setRedeemSuccess(`"${optionName}" redeemed! Your reward will be processed shortly.`);
+
+      // Reload snapshot to reflect updated balances and new redemption row
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const [accountResult, ledgerResult, redemptionsResult] = await Promise.all([
+          supabase.from("rewards_accounts").select("*").eq("user_id", user.id).maybeSingle(),
+          supabase.from("rewards_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
+          supabase.from("rewards_redemptions").select("*, rewards_redemption_options(*)").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
+        ]);
+        setSnapshot((prev) => ({
+          ...prev,
+          account: (accountResult.data as RewardsAccount | null) ?? null,
+          ledger: (ledgerResult.data ?? []) as RewardsLedgerRow[],
+          redemptions: (redemptionsResult.data ?? []) as RewardsRedemptionRow[],
+        }));
+      }
+    } catch {
+      setRedeemError("Network error. Please try again.");
+    } finally {
+      setRedeeming(null);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-[#08111f] text-white">
@@ -142,24 +187,47 @@ export default function RewardsPage() {
                 </div>
               </div>
 
+              {redeemSuccess && (
+                <div className="mt-4 rounded-2xl border border-green-400/20 bg-green-400/10 p-4 text-sm text-green-300">
+                  {redeemSuccess}
+                </div>
+              )}
+              {redeemError && (
+                <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-300">
+                  {redeemError}
+                </div>
+              )}
+
               <div className="mt-6 grid gap-4 md:grid-cols-2">
-                {snapshot.options.map((option) => (
-                  <div key={option.id} className="rounded-2xl border border-white/10 bg-[#0f0f1a] p-4">
-                    <div className="text-sm font-semibold text-white">{option.display_name}</div>
-                    <div className="mt-1 text-xs uppercase tracking-widest text-yellow-400">{option.redemption_type.replaceAll("_", " ")}</div>
-                    <div className="mt-3 flex items-center justify-between text-sm text-gray-300">
-                      <span>Cost</span>
-                      <span>{formatPoints(option.points_cost)} pts</span>
+                {snapshot.options.map((option) => {
+                  const canAfford = account.available_points >= option.points_cost;
+                  const isRedeeming = redeeming === option.id;
+                  return (
+                    <div key={option.id} className="rounded-2xl border border-white/10 bg-[#0f0f1a] p-4">
+                      <div className="text-sm font-semibold text-white">{option.display_name}</div>
+                      <div className="mt-1 text-xs uppercase tracking-widest text-yellow-400">{option.redemption_type.replaceAll("_", " ")}</div>
+                      <div className="mt-3 flex items-center justify-between text-sm text-gray-300">
+                        <span>Cost</span>
+                        <span>{formatPoints(option.points_cost)} pts</span>
+                      </div>
+                      <div className="mt-1 flex items-center justify-between text-sm text-gray-300">
+                        <span>Value</span>
+                        <span>{option.credit_amount ? `$${option.credit_amount.toFixed(2)}` : "Coupon/discount"}</span>
+                      </div>
+                      <button
+                        onClick={() => { void handleRedeem(option.id, option.display_name); }}
+                        disabled={!canAfford || isRedeeming || redeeming !== null}
+                        className="mt-4 w-full rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isRedeeming
+                          ? "Redeeming…"
+                          : !canAfford
+                          ? "Not enough points"
+                          : "Redeem"}
+                      </button>
                     </div>
-                    <div className="mt-1 flex items-center justify-between text-sm text-gray-300">
-                      <span>Value</span>
-                      <span>{option.credit_amount ? `$${option.credit_amount.toFixed(2)}` : "Coupon/discount"}</span>
-                    </div>
-                    <button className="mt-4 w-full rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300" disabled={account.available_points < option.points_cost}>
-                      {account.available_points < option.points_cost ? "Not enough points" : "Redeem"}
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </section>
 

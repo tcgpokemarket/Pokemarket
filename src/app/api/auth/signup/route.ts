@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { detectReferralFraud, logFraudFlag } from "@/lib/referral-fraud";
+import { recordSecurityEvent } from "@/lib/audit-log";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -140,9 +142,15 @@ export async function POST(request: Request) {
   }
 
   if (referralCode) {
-    const { data: referrer } = await admin.from("profiles").select("id").eq("referral_code", referralCode).maybeSingle<{ id: string }>();
-    if (referrer?.id) {
-      const { error } = await (admin as any).from("profiles").update({
+    const { data: referrer } = await admin
+      .from("profiles")
+      .select("id, username, full_name")
+      .eq("referral_code", referralCode)
+      .maybeSingle<{ id: string; username: string | null; full_name: string | null }>();
+
+    if (referrer?.id && referrer.id !== userId) {
+      // ── Profile update ──────────────────────────────────────
+      const { error: profileUpdateError } = await (admin as any).from("profiles").update({
         referral_source_user_id: referrer.id,
         referral_source: "referral code",
         referral_source_code: referralCode,
@@ -150,7 +158,71 @@ export async function POST(request: Request) {
         referral_locked_at: new Date().toISOString(),
       }).eq("id", userId).is("referral_source_user_id", null);
 
-      if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+      if (profileUpdateError) {
+        return NextResponse.json({ error: profileUpdateError.message }, { status: 400 });
+      }
+
+      // ── Fraud detection ──────────────────────────────────────
+      const fraudResult = await detectReferralFraud(admin, referrer.id, userId, referralCode);
+
+      if (fraudResult.score >= 70) {
+        recordSecurityEvent({
+          event_type: "referral.signup.fraud_high",
+          severity: "high",
+          actor_id: userId,
+          details: { referrer_id: referrer.id, code: referralCode, flags: fraudResult.flags, score: fraudResult.score },
+        });
+      }
+
+      // ── Create referral attribution ──────────────────────────
+      const attributionResult = await (admin as any)
+        .from("referral_attributions")
+        .insert({
+          referred_user_id: userId,
+          referrer_user_id: referrer.id,
+          referral_code: referralCode,
+          signup_source: "signup_wizard",
+          program_type: "buyer",
+          fee_basis: 0,
+          reward_rate: 0,
+          reward_amount: 0,
+          company_kept_amount: 0,
+          total_revenue_generated: 0,
+          total_rewards_earned: 0,
+          status: fraudResult.score >= 70 ? "rejected" : "held",
+          fraud_flag: fraudResult.score >= 40,
+          fraud_reason: fraudResult.score >= 40 ? fraudResult.flags.join(", ") : null,
+          metadata: { source: "signup_wizard", fraud_score: fraudResult.score },
+        })
+        .select("id")
+        .maybeSingle();
+      const attribution = (attributionResult?.data ?? null) as { id: string } | null;
+
+      // Log fraud flags for admin review
+      if (fraudResult.score >= 40 && attribution?.id) {
+        await logFraudFlag(admin, {
+          flaggedUserId: userId,
+          referrerId: referrer.id,
+          attributionId: attribution.id,
+          flagType: fraudResult.score >= 70 ? "fraud_detected" : "admin_review_required",
+          details: { flags: fraudResult.flags, score: fraudResult.score },
+        });
+      }
+
+      // ── Notify referrer (non-blocking) ───────────────────────
+      if (fraudResult.score < 70) {
+        await (admin as any).from("notifications").insert({
+          user_id: referrer.id,
+          type: "referral_signup",
+          related_user: userId,
+          related_content: {
+            referred_user_id: userId,
+            attribution_id: attribution?.id ?? null,
+            code: referralCode,
+          },
+          read_status: false,
+        });
+      }
     }
   }
 
