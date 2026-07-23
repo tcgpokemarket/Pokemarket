@@ -42,7 +42,7 @@ async function fetchListingIds() {
   return rows.map((row) => ({ id: row.id }));
 }
 
-export const dynamicParams = false;
+export const dynamicParams = true;
 
 export async function generateStaticParams(): Promise<Array<{ id: string }>> {
   const rows = await fetchListingIds();

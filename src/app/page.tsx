@@ -68,7 +68,6 @@ function categoryBadge(category: string) {
 function ListingCard({ listing }: { listing: HomepageListing }) {
   const image = listing.images?.[0] ?? null;
   const badge = categoryBadge(listing.category);
-  const motion = listing.price > 100 ? "+8%" : listing.price > 50 ? "+3%" : "+1%";
 
   return (
     <Link href={`/listings/${listing.id}`} className="group overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#121826] transition hover:-translate-y-1 hover:border-yellow-400/40">
@@ -79,7 +78,6 @@ function ListingCard({ listing }: { listing: HomepageListing }) {
           <div className="flex h-full items-center justify-center text-5xl">🃏</div>
         )}
         <div className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white">{badge}</div>
-        <div className="absolute right-3 top-3 rounded-full bg-emerald-400/90 px-3 py-1 text-[11px] font-bold text-black">{motion}</div>
       </div>
       <div className="p-4">
         <h3 className="text-sm font-bold text-white">{listing.card_name}</h3>

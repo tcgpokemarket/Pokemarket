@@ -17,14 +17,14 @@ export default function ListingsPage() {
   const sellerFilter = searchParams.get("seller") ?? "";
 
   useEffect(() => {
-    const request = supabase
+    let request = supabase
       .from("listings")
       .select("*, profiles:seller_id(username, seller_rating)")
       .eq("status", "active")
       .order("created_at", { ascending: false });
 
     if (sellerFilter) {
-      request.eq("seller_id", sellerFilter);
+      request = request.eq("seller_id", sellerFilter);
     }
 
     request.then(({ data }) => {
