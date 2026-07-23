@@ -32,6 +32,7 @@ const PUBLIC_PREFIXES = ["/profile/", "/sellers/"] as const;
 
 const PUBLIC_API_PATHS = [
   "/api/stripe/webhook",
+  "/api/auth/signup",
 ] as const;
 
 function isPathMatch(pathname: string, route: string) {
