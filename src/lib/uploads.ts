@@ -2,7 +2,31 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/types";
 
 export const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
+export const MAX_LISTING_IMAGE_COUNT = 12;
 export const MAX_VERIFICATION_DOCUMENT_SIZE_BYTES = 12 * 1024 * 1024;
+
+export function parsePublicStorageUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    const marker = "/storage/v1/object/public/";
+    const index = parsed.pathname.indexOf(marker);
+    if (index === -1) return null;
+    const objectPath = parsed.pathname.slice(index + marker.length);
+    const firstSlash = objectPath.indexOf("/");
+    if (firstSlash === -1) return null;
+    const bucket = objectPath.slice(0, firstSlash);
+    const path = objectPath.slice(firstSlash + 1);
+    if (!bucket || !path) return null;
+    return { bucket, path };
+  } catch {
+    return null;
+  }
+}
+
+export function isListingImageUrl(url: string) {
+  const parsed = parsePublicStorageUrl(url);
+  return parsed?.bucket === "listing-images" ? parsed : null;
+}
 
 function bucketForTarget(target: string) {
   if (target === "seller-store") return "store-images";

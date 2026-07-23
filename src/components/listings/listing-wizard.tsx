@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
 import { getAppRole } from "@/lib/security";
 import { getEffectiveSellerVerificationStatus, type SellerVerificationStatus } from "@/lib/seller-verification";
-import { MAX_IMAGE_SIZE_BYTES, uploadImageFile } from "@/lib/uploads";
+import { MAX_IMAGE_SIZE_BYTES, MAX_LISTING_IMAGE_COUNT, uploadImageFile } from "@/lib/uploads";
 
 const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"] as const;
 const CATEGORIES = [
@@ -64,6 +64,17 @@ type DraftState = {
   imageUrls: string[];
   coverImageIndex: number;
 };
+
+type ImageSlot = {
+  id: string;
+  url: string;
+  name: string;
+  status: "uploading" | "ready" | "error";
+  progress: number;
+  error?: string;
+};
+
+const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 const initialForm = (): FormState => ({
   card_name: "",
@@ -151,10 +162,17 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
   const [draftLoaded, setDraftLoaded] = useState(false);
   const [form, setForm] = useState<FormState>(initialForm);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
+  const [imageSlots, setImageSlots] = useState<ImageSlot[]>([]);
   const [coverImageIndex, setCoverImageIndex] = useState(0);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<string | null>(null);
   const [validationHint, setValidationHint] = useState<string | null>(null);
+  const [dropActive, setDropActive] = useState(false);
+  const [uploadErrorLabel, setUploadErrorLabel] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const [fileLimitReached, setFileLimitReached] = useState(false);
+  const [recentUploadErrors, setRecentUploadErrors] = useState<string[]>([]);
 
   const isAdmin = getAppRole(currentUser) === "admin" || getAppRole(currentUser) === "super_admin";
   const effectiveVerificationStatus = getEffectiveSellerVerificationStatus(currentUser, verificationStatus);
@@ -246,21 +264,76 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
     setForm((current) => ({ ...current, [name]: value }));
   };
 
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (!files || !userId) {
+  const applyImages = (updater: (current: string[]) => string[]) => {
+    setImageUrls((current) => {
+      const next = updater(current);
+      setCoverImageIndex((cover) => {
+        if (next.length === 0) return 0;
+        return Math.min(cover, next.length - 1);
+      });
+      return next;
+    });
+  };
+
+  const readFileAsDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error(`Unable to read ${file.name}.`));
+      reader.onload = () => resolve(String(reader.result));
+      reader.readAsDataURL(file);
+    });
+
+  const handleImageUpload = async (files: File[]) => {
+    if (!userId) {
       setMessage({ type: "error", text: "Please wait for your account to finish loading." });
       return;
     }
 
+    const currentCount = imageUrls.length;
+    const acceptedFiles = files.slice(0, Math.max(0, MAX_LISTING_IMAGE_COUNT - currentCount));
+    const rejectedCount = files.length - acceptedFiles.length;
+
+    if (rejectedCount > 0) {
+      setFileLimitReached(true);
+      setUploadErrorLabel(`You can upload up to ${MAX_LISTING_IMAGE_COUNT} listing photos.`);
+    } else {
+      setFileLimitReached(false);
+    }
+
+    if (!acceptedFiles.length) return;
+
     setUploading(true);
     setMessage(null);
+    setUploadErrorLabel(null);
+    setUploadProgress(0);
+    setUploadingCount(acceptedFiles.length);
+    setRecentUploadErrors([]);
 
-    const nextUrls: string[] = [];
+    const initialSlots = acceptedFiles.map((file) => ({
+      id: `${file.name}-${crypto.randomUUID().slice(0, 8)}`,
+      url: "",
+      name: file.name,
+      status: "uploading" as const,
+      progress: 5,
+    }));
+
+    setImageSlots((current) => [...current, ...initialSlots]);
+
     const nextErrors: string[] = [];
+    const uploadedUrls: string[] = [];
+    let completed = 0;
 
-    for (const file of Array.from(files)) {
+    for (let index = 0; index < acceptedFiles.length; index += 1) {
+      const file = acceptedFiles[index];
+      const slotId = initialSlots[index].id;
       try {
+        if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+          throw new Error(`${file.name} must be a JPEG, PNG, WebP, or GIF file.`);
+        }
+        if (file.size > MAX_IMAGE_SIZE_BYTES) {
+          throw new Error(`${file.name} is too large. Please use an image under ${Math.round(MAX_IMAGE_SIZE_BYTES / 1024 / 1024)}MB.`);
+        }
+
         const optimized = await compressListingImage(file);
         const uploaded = await uploadImageFile({
           supabase,
@@ -269,44 +342,62 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
           file: optimized,
           prefix: "listing-image",
         });
-        nextUrls.push(uploaded.publicUrl);
+
+        uploadedUrls.push(uploaded.publicUrl);
+        completed += 1;
+        setUploadProgress(Math.round((completed / acceptedFiles.length) * 100));
+        setImageSlots((current) => current.map((slot) => (slot.id === slotId ? { ...slot, url: uploaded.publicUrl, status: "ready", progress: 100 } : slot)));
       } catch (error) {
-        nextErrors.push(error instanceof Error ? error.message : `Failed to upload ${file.name}.`);
+        completed += 1;
+        setUploadProgress(Math.round((completed / acceptedFiles.length) * 100));
+        const errorMessage = error instanceof Error ? error.message : `Failed to upload ${file.name}.`;
+        nextErrors.push(errorMessage);
+        setImageSlots((current) => current.map((slot) => (slot.id === slotId ? { ...slot, status: "error", progress: 100, error: errorMessage } : slot)));
       }
     }
 
-    setImageUrls((current) => [...current, ...nextUrls]);
-    if (nextUrls.length && coverImageIndex === 0) {
-      setCoverImageIndex(imageUrls.length === 0 ? 0 : coverImageIndex);
-    }
-    if (nextErrors.length) {
-      setMessage({ type: "error", text: nextErrors.join(" ") });
+    if (uploadedUrls.length) {
+      applyImages((current) => [...current, ...uploadedUrls]);
+      setImageSlots((current) => current.filter((slot) => slot.status !== "error"));
     }
 
+    setUploadingCount(0);
     setUploading(false);
+    setRecentUploadErrors(nextErrors);
+    if (nextErrors.length) {
+      setUploadErrorLabel(nextErrors.join(" "));
+      setMessage({ type: "error", text: nextErrors.join(" ") });
+    }
+  };
+
+  const handleFileInput = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    void handleImageUpload(files);
     event.target.value = "";
   };
 
+  const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
+    event.preventDefault();
+    setDropActive(false);
+    void handleImageUpload(Array.from(event.dataTransfer.files ?? []));
+  };
+
   const removeImage = (index: number) => {
-    setImageUrls((current) => current.filter((_, currentIndex) => currentIndex !== index));
-    setCoverImageIndex((current) => {
-      if (index === current) return 0;
-      if (index < current) return Math.max(0, current - 1);
-      return current;
-    });
+    applyImages((current) => current.filter((_, currentIndex) => currentIndex !== index));
+    setImageSlots((current) => current.filter((_, currentIndex) => currentIndex !== index));
+  };
+
+  const retryUpload = (index: number) => {
+    setImageSlots((current) => current.filter((_, currentIndex) => currentIndex !== index));
+    setUploadErrorLabel(null);
   };
 
   const moveImage = (index: number, direction: -1 | 1) => {
-    setImageUrls((current) => {
+    applyImages((current) => {
       const next = [...current];
       const target = index + direction;
       if (target < 0 || target >= next.length) return current;
       [next[index], next[target]] = [next[target], next[index]];
-      setCoverImageIndex((cover) => {
-        if (cover === index) return target;
-        if (cover === target) return index;
-        return cover;
-      });
       return next;
     });
   };
@@ -323,6 +414,10 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
       setMessage({ type: "error", text: "Verification is required before publishing listings." });
       return;
     }
+    if (uploading || imageSlots.some((slot) => slot.status === "uploading")) {
+      setMessage({ type: "error", text: "Wait for all uploads to finish before publishing." });
+      return;
+    }
     if (validationErrors.length) {
       setMessage({ type: "error", text: validationErrors[0] });
       return;
@@ -332,6 +427,7 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
     setMessage(null);
 
     try {
+      const readyImages = imageSlots.filter((slot) => slot.status === "ready").map((slot) => slot.url).filter(Boolean);
       const payload = {
         card_name: form.card_name.trim(),
         set_name: form.set_name.trim(),
@@ -348,7 +444,7 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
         shipping_paid_by: form.shipping_paid_by,
         weight_oz: Number(form.weight_oz) || null,
         package_type: form.package_type.trim() || null,
-        images: imageUrls,
+        images: readyImages,
         status: form.status,
       };
 
@@ -570,30 +666,69 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
               </div>
 
               <div className="space-y-4 rounded-2xl border border-white/10 bg-[#13131f] p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <label className="block text-sm font-medium text-gray-300">Upload Images</label>
-                  <div className="text-xs text-gray-500">Drag files here or use the picker</div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300">Upload Images</label>
+                    <div className="text-xs text-gray-500">Drag files here or use the picker</div>
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {imageUrls.length}/{MAX_LISTING_IMAGE_COUNT} photos
+                  </div>
                 </div>
-                <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleImageUpload} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
-                {uploading && <p className="text-xs text-gray-500">Uploading images...</p>}
-                {imageUrls.length > 0 && (
+
+                <div
+                  onDragEnter={(event) => { event.preventDefault(); setDropActive(true); }}
+                  onDragOver={(event) => { event.preventDefault(); setDropActive(true); }}
+                  onDragLeave={(event) => { event.preventDefault(); setDropActive(false); }}
+                  onDrop={handleDrop}
+                  className={`rounded-2xl border-2 border-dashed p-5 transition ${dropActive ? "border-yellow-400 bg-yellow-400/10" : "border-white/10 bg-white/5"}`}
+                >
+                  <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleFileInput} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
+                  <p className="mt-3 text-xs text-gray-500">Accepted: JPEG, PNG, WebP, GIF. Max {Math.round(MAX_IMAGE_SIZE_BYTES / 1024 / 1024)}MB each.</p>
+                  {uploading && (
+                    <div className="mt-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>Uploading {uploadingCount} file(s)</span>
+                        <span>{uploadProgress}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-white/10">
+                        <div className="h-full rounded-full bg-yellow-400 transition-all" style={{ width: `${uploadProgress}%` }} />
+                      </div>
+                    </div>
+                  )}
+                  {fileLimitReached && <p className="mt-3 text-xs text-red-300">{`You can upload up to ${MAX_LISTING_IMAGE_COUNT} listing photos.`}</p>}
+                  {uploadErrorLabel && <p className="mt-3 text-xs text-red-300">{uploadErrorLabel}</p>}
+                </div>
+
+                {imageSlots.length > 0 && (
                   <div className="space-y-3">
                     <div className="text-xs text-gray-500">{imageUrls.length} image(s) ready</div>
                     <div className="grid gap-3 sm:grid-cols-2">
-                      {imageUrls.map((url, index) => (
-                        <div key={`${url}-${index}`} className={`rounded-2xl border p-3 ${coverImageIndex === index ? "border-yellow-400/40 bg-yellow-400/10" : "border-white/10 bg-white/5"}`}>
+                      {imageSlots.map((slot, index) => (
+                        <div key={slot.id} className={`rounded-2xl border p-3 ${coverImageIndex === index ? "border-yellow-400/40 bg-yellow-400/10" : "border-white/10 bg-white/5"}`}>
                           <div className="aspect-[4/3] overflow-hidden rounded-xl border border-white/10 bg-black/20">
-                            <img src={url} alt={`Uploaded listing image ${index + 1}`} className="h-full w-full object-cover" />
+                            {slot.status === "ready" && slot.url ? (
+                              <img src={slot.url} alt={`Uploaded listing image ${index + 1}`} className="h-full w-full object-cover" />
+                            ) : slot.status === "error" ? (
+                              <div className="flex h-full w-full items-center justify-center bg-red-500/10 text-center text-xs text-red-200">Upload failed</div>
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center text-xs text-gray-400">Uploading… {slot.progress}%</div>
+                            )}
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2">
-                            <button type="button" onClick={() => setCoverImageIndex(index)} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-gray-300 hover:bg-white/5">Set cover</button>
-                            <button type="button" onClick={() => moveImage(index, -1)} disabled={index === 0} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-40">Up</button>
-                            <button type="button" onClick={() => moveImage(index, 1)} disabled={index === imageUrls.length - 1} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-40">Down</button>
+                            <button type="button" onClick={() => setCoverImageIndex(index)} disabled={slot.status !== "ready"} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-40">Set cover</button>
+                            <button type="button" onClick={() => moveImage(index, -1)} disabled={index === 0 || slot.status !== "ready"} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-40">Up</button>
+                            <button type="button" onClick={() => moveImage(index, 1)} disabled={index === imageSlots.length - 1 || slot.status !== "ready"} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-40">Down</button>
                             <button type="button" onClick={() => removeImage(index)} className="rounded-lg border border-red-400/30 px-3 py-1.5 text-xs text-red-300 hover:bg-red-400/10">Remove</button>
+                            {slot.status === "error" && (
+                              <button type="button" onClick={() => retryUpload(index)} className="rounded-lg border border-yellow-400/30 px-3 py-1.5 text-xs text-yellow-300 hover:bg-yellow-400/10">Retry</button>
+                            )}
                           </div>
+                          {slot.error && <p className="mt-2 text-xs text-red-300">{slot.error}</p>}
                         </div>
                       ))}
                     </div>
+                    {recentUploadErrors.length > 0 && <div className="text-xs text-red-300">{recentUploadErrors.join(" ")}</div>}
                   </div>
                 )}
               </div>
