@@ -67,7 +67,7 @@ async function getListing(id: string) {
   const rows = await fetchPublicRows<ListingWithSeller>(
     "listings",
     "*,profiles:profiles!seller_id(id,username,seller_rating,total_sales,avatar_url)",
-    [["id", `eq.${id}`]],
+    [["id", `eq.${id}`], ["status", "eq.active"]],
   );
   return rows[0] ?? null;
 }

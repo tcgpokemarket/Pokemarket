@@ -108,8 +108,7 @@ export async function getHomepageData(): Promise<HomepageData> {
   try {
     const supabase = await createClient();
     const [listingsResult, sellersResult] = await Promise.all([
-      supabase.from("listings").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(12),
-      supabase.from("seller_stores").select("seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme").order("created_at", { ascending: false }).limit(8),
+      supabase.from("listings").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(12),      supabase.from("seller_stores").select("seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme").order("created_at", { ascending: false }).limit(8),
     ]);
 
     const trendingMarketplace = (listingsResult.data ?? []).map(mapListing);
