@@ -6,7 +6,7 @@ import type { Order } from "@/lib/supabase/types";
 
 export default function FeeSummary({ listingPrice, sellerOrders, shippingPaidBy = "buyer" }: { listingPrice: number; sellerOrders: Order[]; shippingPaidBy?: "buyer" | "seller" }) {
   const feeConfig = useMemo(() => buildSellerFeeConfig({}), []);
-  const shipping = shippingPaidBy === "seller" ? 0 : 0;
+  const shipping = shippingPaidBy === "seller" ? 0 : sellerOrders.find((order) => order.shipping_amount != null)?.shipping_amount ?? 0;
   const shippingLabel = "USPS shipping";
   const shippingNote = shippingPaidBy === "seller" ? "Seller covered" : "Buyer paid";
 

@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ received: true });
   }
 
-  if (await isProcessed(supabase, session.id)) {
+  if (session.payment_status !== "paid") {
     return NextResponse.json({ received: true });
   }
 
@@ -107,6 +107,18 @@ export async function POST(req: Request) {
   if (orderResult.error || !order) {
     return NextResponse.json({ received: true });
   }
+
+  if (await isProcessed(supabase, session.id)) {
+    return NextResponse.json({ received: true });
+  }
+
+  const { data: inventoryRow } = await (supabase as any).from("listings").select("quantity").eq("id", order.listing_id).maybeSingle();
+  if (inventoryRow) {
+    const remaining = Math.max(Number(inventoryRow.quantity ?? 0) - Number(order.quantity ?? 1), 0);
+    await (supabase as any).from("listings").update({ quantity: remaining, status: remaining > 0 ? "active" : "sold" }).eq("id", order.listing_id);
+  }
+
+  await (supabase as any).from("orders").update({ status: "paid", updated_at: new Date().toISOString() }).eq("id", order.id);
 
   const now = new Date().toISOString();
   const releaseAt = order.escrow_release_at ?? getDeliveryReleaseAt(now);
@@ -123,11 +135,12 @@ export async function POST(req: Request) {
     payout_status: shouldRelease ? "released" : "held",
     escrow_status: shouldRelease ? "released" : "held",
     escrow_released_at: shouldRelease ? now : null,
+    stripe_payment_intent_id: session.payment_intent?.toString?.() ?? order.stripe_payment_intent_id,
     total_amount: toNumber(session.metadata?.totalAmount, order.total_amount),
     item_subtotal: toNumber(session.metadata?.itemSubtotal, order.item_subtotal ?? 0),
     shipping_amount: toNumber(session.metadata?.shippingAmount, order.shipping_amount ?? 0),
     sales_tax_amount: toNumber(session.metadata?.salesTaxAmount, order.sales_tax_amount ?? 0),
-    processing_fee_amount: toNumber(session.metadata?.processingFeeAmount, order.processing_fee_amount ?? 0),
+    processing_fee_amount: toNumber(session.metadata?.paymentProcessingFeeAmount, order.processing_fee_amount ?? 0),
     marketplace_fee_amount: toNumber(session.metadata?.marketplaceFeeAmount, order.marketplace_fee_amount ?? 0),
     seller_payout_amount: toNumber(session.metadata?.sellerPayoutAmount, order.seller_payout_amount ?? 0),
     platform_revenue_amount: toNumber(session.metadata?.platformRevenueAmount, order.platform_revenue_amount ?? 0),

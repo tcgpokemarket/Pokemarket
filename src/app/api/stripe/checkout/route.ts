@@ -74,8 +74,9 @@ export async function POST(request: Request) {
   }
 
   const itemSubtotal = Number(listing.price) * quantity;
-  const shipping = 0;
-  const { data: sellerProfile } = await admin.from("profiles").select("seller_state").eq("id", user.id).maybeSingle<{ seller_state: string | null }>();
+  const shipping = Number(body.shippingAmount ?? 0);
+  const shippingService = typeof body.shippingService === "string" ? body.shippingService.trim() : "USPS Ground Advantage";
+  const { data: sellerProfile } = await admin.from("profiles").select("seller_state").eq("id", listing.seller_id).maybeSingle<{ seller_state: string | null }>();
   const sellerState = sellerProfile?.seller_state ?? null;
   const checkoutLocation = resolveCheckoutLocation({
     shippingAddress: body.shippingAddress ?? null,
@@ -88,6 +89,23 @@ export async function POST(request: Request) {
   });
   const fees = calculateFeeBreakdown({ itemSubtotal, shipping, salesTax, orders: [] });
   const totalDue = fees.totalDue;
+  const totalAmount = fees.totalDue;
+  const shippingAmount = shipping;
+  const salesTaxAmount = salesTax;
+  const paymentProcessingFeeAmount = fees.paymentProcessingFee;
+  const marketplaceFeeAmount = fees.marketplaceFee;
+  const sellerPayoutAmount = fees.sellerPayout;
+  const platformRevenueAmount = fees.platformRevenue;
+  const marketplaceFeePercent = fees.marketplaceFeePercent;
+  const sellerTierName = fees.tierName;
+  const buyerState = checkoutLocation.state ?? "";
+  const buyerCountry = checkoutLocation.country ?? "";
+  const sellerStateValue = sellerState ?? "";
+  const referralSource = typeof body.referralSource === "string" ? body.referralSource : "";
+  const referralSourceCode = typeof body.referralSourceCode === "string" ? body.referralSourceCode : "";
+  const referralSourceUserId = typeof body.referralSourceUserId === "string" ? body.referralSourceUserId : "";
+  const referralCommissionAmount = Number(body.referralCommissionAmount ?? 0);
+  const referralCommissionStatus = typeof body.referralCommissionStatus === "string" ? body.referralCommissionStatus : "";
 
   const stripe = createStripeClient();
   const checkoutSession = await stripe.checkout.sessions.create({
@@ -116,15 +134,25 @@ export async function POST(request: Request) {
       seller_id: listing.seller_id,
       buyer_id: user.id,
       quantity: String(quantity),
-      item_subtotal: itemSubtotal.toFixed(2),
-      shipping_amount: shipping.toFixed(2),
-      sales_tax_amount: salesTax.toFixed(2),
-      buyer_state: checkoutLocation.state ?? "",
-      seller_state: sellerState ?? "",
-      payment_processing_fee_amount: fees.paymentProcessingFee.toFixed(2),
-      marketplace_fee_amount: fees.marketplaceFee.toFixed(2),
-      seller_payout_amount: fees.sellerPayout.toFixed(2),
-      total_due: totalDue.toFixed(2),
+      itemSubtotal: itemSubtotal.toFixed(2),
+      shippingAmount: shippingAmount.toFixed(2),
+      salesTaxAmount: salesTaxAmount.toFixed(2),
+      buyerState,
+      buyerCountry,
+      sellerState: sellerStateValue,
+      paymentProcessingFeeAmount: paymentProcessingFeeAmount.toFixed(2),
+      marketplaceFeeAmount: marketplaceFeeAmount.toFixed(2),
+      sellerPayoutAmount: sellerPayoutAmount.toFixed(2),
+      platformRevenueAmount: platformRevenueAmount.toFixed(2),
+      totalAmount: totalAmount.toFixed(2),
+      marketplaceFeePercent: marketplaceFeePercent.toFixed(2),
+      sellerTierName,
+      referralSource,
+      referralSourceCode,
+      referralSourceUserId,
+      referralCommissionAmount: referralCommissionAmount.toFixed(2),
+      referralCommissionStatus,
+      shippingService,
     },
   });
 
