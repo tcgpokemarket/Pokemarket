@@ -7,17 +7,21 @@ interface Props {
   settings: ReferralProgramSettings;
 }
 
-// Only the subset of columns we expose in the UI.
-// Field names match the actual DB column names.
 interface SettingsFormState {
   enabled: boolean;
-  reward_as_pct_of_platform_revenue: number;
-  max_reward_per_referral: number;
-  max_monthly_rewards_per_referrer: number;
-  max_annual_rewards_per_referrer: number;
-  max_lifetime_rewards_per_referrer: number;
-  min_order_amount: number;
+  paused: boolean;
+  reward_amount: number;
+  required_successful_volume: number;
+  max_lifetime_commission_share_percent: number;
   payout_delay_days: number;
+  campaign_starts_at: string;
+  campaign_ends_at: string;
+  requires_verified_account: boolean;
+  requires_first_successful_order: boolean;
+  requires_no_open_disputes: boolean;
+  requires_no_chargebacks: boolean;
+  fraud_score_block_threshold: number;
+  fraud_score_review_threshold: number;
 }
 
 function Field({
@@ -69,6 +73,26 @@ function NumberInput({
   );
 }
 
+function TextInput({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-2.5 text-sm text-white outline-none placeholder:text-gray-500"
+    />
+  );
+}
+
 function Toggle({
   checked,
   onChange,
@@ -98,22 +122,25 @@ function Toggle({
 export default function ReferralSettingsClient({ settings }: Props) {
   const [form, setForm] = useState<SettingsFormState>({
     enabled: settings.enabled ?? true,
-    reward_as_pct_of_platform_revenue: settings.reward_as_pct_of_platform_revenue ?? 5,
-    max_reward_per_referral: settings.max_reward_per_referral ?? 25,
-    max_monthly_rewards_per_referrer: settings.max_monthly_rewards_per_referrer ?? 100,
-    max_annual_rewards_per_referrer: settings.max_annual_rewards_per_referrer ?? 1000,
-    max_lifetime_rewards_per_referrer: settings.max_lifetime_rewards_per_referrer ?? 5000,
-    min_order_amount: settings.min_order_amount ?? 0,
+    paused: settings.paused ?? false,
+    reward_amount: settings.reward_amount ?? 5,
+    required_successful_volume: settings.required_successful_volume ?? 200,
+    max_lifetime_commission_share_percent: settings.max_lifetime_commission_share_percent ?? 20,
     payout_delay_days: settings.payout_delay_days ?? 14,
+    campaign_starts_at: settings.campaign_starts_at ?? "",
+    campaign_ends_at: settings.campaign_ends_at ?? "",
+    requires_verified_account: settings.requires_verified_account ?? true,
+    requires_first_successful_order: settings.requires_first_successful_order ?? true,
+    requires_no_open_disputes: settings.requires_no_open_disputes ?? true,
+    requires_no_chargebacks: settings.requires_no_chargebacks ?? true,
+    fraud_score_block_threshold: settings.fraud_score_block_threshold ?? 70,
+    fraud_score_review_threshold: settings.fraud_score_review_threshold ?? 40,
   });
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
-  function set<K extends keyof SettingsFormState>(
-    key: K,
-    value: SettingsFormState[K],
-  ) {
+  function set<K extends keyof SettingsFormState>(key: K, value: SettingsFormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
@@ -121,8 +148,8 @@ export default function ReferralSettingsClient({ settings }: Props) {
     setError(null);
     setSuccess(false);
 
-    if (form.reward_as_pct_of_platform_revenue > 30) {
-      setError("Reward percentage cannot exceed 30% of platform revenue.");
+    if (form.max_lifetime_commission_share_percent > 20) {
+      setError("Lifetime payout share cannot exceed 20% of commission earned.");
       return;
     }
 
@@ -131,7 +158,11 @@ export default function ReferralSettingsClient({ settings }: Props) {
         const res = await fetch("/api/admin/referral/settings", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
+          body: JSON.stringify({
+            ...form,
+            campaign_starts_at: form.campaign_starts_at || null,
+            campaign_ends_at: form.campaign_ends_at || null,
+          }),
         });
         const data = (await res.json()) as { error?: string };
         if (!res.ok) {
@@ -148,122 +179,92 @@ export default function ReferralSettingsClient({ settings }: Props) {
   return (
     <div className="rounded-3xl border border-white/10 bg-white/5 p-8">
       <div className="space-y-6">
-        {/* Program toggle */}
         <section className="space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Program</h2>
-          <Toggle
-            checked={form.enabled}
-            onChange={(v) => set("enabled", v)}
-            label="Program active"
-          />
+          <Toggle checked={form.enabled} onChange={(v) => set("enabled", v)} label="Program active" />
+          <Toggle checked={form.paused} onChange={(v) => set("paused", v)} label="Pause all payouts" />
         </section>
 
         <hr className="border-white/10" />
 
-        {/* Reward structure */}
         <section className="space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Reward structure</h2>
 
           <Field
-            label="Reward % of platform revenue"
-            hint="Must be ≤ 30%. The referrer earns this percentage of the platform fee on the referred user's first qualifying order."
+            label="Reward amount"
+            hint="Fixed bonus paid only after the referred account clears the required successful volume and commission cap."
+          >
+            <NumberInput value={form.reward_amount} onChange={(v) => set("reward_amount", v)} min={0} step={0.5} prefix="$" />
+          </Field>
+
+          <Field
+            label="Required successful volume"
+            hint="The referred account must complete this amount in successful marketplace activity before the reward is eligible."
           >
             <NumberInput
-              value={form.reward_as_pct_of_platform_revenue}
-              onChange={(v) => set("reward_as_pct_of_platform_revenue", v)}
+              value={form.required_successful_volume}
+              onChange={(v) => set("required_successful_volume", v)}
               min={0}
-              max={30}
+              step={1}
+              prefix="$"
+            />
+          </Field>
+
+          <Field
+            label="Max lifetime payout share"
+            hint="The total lifetime payout for one referred account cannot exceed this share of commission earned."
+          >
+            <NumberInput
+              value={form.max_lifetime_commission_share_percent}
+              onChange={(v) => set("max_lifetime_commission_share_percent", v)}
+              min={0}
+              max={20}
               step={0.5}
               prefix="%"
             />
           </Field>
-
-          <Field
-            label="Max reward per referral"
-            hint="Hard cap in dollars per individual referral event."
-          >
-            <NumberInput
-              value={form.max_reward_per_referral}
-              onChange={(v) => set("max_reward_per_referral", v)}
-              min={0}
-              step={0.5}
-              prefix="$"
-            />
-          </Field>
-
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Monthly cap ($)">
-              <NumberInput
-                value={form.max_monthly_rewards_per_referrer}
-                onChange={(v) => set("max_monthly_rewards_per_referrer", v)}
-                min={0}
-                prefix="$"
-              />
-            </Field>
-            <Field label="Annual cap ($)">
-              <NumberInput
-                value={form.max_annual_rewards_per_referrer}
-                onChange={(v) => set("max_annual_rewards_per_referrer", v)}
-                min={0}
-                prefix="$"
-              />
-            </Field>
-            <Field label="Lifetime cap ($)">
-              <NumberInput
-                value={form.max_lifetime_rewards_per_referrer}
-                onChange={(v) => set("max_lifetime_rewards_per_referrer", v)}
-                min={0}
-                prefix="$"
-              />
-            </Field>
-          </div>
         </section>
 
         <hr className="border-white/10" />
 
-        {/* Timing + eligibility */}
         <section className="space-y-4">
           <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Timing & eligibility</h2>
 
-          <Field
-            label="Reward hold days"
-            hint="Days after order completion before reward becomes payable."
-          >
-            <NumberInput
-              value={form.payout_delay_days}
-              onChange={(v) => set("payout_delay_days", v)}
-              min={0}
-              max={90}
-            />
+          <Field label="Reward hold days" hint="Days after qualification before payout becomes available.">
+            <NumberInput value={form.payout_delay_days} onChange={(v) => set("payout_delay_days", v)} min={0} max={90} />
           </Field>
 
-          <Field
-            label="Minimum order amount ($)"
-            hint="Referred user's qualifying order must be at least this amount."
-          >
-            <NumberInput
-              value={form.min_order_amount}
-              onChange={(v) => set("min_order_amount", v)}
-              min={0}
-              step={0.5}
-              prefix="$"
-            />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Campaign starts">
+              <TextInput value={form.campaign_starts_at} onChange={(v) => set("campaign_starts_at", v)} placeholder="YYYY-MM-DD or ISO date" />
+            </Field>
+            <Field label="Campaign ends">
+              <TextInput value={form.campaign_ends_at} onChange={(v) => set("campaign_ends_at", v)} placeholder="YYYY-MM-DD or ISO date" />
+            </Field>
+          </div>
+
+          <Field label="Fraud block threshold" hint="Scores at or above this value are automatically blocked.">
+            <NumberInput value={form.fraud_score_block_threshold} onChange={(v) => set("fraud_score_block_threshold", v)} min={0} max={100} />
+          </Field>
+
+          <Field label="Fraud review threshold" hint="Scores at or above this value are flagged for manual review.">
+            <NumberInput value={form.fraud_score_review_threshold} onChange={(v) => set("fraud_score_review_threshold", v)} min={0} max={100} />
           </Field>
         </section>
 
-        {/* Status messages */}
-        {error && (
-          <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">
-            {error}
-          </div>
-        )}
-        {success && (
-          <div className="rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-400">
-            Settings saved successfully.
-          </div>
-        )}
+        <hr className="border-white/10" />
 
-        {/* Save */}
+        <section className="space-y-4">
+          <h2 className="text-sm font-bold uppercase tracking-widest text-gray-400">Eligibility rules</h2>
+          <Toggle checked={form.requires_verified_account} onChange={(v) => set("requires_verified_account", v)} label="Require verified account" />
+          <Toggle checked={form.requires_first_successful_order} onChange={(v) => set("requires_first_successful_order", v)} label="Require first successful order" />
+          <Toggle checked={form.requires_no_open_disputes} onChange={(v) => set("requires_no_open_disputes", v)} label="Require no open disputes" />
+          <Toggle checked={form.requires_no_chargebacks} onChange={(v) => set("requires_no_chargebacks", v)} label="Require no chargebacks" />
+        </section>
+
+        {error && <div className="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-400">{error}</div>}
+        {success && <div className="rounded-2xl border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-400">Settings saved successfully.</div>}
+
         <div className="flex justify-end">
           <button
             onClick={handleSave}

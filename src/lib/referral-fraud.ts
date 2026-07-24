@@ -1,12 +1,11 @@
 // ============================================================
 // referral-fraud.ts
 // Fraud detection for the referral program.
-// Checks for self-referral, loops, IP collisions, burst signups, etc.
+// Checks for self-referral, loops, IP collisions, burst signups, device overlap, and account abuse.
 // ============================================================
 
-import type { AnySupabaseClient, FraudCheckResult } from "./referral-types";
+import type { AnySupabaseClient, FraudCheckResult, ReferralFraudSeverity } from "./referral-types";
 
-// Common email domains we don't penalise for sharing
 const COMMON_EMAIL_DOMAINS = new Set([
   "gmail.com",
   "yahoo.com",
@@ -20,21 +19,13 @@ const COMMON_EMAIL_DOMAINS = new Set([
   "me.com",
 ]);
 
-/**
- * Detects potential fraud in a referral attempt.
- *
- * Checks performed (with individual fraud score contributions):
- * 1. Self-referral                              → block  (+100)
- * 2. Referral loop (referred had referred referrer) → block (+90)
- * 3. Same IP address at signup                 → flag   (+40)
- * 4. Same non-common email domain              → flag   (+30)
- * 5. Referrer account < 7 days old             → flag   (+20)
- * 6. Referrer sent >5 referrals in last 24h   → flag   (+50)
- *
- * Score ≥ 70 → blocked
- * Score 40–69 → requires admin review (returned as flag, not blocked in caller)
- * Score < 40 → allow
- */
+function classifySeverity(score: number): ReferralFraudSeverity {
+  if (score >= 90) return "critical";
+  if (score >= 70) return "high";
+  if (score >= 40) return "medium";
+  return "low";
+}
+
 export async function detectReferralFraud(
   supabase: AnySupabaseClient,
   referrerId: string,
@@ -44,17 +35,10 @@ export async function detectReferralFraud(
   const flags: string[] = [];
   let score = 0;
 
-  // ── Check 1: Self-referral ──────────────────────────────────
   if (referrerId === referredId) {
-    return {
-      blocked: true,
-      flags: ["self_referral"],
-      score: 100,
-    };
+    return { blocked: true, flags: ["self_referral"], score: 100 };
   }
 
-  // ── Check 2: Referral loop ──────────────────────────────────
-  // Does an attribution exist where the REFERRED user once referred the REFERRER?
   const { data: loopCheck } = await supabase
     .from("referral_attributions")
     .select("id")
@@ -63,109 +47,114 @@ export async function detectReferralFraud(
     .limit(1);
 
   if (loopCheck && loopCheck.length > 0) {
-    return {
-      blocked: true,
-      flags: ["referral_loop"],
-      score: 90,
-    };
+    return { blocked: true, flags: ["referral_loop"], score: 90 };
   }
 
-  // ── Load profiles for both users (email + created_at) ───────
   const [referrerResult, referredResult] = await Promise.all([
-    supabase
-      .from("profiles")
-      .select("id, created_at")
-      .eq("id", referrerId)
-      .single(),
-    supabase
-      .from("profiles")
-      .select("id, created_at")
-      .eq("id", referredId)
-      .single(),
+    supabase.from("profiles").select("id, created_at, phone, identity_verified_at").eq("id", referrerId).single(),
+    supabase.from("profiles").select("id, created_at, phone, identity_verified_at").eq("id", referredId).single(),
   ]);
 
-  // ── Check 3: Same IP at signup ───────────────────────────────
-  const { data: referrerSessions } = await supabase
-    .from("device_sessions")
-    .select("ip_address")
-    .eq("user_id", referrerId)
-    .limit(10);
+  const referrerProfile = referrerResult.data as { id: string; created_at: string; phone?: string | null; identity_verified_at?: string | null } | null;
+  const referredProfile = referredResult.data as { id: string; created_at: string; phone?: string | null; identity_verified_at?: string | null } | null;
 
-  const { data: referredSessions } = await supabase
-    .from("device_sessions")
-    .select("ip_address")
-    .eq("user_id", referredId)
-    .limit(10);
+  const [referrerSessions, referredSessions] = await Promise.all([
+    supabase.from("device_sessions").select("ip_address, device_fingerprint, user_agent").eq("user_id", referrerId).limit(10),
+    supabase.from("device_sessions").select("ip_address, device_fingerprint, user_agent").eq("user_id", referredId).limit(10),
+  ]);
 
-  if (referrerSessions && referredSessions) {
-    const referrerIps = new Set(
-      referrerSessions
-        .map((s: { ip_address: string | null }) => s.ip_address)
-        .filter(Boolean),
-    );
-    const sharedIp = referredSessions.some(
-      (s: { ip_address: string | null }) =>
-        s.ip_address && referrerIps.has(s.ip_address),
-    );
-    if (sharedIp) {
-      flags.push("shared_ip_address");
-      score += 40;
-    }
+  const referrerIpSet = new Set(
+    (referrerSessions.data ?? [])
+      .map((session: { ip_address: string | null }) => session.ip_address)
+      .filter(Boolean),
+  );
+  const referrerFingerprintSet = new Set(
+    (referrerSessions.data ?? [])
+      .map((session: { device_fingerprint: string | null }) => session.device_fingerprint)
+      .filter(Boolean),
+  );
+  const referrerUserAgentSet = new Set(
+    (referrerSessions.data ?? [])
+      .map((session: { user_agent: string | null }) => session.user_agent)
+      .filter(Boolean),
+  );
+
+  const sharedIp = (referredSessions.data ?? []).some((session: { ip_address: string | null }) => session.ip_address && referrerIpSet.has(session.ip_address));
+  if (sharedIp) {
+    flags.push("shared_ip_address");
+    score += 35;
   }
 
-  // ── Check 4: Same non-common email domain ────────────────────
-  // We can only check via auth.users which is not accessible from client.
-  // Use a best-effort approach: if both user IDs resolve to the same
-  // domain from their username pattern. Since we don't have email in profiles,
-  // we skip this check unless we have access to auth (service role).
-  // This check is intentionally conservative — we skip it for now to avoid
-  // false positives from the RLS-restricted profiles table.
+  const sharedFingerprint = (referredSessions.data ?? []).some((session: { device_fingerprint: string | null }) => session.device_fingerprint && referrerFingerprintSet.has(session.device_fingerprint));
+  if (sharedFingerprint) {
+    flags.push("duplicate_device_fingerprint");
+    score += 60;
+  }
 
-  // ── Check 5: Referrer account < 7 days old ───────────────────
-  if (referrerResult.data?.created_at) {
-    const referrerCreated = new Date(referrerResult.data.created_at);
-    const daysSinceCreated =
-      (Date.now() - referrerCreated.getTime()) / (1000 * 60 * 60 * 24);
-    if (daysSinceCreated < 7) {
+  const sharedUserAgent = (referredSessions.data ?? []).some((session: { user_agent: string | null }) => session.user_agent && referrerUserAgentSet.has(session.user_agent));
+  if (sharedUserAgent && sharedIp) {
+    flags.push("device_session_overlap");
+    score += 15;
+  }
+
+  if (referrerProfile?.created_at) {
+    const referrerAgeDays = (Date.now() - new Date(referrerProfile.created_at).getTime()) / (1000 * 60 * 60 * 24);
+    if (referrerAgeDays < 7) {
       flags.push("new_referrer_account");
       score += 20;
     }
   }
 
-  // ── Check 6: Referral burst — >5 referrals in 24h ───────────
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-  const { count: recentReferrals } = await supabase
-    .from("referral_attributions")
-    .select("id", { count: "exact", head: true })
-    .eq("referrer_user_id", referrerId)
-    .gte("created_at", oneDayAgo);
+  if (referrerProfile?.identity_verified_at && referredProfile?.identity_verified_at && referrerProfile.identity_verified_at === referredProfile.identity_verified_at) {
+    flags.push("shared_identity_verification");
+    score += 40;
+  }
 
-  if (recentReferrals !== null && recentReferrals > 5) {
+  if (referrerProfile?.phone && referredProfile?.phone && referrerProfile.phone === referredProfile.phone) {
+    flags.push("shared_phone_number");
+    score += 45;
+  }
+
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const [recentReferrals, recentProfiles] = await Promise.all([
+    supabase.from("referral_attributions").select("id", { count: "exact", head: true }).eq("referrer_user_id", referrerId).gte("created_at", oneDayAgo),
+    supabase.from("referral_attributions").select("id", { count: "exact", head: true }).eq("referrer_user_id", referrerId).gte("created_at", oneHourAgo),
+  ]);
+
+  const recentReferralCount = Number((recentReferrals as { count?: number | null }).count ?? 0);
+  const recentReferralBurst = Number((recentProfiles as { count?: number | null }).count ?? 0);
+  if (recentReferralCount > 5 || recentReferralBurst > 2) {
     flags.push("referral_burst");
     score += 50;
   }
 
-  // ── Final decision ───────────────────────────────────────────
-  const blocked = score >= 70;
+  const referredRecentSessions = (referredSessions.data ?? []).length;
+  if (referredRecentSessions === 0) {
+    flags.push("missing_device_history");
+    score += 10;
+  }
 
-  // Add informational flag for admin-review range
+  if ((referredProfile?.created_at && Date.now() - new Date(referredProfile.created_at).getTime() < 1000 * 60 * 60 * 24) || recentReferralBurst > 0) {
+    flags.push("new_referred_account");
+    score += 10;
+  }
+
+  if (referralCode && typeof referralCode === "string" && referralCode.length < 4) {
+    flags.push("short_referral_code");
+    score += 5;
+  }
+
+  void COMMON_EMAIL_DOMAINS;
+
+  const blocked = score >= 70;
   if (score >= 40 && score < 70) {
     flags.push("requires_admin_review");
   }
 
-  // Suppress unused variable warning — referralCode is available for
-  // callers who want to log it; not used in checks above.
-  void referralCode;
-  void referredResult;
-  void COMMON_EMAIL_DOMAINS;
-
   return { blocked, flags, score };
 }
 
-/**
- * Logs a fraud flag to the referral_fraud_flags table.
- * Uses the service-role client so it bypasses RLS.
- */
 export async function logFraudFlag(
   supabase: AnySupabaseClient,
   params: {

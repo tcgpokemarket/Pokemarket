@@ -642,42 +642,40 @@ export interface Database {
       referral_program_settings: {
         Row: {
           id: string
-          buyer_reward_credit: number
-          buyer_first_purchase_threshold: number
-          buyer_credit_expiry_days: number
-          buyer_reward_fee_share_percent: number
-          buyer_reward_max_payout: number
-          seller_reward_fee_share_percent: number
-          seller_reward_max_payout: number
-          creator_tier1_fee_share_percent: number
-          creator_tier1_duration_days: number
-          creator_tier1_max_payout: number
-          creator_tier2_fee_share_percent: number
-          creator_tier2_duration_days: number
-          min_profit_margin_percent: number
-          referral_hold_days: number
-          minimum_withdrawal_amount: number
-          updated_at: string
+          enabled: boolean
+          reward_amount: number
+          required_successful_volume: number
+          max_lifetime_commission_share_percent: number
+          payout_delay_days: number
+          campaign_starts_at: string | null
+          campaign_ends_at: string | null
+          requires_verified_account: boolean
+          requires_first_successful_order: boolean
+          requires_no_open_disputes: boolean
+          requires_no_chargebacks: boolean
+          fraud_score_block_threshold: number
+          fraud_score_review_threshold: number
+          paused: boolean
+          updated_at: string | null
           created_at: string
         }
         Insert: {
           id?: string
-          buyer_reward_credit?: number
-          buyer_first_purchase_threshold?: number
-          buyer_credit_expiry_days?: number
-          buyer_reward_fee_share_percent?: number
-          buyer_reward_max_payout?: number
-          seller_reward_fee_share_percent?: number
-          seller_reward_max_payout?: number
-          creator_tier1_fee_share_percent?: number
-          creator_tier1_duration_days?: number
-          creator_tier1_max_payout?: number
-          creator_tier2_fee_share_percent?: number
-          creator_tier2_duration_days?: number
-          min_profit_margin_percent?: number
-          referral_hold_days?: number
-          minimum_withdrawal_amount?: number
-          updated_at?: string
+          enabled?: boolean
+          reward_amount?: number
+          required_successful_volume?: number
+          max_lifetime_commission_share_percent?: number
+          payout_delay_days?: number
+          campaign_starts_at?: string | null
+          campaign_ends_at?: string | null
+          requires_verified_account?: boolean
+          requires_first_successful_order?: boolean
+          requires_no_open_disputes?: boolean
+          requires_no_chargebacks?: boolean
+          fraud_score_block_threshold?: number
+          fraud_score_review_threshold?: number
+          paused?: boolean
+          updated_at?: string | null
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['referral_program_settings']['Insert']>

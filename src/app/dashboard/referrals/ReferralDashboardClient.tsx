@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type {
-  ReferralDashboardStats,
-  ReferralAttributionWithRewards,
-  ReferralReward,
-} from "@/lib/referral-types";
+import type { ReferralDashboardStats, ReferralAttributionWithRewards, ReferralReward } from "@/lib/referral-types";
 
 interface Props {
   code: string;
@@ -14,25 +10,13 @@ interface Props {
   referrals: ReferralAttributionWithRewards[];
 }
 
-function StatCard({
-  label,
-  value,
-  prefix,
-  accent,
-}: {
-  label: string;
-  value: number;
-  prefix?: string;
-  accent?: string;
-}) {
+function StatCard({ label, value, prefix, accent }: { label: string; value: number; prefix?: string; accent?: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/5 p-5">
       <p className="text-xs uppercase tracking-widest text-gray-400">{label}</p>
       <p className={`mt-2 text-3xl font-black ${accent ?? "text-white"}`}>
         {prefix}
-        {typeof value === "number" && prefix === "$"
-          ? value.toFixed(2)
-          : value.toString()}
+        {typeof value === "number" && prefix === "$" ? value.toFixed(2) : value.toString()}
       </p>
     </div>
   );
@@ -53,13 +37,7 @@ function StatusBadge({ status }: { status: string }) {
     denied: "bg-red-500/20 text-red-400",
   };
   const cls = map[status] ?? "bg-gray-500/20 text-gray-300";
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${cls}`}
-    >
-      {status}
-    </span>
-  );
+  return <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${cls}`}>{status}</span>;
 }
 
 function PayoutHistorySection({ referrals }: { referrals: ReferralAttributionWithRewards[] }) {
@@ -67,35 +45,24 @@ function PayoutHistorySection({ referrals }: { referrals: ReferralAttributionWit
 
   for (const attribution of referrals) {
     for (const reward of attribution.rewards ?? []) {
-      if (reward.status === "paid" || reward.status === "approved") {
+      if (reward.status === "paid" || reward.status === "approved" || reward.status === "available") {
         payouts.push({
           ...reward,
-          referred_name:
-            attribution.referred_profile?.username ??
-            attribution.referred_profile?.full_name ??
-            "User",
+          referred_name: attribution.referred_profile?.username ?? attribution.referred_profile?.full_name ?? "User",
         });
       }
     }
   }
 
-  payouts.sort(
-    (a, b) =>
-      new Date(b.paid_at ?? b.approved_at ?? b.created_at).getTime() -
-      new Date(a.paid_at ?? a.approved_at ?? a.created_at).getTime(),
-  );
+  payouts.sort((a, b) => new Date(b.paid_at ?? b.approved_at ?? b.available_at ?? b.created_at).getTime() - new Date(a.paid_at ?? a.approved_at ?? a.available_at ?? a.created_at).getTime());
 
   return (
     <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
       <h2 className="text-lg font-bold text-white">Payout history</h2>
-      <p className="mt-1 text-sm text-gray-400">
-        Approved and paid rewards for your qualified referrals.
-      </p>
+      <p className="mt-1 text-sm text-gray-400">Rewards that cleared qualification, hold, and commission-cap checks.</p>
 
       {payouts.length === 0 ? (
-        <p className="mt-4 text-sm text-gray-500">
-          No payouts yet — rewards appear here after admin approval.
-        </p>
+        <p className="mt-4 text-sm text-gray-500">No payouts yet — rewards appear here once the referred account qualifies.</p>
       ) : (
         <div className="mt-4 overflow-x-auto">
           <table className="w-full text-sm">
@@ -104,32 +71,18 @@ function PayoutHistorySection({ referrals }: { referrals: ReferralAttributionWit
                 <th className="pb-3 pr-4">Referred user</th>
                 <th className="pb-3 pr-4">Amount</th>
                 <th className="pb-3 pr-4">Status</th>
-                <th className="pb-3 pr-4">Approved</th>
+                <th className="pb-3 pr-4">Held until</th>
                 <th className="pb-3">Paid out</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5">
               {payouts.map((payout) => (
                 <tr key={payout.id}>
-                  <td className="py-3 pr-4 font-medium text-white">
-                    {payout.referred_name}
-                  </td>
-                  <td className="py-3 pr-4 font-mono text-yellow-400">
-                    ${Number(payout.reward_amount).toFixed(2)}
-                  </td>
-                  <td className="py-3 pr-4">
-                    <StatusBadge status={payout.status} />
-                  </td>
-                  <td className="py-3 pr-4 text-gray-400">
-                    {payout.approved_at
-                      ? new Date(payout.approved_at).toLocaleDateString()
-                      : "—"}
-                  </td>
-                  <td className="py-3 text-gray-400">
-                    {payout.paid_at
-                      ? new Date(payout.paid_at).toLocaleDateString()
-                      : "—"}
-                  </td>
+                  <td className="py-3 pr-4 font-medium text-white">{payout.referred_name}</td>
+                  <td className="py-3 pr-4 font-mono text-yellow-400">${Number(payout.reward_amount).toFixed(2)}</td>
+                  <td className="py-3 pr-4"><StatusBadge status={payout.status} /></td>
+                  <td className="py-3 pr-4 text-gray-400">{payout.held_until ? new Date(payout.held_until).toLocaleDateString() : "—"}</td>
+                  <td className="py-3 text-gray-400">{payout.paid_at ? new Date(payout.paid_at).toLocaleDateString() : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -140,12 +93,7 @@ function PayoutHistorySection({ referrals }: { referrals: ReferralAttributionWit
   );
 }
 
-export default function ReferralDashboardClient({
-  code,
-  link,
-  stats,
-  referrals,
-}: Props) {
+export default function ReferralDashboardClient({ code, link, stats, referrals }: Props) {
   const [copied, setCopied] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
@@ -170,22 +118,13 @@ export default function ReferralDashboardClient({
 
   return (
     <div className="space-y-8">
-      {/* Referral link card */}
       <div className="rounded-3xl border border-yellow-400/20 bg-yellow-400/5 p-6">
         <h2 className="text-lg font-bold text-yellow-400">Your referral link</h2>
-        <p className="mt-1 text-sm text-gray-400">
-          Share this link with friends. You earn a cash reward when they make
-          their first purchase.
-        </p>
+        <p className="mt-1 text-sm text-gray-400">Share this link with friends. Rewards unlock only after they verify, complete their first successful order, and clear the commission-backed threshold.</p>
 
         <div className="mt-4 flex items-center gap-3">
-          <div className="flex-1 truncate rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-sm text-gray-300">
-            {link}
-          </div>
-          <button
-            onClick={copyLink}
-            className="flex-none rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 active:scale-95"
-          >
+          <div className="flex-1 truncate rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-sm text-gray-300">{link}</div>
+          <button onClick={copyLink} className="flex-none rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 active:scale-95">
             {copied ? "Copied!" : "Copy link"}
           </button>
         </div>
@@ -193,116 +132,43 @@ export default function ReferralDashboardClient({
         <div className="mt-3 flex items-center gap-3">
           <div className="flex flex-none items-center gap-2 rounded-2xl border border-white/10 bg-[#111827] px-4 py-2.5">
             <span className="text-xs text-gray-500">Code:</span>
-            <span className="font-mono text-sm font-bold tracking-widest text-white">
-              {code}
-            </span>
+            <span className="font-mono text-sm font-bold tracking-widest text-white">{code}</span>
           </div>
-          <button
-            onClick={copyCode}
-            className="rounded-2xl border border-white/10 px-4 py-2.5 text-sm text-gray-300 transition hover:border-white/30"
-          >
+          <button onClick={copyCode} className="rounded-2xl border border-white/10 px-4 py-2.5 text-sm text-gray-300 transition hover:border-white/30">
             {copiedCode ? "Copied!" : "Copy code"}
           </button>
         </div>
 
         <div className="mt-4 flex gap-3">
-          <a
-            href={twitterShareUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#1d9bf0]/20 px-4 py-2.5 text-sm font-semibold text-[#1d9bf0] transition hover:bg-[#1d9bf0]/30"
-          >
-            Share on X
-          </a>
-          <a
-            href={facebookShareUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 rounded-2xl bg-[#1877f2]/20 px-4 py-2.5 text-sm font-semibold text-[#1877f2] transition hover:bg-[#1877f2]/30"
-          >
-            Share on Facebook
-          </a>
+          <a href={twitterShareUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-2xl bg-[#1d9bf0]/20 px-4 py-2.5 text-sm font-semibold text-[#1d9bf0] transition hover:bg-[#1d9bf0]/30">Share on X</a>
+          <a href={facebookShareUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-2xl bg-[#1877f2]/20 px-4 py-2.5 text-sm font-semibold text-[#1877f2] transition hover:bg-[#1877f2]/30">Share on Facebook</a>
         </div>
       </div>
 
-      {/* Stats cards — 6 metrics */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          label="Total referrals"
-          value={Number(stats?.total_referrals ?? 0)}
-        />
-        <StatCard
-          label="Qualified referrals"
-          value={Number(stats?.qualified_referrals ?? 0)}
-          accent="text-blue-400"
-        />
-        <StatCard
-          label="Pending rewards"
-          value={Number(stats?.pending_rewards ?? 0)}
-          prefix="$"
-          accent="text-yellow-400"
-        />
-        <StatCard
-          label="Earned (approved)"
-          value={earned}
-          prefix="$"
-          accent="text-green-400"
-        />
-        <StatCard
-          label="Paid out"
-          value={Number(stats?.paid_rewards ?? 0)}
-          prefix="$"
-          accent="text-green-400"
-        />
-        <StatCard
-          label="Lifetime earnings"
-          value={Number(stats?.lifetime_earnings ?? 0)}
-          prefix="$"
-          accent="text-white"
-        />
+        <StatCard label="Total referrals" value={Number(stats?.total_referrals ?? 0)} />
+        <StatCard label="Qualified referrals" value={Number(stats?.qualified_referrals ?? 0)} accent="text-blue-400" />
+        <StatCard label="Pending rewards" value={Number(stats?.pending_rewards ?? 0)} prefix="$" accent="text-yellow-400" />
+        <StatCard label="Earned (approved)" value={earned} prefix="$" accent="text-green-400" />
+        <StatCard label="Paid out" value={Number(stats?.paid_rewards ?? 0)} prefix="$" accent="text-green-400" />
+        <StatCard label="Lifetime earnings" value={Number(stats?.lifetime_earnings ?? 0)} prefix="$" accent="text-white" />
       </div>
 
-      {/* Reward rules note */}
       <div className="rounded-2xl border border-white/5 bg-white/[0.03] p-5 text-sm text-gray-400">
         <p className="font-semibold text-gray-300">How rewards work</p>
         <ul className="mt-2 list-inside list-disc space-y-1">
-          <li>
-            You earn up to <strong className="text-white">$25</strong> per
-            referred user who makes their first purchase.
-          </li>
-          <li>
-            Rewards are calculated as{" "}
-            <strong className="text-white">30%</strong> of the platform fee on
-            their order.
-          </li>
-          <li>
-            Rewards unlock after a{" "}
-            <strong className="text-white">14-day</strong> hold period and are
-            subject to admin approval.
-          </li>
-          <li>
-            Monthly cap: <strong className="text-white">$100</strong> · Annual
-            cap: <strong className="text-white">$1,000</strong> · Lifetime cap:{" "}
-            <strong className="text-white">$500</strong>.
-          </li>
-          <li>
-            Referral codes must be applied within{" "}
-            <strong className="text-white">30 days</strong> of signup.
-          </li>
-          <li>
-            Rewards are <strong className="text-white">revoked</strong>{" "}
-            automatically if the qualifying order is refunded or disputed.
-          </li>
+          <li>You earn a <strong className="text-white">$5 bonus</strong> after a referred account completes <strong className="text-white">$200</strong> in successful marketplace activity.</li>
+          <li>The account must be verified, complete its first successful order, and pass fraud checks before becoming eligible.</li>
+          <li>Rewards stay on hold until the qualifying activity clears the dispute, refund, and chargeback window.</li>
+          <li>Total lifetime rewards for a referred account can never exceed <strong className="text-white">20%</strong> of commission earned from that account.</li>
+          <li>Rewards are reversed automatically if the qualifying activity is refunded, disputed, or charged back before finalization.</li>
         </ul>
       </div>
 
-      {/* Referral history table */}
       <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
         <h2 className="text-lg font-bold text-white">Referral history</h2>
         {referrals.length === 0 ? (
-          <p className="mt-4 text-sm text-gray-400">
-            No referrals yet. Share your link to get started!
-          </p>
+          <p className="mt-4 text-sm text-gray-400">No referrals yet. Share your link to get started!</p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">
@@ -316,30 +182,14 @@ export default function ReferralDashboardClient({
               </thead>
               <tbody className="divide-y divide-white/5">
                 {referrals.map((referral) => {
-                  const rewardAmount = (referral.rewards ?? []).reduce(
-                    (sum, r) => sum + Number(r.reward_amount ?? 0),
-                    0,
-                  );
-                  const referredName =
-                    referral.referred_profile?.username ??
-                    referral.referred_profile?.full_name ??
-                    "User";
+                  const rewardAmount = (referral.rewards ?? []).reduce((sum, r) => sum + Number(r.reward_amount ?? 0), 0);
+                  const referredName = referral.referred_profile?.username ?? referral.referred_profile?.full_name ?? "User";
                   return (
                     <tr key={referral.id}>
-                      <td className="py-3 pr-4 font-medium text-white">
-                        {referredName}
-                      </td>
-                      <td className="py-3 pr-4">
-                        <StatusBadge status={referral.status} />
-                      </td>
-                      <td className="py-3 pr-4 font-mono text-yellow-400">
-                        {rewardAmount > 0
-                          ? `$${rewardAmount.toFixed(2)}`
-                          : "—"}
-                      </td>
-                      <td className="py-3 text-gray-400">
-                        {new Date(referral.created_at).toLocaleDateString()}
-                      </td>
+                      <td className="py-3 pr-4 font-medium text-white">{referredName}</td>
+                      <td className="py-3 pr-4"><StatusBadge status={referral.status} /></td>
+                      <td className="py-3 pr-4 font-mono text-yellow-400">{rewardAmount > 0 ? `$${rewardAmount.toFixed(2)}` : "—"}</td>
+                      <td className="py-3 text-gray-400">{new Date(referral.created_at).toLocaleDateString()}</td>
                     </tr>
                   );
                 })}
@@ -349,7 +199,6 @@ export default function ReferralDashboardClient({
         )}
       </div>
 
-      {/* Payout history section */}
       <PayoutHistorySection referrals={referrals} />
     </div>
   );

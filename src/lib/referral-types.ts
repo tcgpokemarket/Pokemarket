@@ -12,11 +12,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ReferralRewardStatus =
   | "pending"
+  | "held"
+  | "available"
   | "approved"
   | "paid"
   | "denied"
   | "revoked"
   | "expired";
+
+export type ReferralSettlementStatus = "pending" | "held" | "available" | "paid" | "revoked" | "expired";
+
+export type ReferralFraudSeverity = "low" | "medium" | "high" | "critical";
 
 export type ReferralRewardType = "cash" | "credit" | "points";
 
@@ -39,36 +45,60 @@ export type ReferralAttributionStatus =
 
 export interface ReferralProgramSettings {
   id: string;
-  reward_per_referral: number;
-  reward_type: string;
-  min_order_amount: number;
-  max_reward_per_referral: number;
-  max_lifetime_rewards_per_referrer: number;
-  max_monthly_rewards_per_referrer: number;
-  max_annual_rewards_per_referrer: number;
-  max_lifetime_rewards_per_referred: number;
-  payout_delay_days: number;
-  reward_as_pct_of_platform_revenue: number;
   enabled: boolean;
+  reward_amount: number;
+  required_successful_volume: number;
+  max_lifetime_commission_share_percent: number;
+  payout_delay_days: number;
+  campaign_starts_at: string | null;
+  campaign_ends_at: string | null;
+  requires_verified_account: boolean;
+  requires_first_successful_order: boolean;
+  requires_no_open_disputes: boolean;
+  requires_no_chargebacks: boolean;
+  fraud_score_block_threshold: number;
+  fraud_score_review_threshold: number;
+  paused: boolean;
   updated_at: string | null;
   created_at: string;
-  // Legacy columns from 0008
-  buyer_reward_credit?: number;
-  buyer_first_purchase_threshold?: number;
-  buyer_credit_expiry_days?: number;
-  buyer_reward_fee_share_percent?: number;
-  buyer_reward_max_payout?: number;
-  seller_reward_fee_share_percent?: number;
-  seller_reward_max_payout?: number;
-  creator_tier1_fee_share_percent?: number;
-  creator_tier1_duration_days?: number;
-  creator_tier1_max_payout?: number;
-  creator_tier2_fee_share_percent?: number;
-  creator_tier2_duration_days?: number;
-  creator_tier2_max_payout?: number;
-  min_profit_margin_percent?: number;
-  referral_hold_days?: number;
-  minimum_withdrawal_amount?: number;
+}
+
+export interface ReferralProgramSettingsUpdate {
+  enabled?: boolean;
+  reward_amount?: number;
+  required_successful_volume?: number;
+  max_lifetime_commission_share_percent?: number;
+  payout_delay_days?: number;
+  campaign_starts_at?: string | null;
+  campaign_ends_at?: string | null;
+  requires_verified_account?: boolean;
+  requires_first_successful_order?: boolean;
+  requires_no_open_disputes?: boolean;
+  requires_no_chargebacks?: boolean;
+  fraud_score_block_threshold?: number;
+  fraud_score_review_threshold?: number;
+  paused?: boolean;
+}
+
+export interface ReferralSettlementSummary {
+  total_successful_volume: number;
+  total_commission_earned: number;
+  lifetime_reward_paid: number;
+  lifetime_reward_pending: number;
+  max_lifetime_reward: number;
+  remaining_lifetime_reward: number;
+}
+
+export interface ReferralFraudSnapshot {
+  blocked: boolean;
+  score: number;
+  flags: string[];
+  severity: ReferralFraudSeverity;
+  device_fingerprint_count: number;
+  shared_payment_method: boolean;
+  shared_phone_number: boolean;
+  shared_identity: boolean;
+  vpn_or_proxy_suspected: boolean;
 }
 
 export interface ReferralProgramSettingsUpdate {
@@ -94,32 +124,23 @@ export interface ReferralReward {
   trigger_type: ReferralTriggerType;
   gross_transaction_amount: number;
   platform_revenue: number;
+  commission_earned: number;
   reward_amount: number;
   reward_type: ReferralRewardType;
   status: ReferralRewardStatus;
   fraud_score: number;
   fraud_flags: Record<string, unknown> | null;
+  settlement_status: ReferralSettlementStatus;
   approved_at: string | null;
+  held_until: string | null;
+  available_at: string | null;
   paid_at: string | null;
   denied_at: string | null;
+  revoked_at: string | null;
   denial_reason: string | null;
   expires_at: string | null;
   created_at: string;
   updated_at: string;
-}
-
-export interface ReferralFraudFlag {
-  id: string;
-  flagged_user_id: string | null;
-  referrer_id: string | null;
-  attribution_id: string | null;
-  flag_type: string;
-  details: Record<string, unknown> | null;
-  reviewed: boolean;
-  reviewer_id: string | null;
-  review_notes: string | null;
-  reviewed_at: string | null;
-  created_at: string;
 }
 
 export interface ReferralAttribution {
@@ -142,9 +163,47 @@ export interface ReferralAttribution {
   signup_source: string;
   total_revenue_generated: number;
   total_rewards_earned: number;
+  total_commission_generated?: number;
+  lifetime_reward_cap?: number;
+  last_qualified_order_at?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export interface ReferralSettlementEvent {
+  id: string;
+  referral_attribution_id: string;
+  order_id: string | null;
+  event_type: "qualified" | "held" | "released" | "paid" | "revoked" | "reversed";
+  amount: number;
+  commission_amount: number;
+  reason: string | null;
+  created_at: string;
+}
+
+export interface ReferralFraudFlag {
+  id: string;
+  flagged_user_id: string | null;
+  referrer_id: string | null;
+  attribution_id: string | null;
+  flag_type: string;
+  details: Record<string, unknown> | null;
+  reviewed: boolean;
+  reviewer_id: string | null;
+  review_notes: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface ReferralAttributionWithRewards extends ReferralAttribution {
+  referred_profile?: {
+    username: string | null;
+    full_name: string | null;
+    avatar_url: string | null;
+  };
+  rewards?: ReferralReward[];
+}
+
 
 // ──────────────────────────────────────────────────────────────
 // View types

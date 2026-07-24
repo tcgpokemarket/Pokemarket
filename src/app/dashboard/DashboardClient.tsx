@@ -576,6 +576,37 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [liveShowThumbnailUrl, setLiveShowThumbnailUrl] = useState<string | null>(null);
   const [liveShowThumbnailUploading, setLiveShowThumbnailUploading] = useState(false);
   const [liveShowThumbnailError, setLiveShowThumbnailError] = useState<string | null>(null);
+  const [payoutRequestPending, setPayoutRequestPending] = useState(false);
+  const [payoutRequestStatus, setPayoutRequestStatus] = useState<string | null>(null);
+  const [payoutRequestError, setPayoutRequestError] = useState<string | null>(null);
+
+  const handleRequestInstantPayout = async () => {
+    if (!supabase || !wallet || !instantEligible || payoutRequestPending) return;
+
+    setPayoutRequestPending(true);
+    setPayoutRequestStatus(null);
+    setPayoutRequestError(null);
+
+    try {
+      const response = await fetch("/api/payouts/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seller_id: wallet.seller_id }),
+      });
+      const data = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+
+      if (!response.ok || !data.ok) {
+        throw new Error(data.error ?? "Unable to request payout right now.");
+      }
+
+      setPayoutRequestStatus("Payout request submitted.");
+      router.refresh();
+    } catch (err) {
+      setPayoutRequestError(err instanceof Error ? err.message : "Unable to request payout right now.");
+    } finally {
+      setPayoutRequestPending(false);
+    }
+  };
 
   const handleLiveShowThumbnailUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -1297,9 +1328,16 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                   <div className="flex items-center justify-between"><span>Lifetime earnings</span><span>${(wallet?.lifetime_earnings ?? totalRevenue).toFixed(2)}</span></div>
                   <div className="flex items-center justify-between"><span>Next payout</span><span>{nextPayout}</span></div>
                 </div>
-                <button className="mt-4 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-400/20" disabled={!instantEligible}>
-                  {instantEligible ? "Request instant payout" : "Instant payout locked"}
+                <button
+                  type="button"
+                  onClick={handleRequestInstantPayout}
+                  className="mt-4 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={!instantEligible || payoutRequestPending}
+                >
+                  {payoutRequestPending ? "Submitting request..." : instantEligible ? "Request instant payout" : "Instant payout locked"}
                 </button>
+                {payoutRequestStatus ? <p className="mt-2 text-xs text-emerald-400">{payoutRequestStatus}</p> : null}
+                {payoutRequestError ? <p className="mt-2 text-xs text-red-400">{payoutRequestError}</p> : null}
               </div>
 
             </div>

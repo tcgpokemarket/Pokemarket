@@ -3,14 +3,10 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
 import { recordAuditEvent } from "@/lib/audit-log";
-import type {
-  ReferralProgramSettings,
-  ReferralProgramSettingsUpdate,
-} from "@/lib/referral-types";
+import type { ReferralProgramSettings, ReferralProgramSettingsUpdate } from "@/lib/referral-types";
 
 export const dynamic = "force-dynamic";
 
-// ── GET: current settings ─────────────────────────────────────
 export async function GET(): Promise<NextResponse<ReferralProgramSettings | { error: string }>> {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -20,11 +16,7 @@ export async function GET(): Promise<NextResponse<ReferralProgramSettings | { er
   }
 
   const adminClient = createAdminClient();
-  const { data: settings, error } = await (adminClient as any)
-    .from("referral_program_settings")
-    .select("*")
-    .limit(1)
-    .single();
+  const { data: settings, error } = await (adminClient as any).from("referral_program_settings").select("*").limit(1).single();
 
   if (error || !settings) {
     return NextResponse.json({ error: "Settings not found" }, { status: 404 });
@@ -33,10 +25,7 @@ export async function GET(): Promise<NextResponse<ReferralProgramSettings | { er
   return NextResponse.json(settings as ReferralProgramSettings);
 }
 
-// ── PUT: update settings ─────────────────────────────────────
-export async function PUT(
-  request: NextRequest,
-): Promise<NextResponse<ReferralProgramSettings | { error: string }>> {
+export async function PUT(request: NextRequest): Promise<NextResponse<ReferralProgramSettings | { error: string }>> {
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
@@ -46,33 +35,25 @@ export async function PUT(
 
   let body: ReferralProgramSettingsUpdate;
   try {
-    body = await request.json() as ReferralProgramSettingsUpdate;
+    body = (await request.json()) as ReferralProgramSettingsUpdate;
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  // Validate reward pct constraint: must be ≤ 30%
-  if (
-    body.reward_as_pct_of_platform_revenue !== undefined &&
-    body.reward_as_pct_of_platform_revenue > 30
-  ) {
-    return NextResponse.json(
-      {
-        error:
-          "reward_as_pct_of_platform_revenue cannot exceed 30% (platform revenue constraint).",
-      },
-      { status: 400 },
-    );
+  if (body.max_lifetime_commission_share_percent !== undefined && body.max_lifetime_commission_share_percent > 20) {
+    return NextResponse.json({ error: "max_lifetime_commission_share_percent cannot exceed 20%." }, { status: 400 });
+  }
+
+  if (body.reward_amount !== undefined && body.reward_amount < 0) {
+    return NextResponse.json({ error: "reward_amount cannot be negative." }, { status: 400 });
+  }
+
+  if (body.required_successful_volume !== undefined && body.required_successful_volume < 0) {
+    return NextResponse.json({ error: "required_successful_volume cannot be negative." }, { status: 400 });
   }
 
   const adminClient = createAdminClient();
-
-  // Fetch current settings for audit diff
-  const { data: current } = await (adminClient as any)
-    .from("referral_program_settings")
-    .select("*")
-    .limit(1)
-    .single();
+  const { data: current } = await (adminClient as any).from("referral_program_settings").select("*").limit(1).single();
 
   const updatePayload: ReferralProgramSettingsUpdate & { updated_at: string } = {
     ...body,
@@ -87,10 +68,7 @@ export async function PUT(
     .single();
 
   if (updateError || !updated) {
-    return NextResponse.json(
-      { error: "Failed to update settings" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
   }
 
   recordAuditEvent({
