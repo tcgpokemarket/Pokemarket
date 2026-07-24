@@ -582,7 +582,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const payoutTier = wallet?.completed_orders_count && wallet.completed_orders_count >= 1000 ? "Verified Seller (Instant Eligible)" : "Standard Payout";
   const nextPayout = wallet?.next_payout_at ? new Date(wallet.next_payout_at).toLocaleDateString() : "Daily at 12:00 AM PST";
   const availableBalance = wallet?.available_balance ?? 0;
-  const pendingBalance = wallet?.pending_balance ?? sellerSummary.upcomingPayouts;
+  const pendingBalance = wallet?.pending_balance ?? 0;
   const frozenBalance = (wallet as { frozen_balance?: number | null } | null)?.frozen_balance ?? 0;
   const escrowBalance = pendingBalance;
   const instantEligible = Boolean(wallet?.instant_payout_enabled && (wallet?.completed_orders_count ?? 0) >= 1000 && !wallet?.fraud_flag);

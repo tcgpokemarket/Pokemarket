@@ -25,6 +25,16 @@ const completedOrder = (overrides: Partial<{ status: string; created_at: string;
 });
 
 describe("seller fee rules", () => {
+  it("keeps upcoming payouts separate from wallet balances", () => {
+    const orders = [
+      completedOrder({ total_amount: 100, item_subtotal: 100, marketplace_fee_amount: 5, processing_fee_amount: 3.2, seller_payout_amount: 91.8, payout_status: "pending" }),
+      completedOrder({ total_amount: 120, item_subtotal: 120, marketplace_fee_amount: 6, processing_fee_amount: 3.78, seller_payout_amount: 110.22, payout_status: "paid" }),
+    ];
+
+    const summary = summarizeSellerEarnings({ orders });
+    expect(summary.upcomingPayouts).toBe(91.8);
+  });
+
   it("keeps the first 1,000 sales at 0% marketplace fee", () => {
     const orders = Array.from({ length: 999 }, () => completedOrder());
     const tier = getActiveMarketplaceFeePercent({ lifetimeSales: orders.length, monthlySales: 0, config: DEFAULT_SELLER_FEE_CONFIG });

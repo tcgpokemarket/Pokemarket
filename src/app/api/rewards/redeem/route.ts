@@ -75,11 +75,6 @@ export async function POST(req: Request) {
     },
   });
 
-  if ((option as { redemption_type?: string }).redemption_type === "wallet_credit") {
-    const currentBalance = Number(account?.available_points ?? 0);
-    await admin.from("seller_wallets").upsert({ seller_id: user.id, available_balance: currentBalance, pending_balance: 0, frozen_balance: 0, lifetime_earnings: currentBalance, completed_orders_count: 0, instant_payout_enabled: false, fraud_flag: false, fraud_risk_score: 0, manual_review_required: false } as any, { onConflict: "seller_id" });
-  }
-
   if (isAdminUser(user) && (option as { redemption_type?: string }).redemption_type !== "wallet_credit") {
     await (admin.from("rewards_redemptions") as any).update({ status: "fulfilled", fulfilled_at: new Date().toISOString(), fulfillment_reference: `admin:${user.id}` }).eq("id", redemption.id);
   }

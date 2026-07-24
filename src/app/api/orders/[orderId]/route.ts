@@ -179,69 +179,6 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
     return NextResponse.json({ ok: true });
   }
 
-  if (body.action === "open_dispute") {
-    if (!isAdminUser(user)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { data: disputeRow, error: disputeError } = await (admin as any).from("escrow_disputes").upsert({
-      order_id: orderId,
-      seller_id: order.seller_id,
-      buyer_id: order.buyer_id,
-      reason: body.reason ?? "Manual dispute opened",
-      status: "open",
-      created_by: user.id,
-      updated_at: now,
-    }, { onConflict: "order_id" }).select("id").single();
-
-    if (disputeError) {
-      return NextResponse.json({ error: disputeError.message }, { status: 500 });
-    }
-
-    await (admin as any).from("orders").update({
-      status: "disputed",
-      payout_status: "held",
-      escrow_status: "disputed",
-      updated_at: now,
-    }).eq("id", orderId).eq("seller_id", order.seller_id).eq("buyer_id", order.buyer_id);
-
-    await (admin as any).from("escrow_ledger").upsert({
-      order_id: orderId,
-      seller_id: order.seller_id,
-      entry_type: "freeze",
-      amount: order.seller_payout_amount ?? 0,
-      status: "posted",
-      reference_id: buildEscrowLedgerReference(orderId, "freeze", linkedEscrowRows.support_ticket_id, disputeRow?.id ?? null),
-      note: body.reason ?? "Manual dispute opened",
-      created_by: user.id,
-    }, { onConflict: "order_id,entry_type,reference_id" });
-
-    recordEscrowAuditEvent({
-      ...buildEscrowAuditPayload({
-        orderId,
-        transactionId: order.stripe_payment_intent_id ?? order.stripe_checkout_session_id ?? null,
-        buyerId: order.buyer_id,
-        sellerId: order.seller_id,
-        supportTicketId: order.support_ticket_id ?? null,
-        disputeId: disputeRow?.id ?? null,
-        action: "freeze",
-        amount: order.seller_payout_amount ?? 0,
-        reason: body.reason ?? "Manual dispute opened",
-        actorId: user.id,
-      }),
-      resource_type: "order",
-      resource_id: orderId,
-      previous_value: { escrow_status: order.escrow_status, payout_status: order.payout_status },
-      new_value: { escrow_status: "disputed", payout_status: "held" },
-      action: "escrow.freeze",
-      actor_id: user.id,
-      ip_address: null,
-      user_agent: null,
-    });
-
-    return NextResponse.json({ ok: true, disputeId: disputeRow?.id ?? null });
-  }
-
   if (body.action === "freeze_escrow") {
     if (!isAdminUser(user)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });

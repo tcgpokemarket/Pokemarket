@@ -15,7 +15,7 @@
 // ============================================================
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { detectReferralFraud, logFraudFlag } from "@/lib/referral-fraud";
+import { detectReferralFraud, logFraudFlag } from "../lib/referral-fraud";
 import type { AnySupabaseClient } from "@/lib/referral-types";
 
 // ── Mock Supabase builder ─────────────────────────────────────
