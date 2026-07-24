@@ -57,6 +57,7 @@ function getSafeRedirect(value: string | null) {
 function getDestination(userRole: ReturnType<typeof getAppRole>, redirectTo: string | null) {
   if (redirectTo) return redirectTo;
   if (userRole === "admin" || userRole === "super_admin") return "/admin";
+  if (userRole === "seller") return "/sell";
   return "/dashboard";
 }
 

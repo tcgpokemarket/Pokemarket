@@ -69,6 +69,7 @@ function getSafeRedirect(value: string | null) {
 function getDestination(role: AppRole | null, redirectTo: string | null) {
   if (redirectTo) return redirectTo;
   if (role === "admin" || role === "super_admin") return "/admin";
+  if (role === "seller") return "/sell";
   return "/dashboard";
 }
 
