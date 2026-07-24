@@ -41,6 +41,24 @@ export type SellerPayoutProfile = {
   sellerHold: boolean;
 };
 
+export type EscrowOrderParticipantIds = {
+  orderId: string;
+  transactionId: string | null;
+  buyerId: string;
+  sellerId: string;
+  supportTicketId?: string | null;
+  disputeId?: string | null;
+};
+
+export type EscrowOrderAction = "hold" | "release" | "refund" | "freeze" | "override";
+
+export type EscrowOrderEvent = EscrowOrderParticipantIds & {
+  action: EscrowOrderAction;
+  amount: number;
+  reason?: string | null;
+  actorId?: string | null;
+};
+
 export type SellerRiskSignals = EscrowRiskSignals;
 
 export function canUseInstantPayout(wallet: Pick<EscrowWalletState, "completed_orders_count" | "instant_payout_enabled" | "fraud_flag">) {
@@ -153,4 +171,48 @@ export function shouldReleaseEscrow(args: { deliveryConfirmed: boolean; disputeO
   if (args.deliveryConfirmed) return true;
   if (args.disputeOpen) return false;
   return shouldReleaseFromEscrow({ releaseAfterAt: args.releaseAt, now: args.now?.toISOString() });
+}
+
+export function buildEscrowAuditPayload(event: EscrowOrderEvent) {
+  return {
+    order_id: event.orderId,
+    transaction_id: event.transactionId,
+    buyer_id: event.buyerId,
+    seller_id: event.sellerId,
+    support_ticket_id: event.supportTicketId ?? null,
+    dispute_id: event.disputeId ?? null,
+    escrow_action: event.action,
+    amount: event.amount,
+    reason: event.reason ?? null,
+    actor_id: event.actorId ?? null,
+  };
+}
+
+export function buildEscrowLedgerReference(orderId: string, action: EscrowOrderAction, supportTicketId?: string | null, disputeId?: string | null) {
+  return ["escrow", orderId, action, supportTicketId ?? "", disputeId ?? ""].filter(Boolean).join(":");
+}
+
+export function getOrderEscrowStatusLabel(status: string | null | undefined) {
+  if (!status || status === "pending") return "Not in escrow";
+  if (status === "held") return "Held in Escrow";
+  if (status === "disputed") return "Disputed — funds held";
+  if (status === "released") return "Escrow released";
+  if (status === "refunded") return "Refunded";
+  if (status === "frozen") return "Escrow frozen";
+  return status;
+}
+
+export function isEscrowBlockingPayout(status: string | null | undefined) {
+  return status === "held" || status === "disputed" || status === "frozen";
+}
+
+export function getEscrowOrderIds(event: EscrowOrderEvent) {
+  return {
+    orderId: event.orderId,
+    transactionId: event.transactionId,
+    buyerId: event.buyerId,
+    sellerId: event.sellerId,
+    supportTicketId: event.supportTicketId ?? null,
+    disputeId: event.disputeId ?? null,
+  };
 }

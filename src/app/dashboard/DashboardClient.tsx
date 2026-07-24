@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
 import { getEffectiveSellerVerificationStatus, isAdminVerifiedUser, isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
 import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
+import { getOrderEscrowStatusLabel, isEscrowBlockingPayout } from "@/lib/escrow";
 import { calculateLiveShowInsights, createLiveShowSnapshot, getLiveShow } from "@/lib/live-commerce";
 import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
 import { listLiveShowsBySeller } from "@/lib/live-shows-client";
@@ -1365,9 +1366,13 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                       <p className="text-sm font-semibold">{o.listings?.card_name ?? "Card"}</p>
                       <p className="text-xs text-gray-400">{new Date(o.created_at).toLocaleDateString()}</p>
                       {o.tracking_number && <p className="mt-1 text-xs text-blue-400">Tracking: {o.tracking_number}</p>}
+                      <p className="mt-1 text-xs text-gray-400">Escrow: {getOrderEscrowStatusLabel(o.escrow_status)}</p>
                     </div>
-                    <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{o.status}</span>
-                    <span className="font-black">${o.total_amount.toFixed(2)}</span>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{o.status}</span>
+                      <span className={`rounded-lg border px-2 py-1 text-xs font-medium ${isEscrowBlockingPayout(o.escrow_status) ? "border-amber-400/30 text-amber-300" : "border-emerald-400/30 text-emerald-300"}`}>{getOrderEscrowStatusLabel(o.escrow_status)}</span>
+                      <span className="font-black">${o.total_amount.toFixed(2)}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1440,6 +1445,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                             <div className="flex flex-wrap justify-end gap-2">
                               <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{first.status}</span>
                               <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>payout {first.payout_status ?? "pending"}</span>
+                              <span className={`rounded-lg border px-2 py-1 text-xs font-medium ${isEscrowBlockingPayout(first.escrow_status) ? "border-amber-400/30 text-amber-300" : "border-emerald-400/30 text-emerald-300"}`}>{getOrderEscrowStatusLabel(first.escrow_status)}</span>
                             </div>
                             <div className="mt-2 font-black text-green-400">+${total.toFixed(2)}</div>
                           </div>

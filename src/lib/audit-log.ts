@@ -27,6 +27,13 @@ export type AuditLogEntry = {
   user_agent: string | null;
 };
 
+export function recordEscrowAuditEvent(entry: Omit<AuditLogEntry, "event_type"> & { action: string }) {
+  recordAuditEvent({
+    ...entry,
+    event_type: "finance.escrow",
+  });
+}
+
 export type SecurityEventEntry = {
   event_type: string;
   severity?: string;

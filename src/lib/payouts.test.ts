@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { canUseInstantPayout, getPayoutTier } from "./payouts";
-import { calculateFraudRiskScore, sellerInstantPayoutUnlocked, shouldReleaseEscrow } from "./escrow";
+import { buildEscrowAuditPayload, buildEscrowLedgerReference, calculateFraudRiskScore, getOrderEscrowStatusLabel, isEscrowBlockingPayout, sellerInstantPayoutUnlocked, shouldReleaseEscrow } from "./escrow";
 
 describe("payout and escrow rules", () => {
   it("keeps instant payout locked at 999 sales", () => {
@@ -41,5 +41,43 @@ describe("payout and escrow rules", () => {
     });
 
     expect(score).toBeGreaterThanOrEqual(70);
+  });
+
+  it("labels escrow states without affecting unrelated payouts", () => {
+    expect(getOrderEscrowStatusLabel("held")).toBe("Held in Escrow");
+    expect(getOrderEscrowStatusLabel("released")).toBe("Escrow released");
+    expect(isEscrowBlockingPayout("held")).toBe(true);
+    expect(isEscrowBlockingPayout("released")).toBe(false);
+  });
+
+  it("builds order-scoped escrow references and audit payloads", () => {
+    expect(buildEscrowLedgerReference("order_123", "freeze", "ticket_1", "dispute_1")).toContain("order_123");
+    expect(buildEscrowLedgerReference("order_123", "freeze", "ticket_1", "dispute_1")).toContain("freeze");
+
+    const audit = buildEscrowAuditPayload({
+      orderId: "order_123",
+      transactionId: "pi_123",
+      buyerId: "buyer_1",
+      sellerId: "seller_1",
+      supportTicketId: "ticket_1",
+      disputeId: "dispute_1",
+      action: "freeze",
+      amount: 42,
+      reason: "manual review",
+      actorId: "admin_1",
+    });
+
+    expect(audit).toMatchObject({
+      order_id: "order_123",
+      transaction_id: "pi_123",
+      buyer_id: "buyer_1",
+      seller_id: "seller_1",
+      support_ticket_id: "ticket_1",
+      dispute_id: "dispute_1",
+      escrow_action: "freeze",
+      amount: 42,
+      reason: "manual review",
+      actor_id: "admin_1",
+    });
   });
 });
