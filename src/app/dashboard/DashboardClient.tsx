@@ -794,7 +794,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       }
 
       setPrivacyRecord({
-        user_id: profile.id,
         profile_visibility: privacySettings.profileVisibility,
         collection_visibility: privacySettings.collectionVisibility,
         activity_visibility: privacySettings.activityVisibility,

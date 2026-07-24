@@ -3,6 +3,7 @@ import { createClient as createServerSupabaseClient } from "@/lib/supabase/serve
 import { createAdminClient } from "@/lib/supabase/admin";
 import { detectReferralFraud, logFraudFlag } from "@/lib/referral-fraud";
 import { recordSecurityEvent } from "@/lib/audit-log";
+import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -30,37 +31,25 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
   const fallbackName = fullName || email.split("@")[0] || "Marketplace user";
   const userId = user.id;
+  const role = accountType === "seller" ? "seller" : "buyer";
 
-  const [{ data: existingProfile }, { data: existingSeller }, { data: existingWallet }, { data: existingPrivacy }, { data: existingEmails }] = await Promise.all([
+  await bootstrapUserAccount({
+    userId,
+    email: user.email,
+    fullName: fullName || fallbackName,
+    avatarUrl,
+    sellerState,
+    accountType: role,
+  }).catch((error) => {
+    throw new Error(error instanceof Error ? error.message : String(error));
+  });
+
+  const [{ data: existingProfile }, { data: existingWallet }, { data: existingPrivacy }, { data: existingEmails }] = await Promise.all([
     admin.from("profiles").select("id, username").eq("id", userId).maybeSingle<{ id: string; username: string | null }>(),
-    admin.from("sellers").select("id").eq("id", userId).maybeSingle<{ id: string }>(),
     admin.from("seller_wallets").select("seller_id").eq("seller_id", userId).maybeSingle<{ seller_id: string }>(),
     admin.from("profile_privacy_settings").select("user_id").eq("user_id", userId).maybeSingle<{ user_id: string }>(),
     admin.from("email_preferences").select("notification_type").eq("user_id", userId).limit(1),
   ]);
-
-  if (!existingSeller) {
-    const { error } = await (admin as any).from("sellers").upsert(
-      {
-        id: userId,
-        display_name: fallbackName,
-        storefront_slug: username,
-        bio: null,
-        avatar_url: avatarUrl,
-        banner_url: null,
-        verified: false,
-        rating: 0,
-        follower_count: 0,
-        sales_count: 0,
-        total_revenue: 0,
-        total_listings: 0,
-        total_live_shows: 0,
-      },
-      { onConflict: "id" },
-    );
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  }
 
   if (!existingProfile) {
     const { error } = await (admin as any).from("profiles").upsert(
@@ -70,7 +59,7 @@ export async function POST(request: Request) {
         full_name: fullName || fallbackName,
         avatar_url: avatarUrl,
         seller_state: sellerState,
-        is_seller: accountType === "seller",
+        is_seller: role === "seller",
         seller_rating: 0,
         total_sales: 0,
         referral_code: referralCode || null,
@@ -86,7 +75,7 @@ export async function POST(request: Request) {
       full_name: fullName || fallbackName,
       avatar_url: avatarUrl,
       seller_state: sellerState,
-      is_seller: accountType === "seller",
+      is_seller: role === "seller",
       referral_code: referralCode || null,
       referral_code_created_at: referralCode ? new Date().toISOString() : null,
     }).eq("id", userId);
@@ -94,45 +83,9 @@ export async function POST(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
-  if (!existingWallet) {
-    const { error } = await (admin as any).from("seller_wallets").upsert(
-      {
-        seller_id: userId,
-        available_balance: 0,
-        pending_balance: 0,
-        frozen_balance: 0,
-        lifetime_earnings: 0,
-        completed_orders_count: 0,
-        instant_payout_enabled: false,
-        fraud_flag: false,
-        fraud_risk_score: 0,
-        manual_review_required: false,
-      },
-      { onConflict: "seller_id" },
-    );
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  }
-
-  if (!existingPrivacy) {
-    const { error } = await (admin as any).from("profile_privacy_settings").upsert(
-      {
-        user_id: userId,
-        who_can_follow: "everyone",
-        who_can_friend_request: "everyone",
-        profile_visibility: "public",
-        collection_visibility: "public",
-        activity_visibility: "public",
-        message_visibility: "everyone",
-      },
-      { onConflict: "user_id" },
-    );
-
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  }
 
   if (!existingEmails?.length) {
-    const defaults = ["order_confirmation", "shipping_update", "delivery_confirmation", "login_alert"];
+    const defaults = ["welcome", "order_confirmation", "shipping_update", "delivery_confirmation", "login_alert"];
     const { error } = await (admin as any).from("email_preferences").upsert(
       defaults.map((notificationType) => ({ user_id: userId, notification_type: notificationType, enabled: true })),
       { onConflict: "user_id,notification_type" },

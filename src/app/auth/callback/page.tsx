@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 function getSafeRedirect(value: string | null) {
   if (!value || !value.startsWith("/")) return "/dashboard";
@@ -22,8 +23,25 @@ export default function AuthCallbackPage() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
-    router.replace(redirectTo);
+    let alive = true;
+
+    const run = async () => {
+      const client = createClient();
+      const { data: { user } } = await client.auth.getUser();
+      if (!alive || !user) return;
+
+      const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
+      const role = (user.app_metadata?.role ?? user.user_metadata?.role) as string | null;
+      router.replace(redirectTo === "/dashboard" && role === "seller" ? "/sell" : redirectTo);
+    };
+
+    run().catch(() => {
+      if (alive) router.replace("/dashboard");
+    });
+
+    return () => {
+      alive = false;
+    };
   }, [router, searchParams]);
 
   return (

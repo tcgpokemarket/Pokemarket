@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { issueSignupBonus } from "@/lib/rewards";
 
 function normalizeEmail(value?: string | null) {
   return value?.trim().toLowerCase() ?? null;
@@ -19,18 +20,38 @@ export async function bootstrapUserAccount(input: {
   fullName?: string | null;
   avatarUrl?: string | null;
   sellerState?: string | null;
+  accountType?: "buyer" | "seller" | null;
 }) {
   const admin = createAdminClient();
   const email = normalizeEmail(input.email);
   const fallbackName = input.fullName?.trim() || email?.split("@")[0] || "Marketplace user";
   const usernameBase = fallbackName.replace(/\s+/g, "-");
   const username = buildUsername(usernameBase, input.userId);
+  const isSeller = input.accountType === "seller";
+  const sellerState = input.sellerState?.trim().toUpperCase() || null;
+  const sellerStoreName = fallbackName;
+  const sellerStoreSlug = `${username}-store`;
+  const sellerStoreTheme = {
+    accent: "#e22400",
+    secondary: "#ffab01",
+    highlight: "#fefb41",
+    social_links: {
+      instagram: null,
+      facebook: null,
+      youtube: null,
+      tiktok: null,
+      x: null,
+      website: null,
+    },
+  };
 
-  const [{ data: existingProfile }, { data: existingWallet }, { data: existingPrivacy }, { data: existingEmails }] = await Promise.all([
+  const [{ data: existingProfile }, { data: existingStore }, { data: existingWallet }, { data: existingPrivacy }, { data: existingEmails }, { data: existingMessageRules }] = await Promise.all([
     admin.from("profiles").select("id, username").eq("id", input.userId).maybeSingle<{ id: string; username: string | null }>(),
+    admin.from("seller_stores").select("id, slug").eq("seller_id", input.userId).maybeSingle<{ id: string; slug: string | null }>(),
     admin.from("seller_wallets").select("seller_id").eq("seller_id", input.userId).maybeSingle<{ seller_id: string }>(),
     admin.from("profile_privacy_settings").select("user_id").eq("user_id", input.userId).maybeSingle<{ user_id: string }>(),
     admin.from("email_preferences").select("notification_type").eq("user_id", input.userId).limit(1),
+    admin.from("message_access_rules").select("user_id").eq("user_id", input.userId).maybeSingle<{ user_id: string }>(),
   ]);
 
   if (!existingProfile) {
@@ -40,8 +61,8 @@ export async function bootstrapUserAccount(input: {
         username,
         full_name: input.fullName ?? fallbackName,
         avatar_url: input.avatarUrl ?? null,
-        seller_state: input.sellerState ?? null,
-        is_seller: true,
+        seller_state: sellerState,
+        is_seller: isSeller,
         seller_rating: 0,
         total_sales: 0,
       },
@@ -59,24 +80,45 @@ export async function bootstrapUserAccount(input: {
     throw new Error("Profile setup failed.");
   }
 
-  if (!existingWallet) {
-    const { error } = await (admin as any).from("seller_wallets").upsert(
-      {
-        seller_id: input.userId,
-        available_balance: 0,
-        pending_balance: 0,
-        frozen_balance: 0,
-        lifetime_earnings: 0,
-        completed_orders_count: 0,
-        instant_payout_enabled: false,
-        fraud_flag: false,
-        fraud_risk_score: 0,
-        manual_review_required: false,
-      },
-      { onConflict: "seller_id" },
-    );
+  if (isSeller) {
+    if (!existingStore) {
+      const { error } = await (admin as any).from("seller_stores").upsert(
+        {
+          seller_id: input.userId,
+          name: sellerStoreName,
+          slug: sellerStoreSlug,
+          description: `${sellerStoreName}'s storefront is ready for listings and live shows.`,
+          banner_url: null,
+          logo_url: input.avatarUrl ?? null,
+          theme: sellerStoreTheme,
+          verified: false,
+          featured: false,
+        },
+        { onConflict: "seller_id" },
+      );
 
-    if (error) throw new Error(error.message);
+      if (error) throw new Error(error.message);
+    }
+
+    if (!existingWallet) {
+      const { error } = await (admin as any).from("seller_wallets").upsert(
+        {
+          seller_id: input.userId,
+          available_balance: 0,
+          pending_balance: 0,
+          frozen_balance: 0,
+          lifetime_earnings: 0,
+          completed_orders_count: 0,
+          instant_payout_enabled: false,
+          fraud_flag: false,
+          fraud_risk_score: 0,
+          manual_review_required: false,
+        },
+        { onConflict: "seller_id" },
+      );
+
+      if (error) throw new Error(error.message);
+    }
   }
 
   if (!existingPrivacy) {
@@ -96,8 +138,24 @@ export async function bootstrapUserAccount(input: {
     if (error) throw new Error(error.message);
   }
 
+  if (!existingMessageRules) {
+    const { error } = await (admin as any).from("message_access_rules").upsert(
+      {
+        user_id: input.userId,
+        allow_followers: true,
+        allow_friends: true,
+        allow_sellers: true,
+        allow_buyer_support: true,
+        allow_admin_messages: true,
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (error) throw new Error(error.message);
+  }
+
   if (!existingEmails?.length) {
-    const defaults = ["order_confirmation", "shipping_update", "delivery_confirmation", "login_alert"];
+    const defaults = ["welcome", "order_confirmation", "shipping_update", "delivery_confirmation", "login_alert"];
     const { error } = await (admin as any).from("email_preferences").upsert(
       defaults.map((notificationType) => ({ user_id: input.userId, notification_type: notificationType, enabled: true })),
       { onConflict: "user_id,notification_type" },
@@ -106,5 +164,7 @@ export async function bootstrapUserAccount(input: {
     if (error) throw new Error(error.message);
   }
 
-  return { username: refreshedProfile.username ?? username, sellerId: input.userId, storefrontSlug: username };
+  await issueSignupBonus(input.userId).catch(() => null);
+
+  return { username: refreshedProfile.username ?? username, sellerId: input.userId, storefrontSlug: sellerStoreSlug };
 }

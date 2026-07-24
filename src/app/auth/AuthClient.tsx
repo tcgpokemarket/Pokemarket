@@ -29,9 +29,14 @@ function defaultDestination(role: string | null) {
   return role === "admin" || role === "super_admin" ? "/admin" : "/dashboard";
 }
 
+function accountDestination(role: string | null) {
+  if (role === "seller") return "/sell";
+  return defaultDestination(role);
+}
+
 function getDestination(role: string | null, redirectTo: string, preserveRedirect: boolean) {
   if (preserveRedirect) return redirectTo;
-  return defaultDestination(role);
+  return accountDestination(role);
 }
 
 function formatAuthError(error: unknown, fallback: string) {
