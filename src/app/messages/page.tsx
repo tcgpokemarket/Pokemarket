@@ -1,13 +1,12 @@
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { searchMessages } from "@/lib/messaging";
 
-const demoConversations = [
-  { id: "conv-1", preview: "Open the thread to continue the conversation.", updated: "Today" },
-  { id: "conv-2", preview: "Seller replied with shipping details.", updated: "Yesterday" },
-  { id: "conv-3", preview: "Support request received.", updated: "2d ago" },
-];
-
-export default function MessagesPage() {
-  const query = "";
+export default async function MessagesPage({ searchParams }: { searchParams?: { q?: string } }) {
+  const query = searchParams?.q?.trim() ?? "";
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const results = user && query ? await searchMessages(user.id, query) : [];
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-10 text-white">
@@ -15,7 +14,7 @@ export default function MessagesPage() {
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-black">Inbox</h1>
-            <p className="text-sm text-gray-400">Demo inbox shell for the static export build.</p>
+            <p className="text-sm text-gray-400">Private marketplace messages and support threads.</p>
           </div>
           <div className="grid gap-3 md:max-w-md">
             <div className="rounded-3xl border border-white/10 bg-white/5 p-5">
@@ -35,28 +34,27 @@ export default function MessagesPage() {
           <div className="mt-6 rounded-2xl border border-white/10 bg-[#13131f] p-4">
             <div className="text-sm font-semibold text-white">Search results for “{query}”</div>
             <div className="mt-3 space-y-2">
-              {demoConversations.map((item) => (
-                <div key={item.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300">
-                  <div className="font-semibold text-white">Conversation {item.id}</div>
-                  <div className="mt-1 text-gray-400">Search is available once message indexing is connected.</div>
-                </div>
-              ))}
+              {results.length ? results.map((item) => (
+                <Link key={item.id} href={`/messages/${item.conversation_id}`} className="block rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300 transition hover:border-yellow-400/40">
+                  <div className="font-semibold text-white">Conversation {item.conversation_id}</div>
+                  <div className="mt-1 text-gray-400">{item.message}</div>
+                </Link>
+              )) : (
+                <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300">No matching messages yet.</div>
+              )}
             </div>
           </div>
         ) : null}
 
-        <div className="mt-6 space-y-3">
-          {demoConversations.map((item) => (
-            <Link key={item.id} href={`/messages/${item.id}`} className="block rounded-2xl border border-white/10 bg-[#13131f] p-4 transition hover:border-yellow-400/60">
-              <div className="flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-white">Conversation {item.id}</div>
-                <div className="text-xs text-gray-500">{item.updated}</div>
-              </div>
-              <div className="mt-1 text-sm text-gray-400">{item.preview}</div>
-              <div className="mt-3 text-xs uppercase tracking-[0.2em] text-gray-500">Direct message</div>
-            </Link>
-          ))}
-        </div>
+        {user ? (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+            Your recent conversations load in the conversation view after sign-in.
+          </div>
+        ) : (
+          <div className="mt-6 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+            Sign in to view your private messages.
+          </div>
+        )}
       </main>
     </div>
   );

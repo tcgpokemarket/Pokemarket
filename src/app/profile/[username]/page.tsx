@@ -40,58 +40,21 @@ export const dynamicParams = false;
 
 export async function generateStaticParams(): Promise<Array<{ username: string }>> {
   const rows = await fetchPublicRows<Pick<Profile, "username">>("profiles", "username", [["username", "not.is.null"]], 2000);
-  const usernames = rows.filter((row): row is { username: string } => Boolean(row.username)).map((row) => ({ username: row.username })).slice(0, 500);
-  return usernames.length ? usernames : [{ username: "preview" }];
+  return rows.filter((row): row is { username: string } => Boolean(row.username)).map((row) => ({ username: row.username })).slice(0, 500);
 }
 
-function getPreviewProfile(username: string): Profile {
-  return {
-    id: username,
-    username,
-    full_name: username,
-    avatar_url: null,
-    is_seller: false,
-    seller_rating: 0,
-    total_sales: 0,
-    referral_code: null,
-    referral_code_created_at: null,
-    referral_source: null,
-    referral_source_user_id: null,
-    referral_source_code: null,
-    referral_source_confirmed_at: null,
-    referral_locked_at: null,
-    verification_status: null,
-    verification_submitted_at: null,
-    verification_reviewed_at: null,
-    verification_reviewed_by: null,
-    verification_rejection_reason: null,
-    verification_more_info: null,
-    verification_suspension_reason: null,
-    verified_at: null,
-    created_at: new Date().toISOString(),
-  } as Profile;
-}
+
 
 export default async function PublicProfilePage({ params }: { params: Promise<{ username: string }> }) {
   const { username } = await params;
   const [profile] = await fetchPublicRows<Profile>("profiles", "*", [["username", `eq.${username}`]], 1);
-  const profileData = profile ?? getPreviewProfile(username);
-  if (profileData.username === "preview" && username !== "preview") {
+  if (!profile) {
     notFound();
   }
 
-  if (username === "preview") {
-    return (
-      <div className="min-h-screen bg-[#0f0f1a] text-white">
-        <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4 text-center">
-          <div className="text-6xl">👤</div>
-          <h1 className="mt-4 text-3xl font-black">Seller profile preview</h1>
-          <p className="mt-3 text-gray-400">The public seller directory is currently empty, so this route stays exportable with a safe placeholder.</p>
-          <a href="/listings" className="mt-6 rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Browse listings</a>
-        </main>
-      </div>
-    );
-  }
+  const profileData = profile;
+
+
 
   const listings = await fetchPublicRows<Listing>("listings", "*", [["seller_id", `eq.${profileData.id}`], ["status", "eq.active"]], 2000);
   const publicProfile = profileData as ProfileWithListings;

@@ -42,11 +42,11 @@ async function fetchListingIds() {
   return rows.map((row) => ({ id: row.id }));
 }
 
-export const dynamicParams = true;
+export const dynamicParams = false;
 
 export async function generateStaticParams(): Promise<Array<{ id: string }>> {
   const rows = await fetchListingIds();
-  return rows.length ? rows : [{ id: "preview" }];
+  return rows;
 }
 
 function formatListingTitle(listing: ListingWithSeller) {
@@ -72,46 +72,13 @@ async function getListing(id: string) {
   return rows[0] ?? null;
 }
 
-function getPreviewListing(): ListingWithSeller {
-  return {
-    id: "preview",
-    seller_id: "preview-seller",
-    card_name: "Sample Pokémon Card",
-    set_name: "Preview Set",
-    card_number: "001",
-    rarity: "Rare",
-    condition: "Near Mint",
-    grade_company: null,
-    grade_score: null,
-    price: 0,
-    quantity: 1,
-    images: [],
-    description: "This preview page keeps the route exportable while the real marketplace listings load from Supabase.",
-    shipping_profile_id: null,
-    shipping_paid_by: null,
-    weight_oz: null,
-    package_type: null,
-    category: "single",
-    status: "active",
-    views: 0,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    profiles: null,
-  };
-}
+
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const listing = (await getListing(id)) ?? getPreviewListing();
+  const listing = await getListing(id);
 
-  if (id === "preview") {
-    return {
-      title: "Preview listing",
-      description: "Sample listing data used to keep the export route available.",
-    };
-  }
-
-  if (listing.id === "preview") {
+  if (!listing) {
     return {
       title: "Listing not found",
       description: "This Pokémon card listing is no longer available.",
@@ -145,19 +112,10 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const listing = (await getListing(id)) ?? getPreviewListing();
+  const listing = await getListing(id);
 
-  if (listing.id === "preview") {
-    return (
-      <div className="min-h-screen bg-[#0f0f1a] text-white">
-        <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4 text-center">
-          <div className="mb-4 text-6xl">🃏</div>
-          <h1 className="text-3xl font-black">Listing not found</h1>
-          <p className="mt-3 text-gray-400">The live listing feed is currently empty, so this route uses a safe placeholder until real marketplace records are available.</p>
-          <a href="/listings" className="mt-6 rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Back to listings</a>
-        </div>
-      </div>
-    );
+  if (!listing) {
+    notFound();
   }
 
 

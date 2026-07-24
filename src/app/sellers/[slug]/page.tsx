@@ -100,33 +100,19 @@ export const dynamicParams = false;
 
 export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
   const rows = await fetchPublicRows<SellerStoreListRow>("seller_stores", "seller_id, name, slug", [["slug", "not.is.null"]], 2000);
-  const slugs = rows.filter((row) => Boolean(row.slug)).map((row) => ({ slug: row.slug as string }));
-  return slugs.length ? slugs : [{ slug: "preview" }];
+  return rows.filter((row) => Boolean(row.slug)).map((row) => ({ slug: row.slug as string }));
 }
 
-function getPreviewSeller(slug: string): SellerStorefront {
-  return {
-    id: slug,
-    display_name: "Seller Storefront Preview",
-    storefront_slug: slug,
-    bio: "This storefront is using a safe placeholder until live seller records are available.",
-    avatar_url: null,
-    banner_url: null,
-    verified: false,
-    rating: 0,
-    follower_count: 0,
-    sales_count: 0,
-    total_revenue: 0,
-    total_listings: 0,
-    total_live_shows: 0,
-  };
-}
 
 
 export default async function SellerStorefrontPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const [sellerRow] = await fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme", [["slug", `eq.${slug}`]], 1);
-  const sellerData = sellerRow ? {
+  if (!sellerRow) {
+    notFound();
+  }
+
+  const sellerData = {
     id: sellerRow.seller_id,
     display_name: sellerRow.name,
     storefront_slug: sellerRow.slug,
@@ -140,19 +126,9 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
     total_revenue: 0,
     total_listings: 0,
     total_live_shows: 0,
-  } : getPreviewSeller(slug);
-  if (!sellerRow && slug === "preview") {
-    return (
-      <div className="min-h-screen bg-[#0f0f1a] text-white">
-        <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4 text-center">
-          <div className="text-6xl">🏪</div>
-          <h1 className="mt-4 text-3xl font-black">Seller storefront preview</h1>
-          <p className="mt-3 text-gray-400">The public seller directory is empty right now, so this route stays exportable with a safe placeholder.</p>
-          <a href="/listings" className="mt-6 rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Browse listings</a>
-        </main>
-      </div>
-    );
-  }
+  };
+
+
 
 
   const [listingsResult, reviewsResult, profileResult, storeResult, liveShowsResult] = await Promise.all([
