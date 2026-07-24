@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordSecurityEvent } from "@/lib/audit-log";
+import { recordPaymentEvent } from "@/lib/payment-events";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
 
   for (const order of orders ?? []) {
     await (admin as any).from("auction_orders").update({ payment_status: "expired", updated_at: new Date().toISOString() }).eq("id", order.id).eq("payment_status", "payment_pending");
-    await (admin as any).from("payment_events").insert({ order_id: order.id, stripe_event_id: `expire-${order.id}`, status: "expired" });
+    await recordPaymentEvent(admin, { orderId: order.id, stripeEventId: `expire-${order.id}`, status: "expired" });
     await (admin as any).from("notifications").insert({
       user_id: order.seller_id,
       type: "auction_payment_expired",

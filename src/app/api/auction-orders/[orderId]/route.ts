@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordSecurityEvent } from "@/lib/audit-log";
+import { recordPaymentEvent } from "@/lib/payment-events";
 
 export async function GET(_: Request, { params }: { params: Promise<{ orderId: string }> }) {
   const { orderId } = await params;
@@ -114,9 +115,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    await (admin as any).from("payment_events").insert({
-      order_id: orderId,
-      stripe_event_id: body.stripeEventId ?? `manual-${orderId}`,
+    await recordPaymentEvent(admin, {
+      orderId,
+      stripeEventId: body.stripeEventId ?? `manual-${orderId}`,
       status: "paid",
     });
 
@@ -193,9 +194,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    await (admin as any).from("payment_events").insert({
-      order_id: orderId,
-      stripe_event_id: `${body.action}-${orderId}`,
+    await recordPaymentEvent(admin, {
+      orderId,
+      stripeEventId: `${body.action}-${orderId}`,
       status: nextStatus,
     });
 
