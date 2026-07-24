@@ -13,9 +13,79 @@ import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
 import { listLiveShowsBySeller } from "@/lib/live-shows-client";
 import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
 import { recordDeviceSession } from "@/lib/device-security";
-import { uploadImageFile } from "@/lib/uploads";
+import { deleteUploadedFile, parsePublicStorageUrl, uploadImageFile } from "@/lib/uploads";
 import SupportInlineCard from "@/components/support/support-inline-card";
 
+
+type BrandAssetField = "profileAvatar" | "storeLogo" | "storeBanner";
+
+type BrandAssetDraft = {
+  field: BrandAssetField;
+  label: string;
+  value: string | null;
+  previewUrl: string | null;
+  saving: boolean;
+  error: string | null;
+  success: string | null;
+  originalUrl: string | null;
+  currentPath: string | null;
+  fileName: string | null;
+  inputKey: number;
+  file: File | null;
+};
+
+function createBrandAssetDraft(field: BrandAssetField, label: string, value: string | null): BrandAssetDraft {
+  return {
+    field,
+    label,
+    value,
+    previewUrl: value,
+    saving: false,
+    error: null,
+    success: null,
+    originalUrl: value,
+    currentPath: null,
+    fileName: null,
+    inputKey: 0,
+    file: null,
+  };
+}
+
+function createBrandAssetsState(profileRow: Profile | null, storeRecord: StoreRow | null) {
+  return {
+    profileAvatar: createBrandAssetDraft("profileAvatar", "Profile avatar", profileRow?.avatar_url ?? null),
+    storeLogo: createBrandAssetDraft("storeLogo", "Store logo", storeRecord?.logo_url ?? null),
+    storeBanner: createBrandAssetDraft("storeBanner", "Store banner", storeRecord?.banner_url ?? null),
+  } satisfies Record<BrandAssetField, BrandAssetDraft>;
+}
+
+function brandAssetPrefix(field: BrandAssetField) {
+  return field === "profileAvatar" ? "profile-avatar" : field === "storeLogo" ? "store-logo" : "store-banner";
+}
+
+function isImageFile(file: File) {
+  return file.type.startsWith("image/");
+}
+
+function toUploadFields() {
+  return ["profileAvatar", "storeLogo", "storeBanner"] as const;
+}
+
+function hasPendingBrandChanges(assets: Record<BrandAssetField, BrandAssetDraft>) {
+  return Object.values(assets).some((asset) => Boolean(asset.file));
+}
+
+function brandAssetPath(url: string | null) {
+  return parsePublicStorageUrl(url ?? "")?.path ?? null;
+}
+
+function clearStoragePath(url: string | null) {
+  return brandAssetPath(url);
+}
+
+function compareBrandAssetUrls(left: string | null, right: string | null) {
+  return (left ?? null) === (right ?? null);
+}
 
 type SellerRow = {
   avatar_url?: string | null;
@@ -26,6 +96,68 @@ type StoreRow = {
   logo_url?: string | null;
   banner_url?: string | null;
 };
+
+const BRAND_ASSET_FIELDS: Array<Pick<BrandAssetDraft, "field" | "label">> = [
+  { field: "profileAvatar", label: "Profile avatar" },
+  { field: "storeLogo", label: "Store logo" },
+  { field: "storeBanner", label: "Store banner" },
+];
+
+const BRAND_SAVE_SUCCESS = "Profile updated successfully";
+const BRAND_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
+
+function makeBrandAssetDraft(field: BrandAssetField, label: string, value: string | null): BrandAssetDraft {
+  return {
+    field,
+    label,
+    value,
+    previewUrl: value,
+    saving: false,
+    error: null,
+    success: null,
+    originalUrl: value,
+    currentPath: null,
+    fileName: null,
+    inputKey: 0,
+    file: null,
+  };
+}
+
+function brandAssetUrlForField(field: BrandAssetField, sellerRecord: SellerRow | null, storeRecord: StoreRow | null) {
+  if (field === "profileAvatar") return sellerRecord?.avatar_url ?? null;
+  if (field === "storeLogo") return storeRecord?.logo_url ?? null;
+  return storeRecord?.banner_url ?? null;
+}
+
+function fieldToTarget(field: BrandAssetField) {
+  if (field === "profileAvatar") return "profile" as const;
+  return "store" as const;
+}
+
+function fieldToBodyKey(field: BrandAssetField) {
+  if (field === "profileAvatar") return "avatar_url" as const;
+  if (field === "storeLogo") return "logo_url" as const;
+  return "banner_url" as const;
+}
+
+function fieldToUploadPrefix(field: BrandAssetField) {
+  if (field === "profileAvatar") return "profile-avatar";
+  if (field === "storeLogo") return "store-logo";
+  return "store-banner";
+}
+
+function fieldToPreviewStyles(field: BrandAssetField) {
+  if (field === "profileAvatar") return "aspect-square rounded-2xl";
+  if (field === "storeLogo") return "aspect-square rounded-2xl";
+  return "aspect-[16/9] rounded-3xl";
+}
+
+function getBrandAssetAlt(field: BrandAssetField, label: string) {
+  if (field === "profileAvatar") return `${label} preview`;
+  if (field === "storeLogo") return `${label} preview`;
+  return `${label} preview`;
+}
+
 
 type VerificationRow = {
   status?: SellerVerificationStatus | null;
@@ -91,15 +223,15 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [verificationDetails, setVerificationDetails] = useState<VerificationRow | null>(null);
   const [sellerRecord, setSellerRecord] = useState<SellerRow | null>(null);
   const [storeRecord, setStoreRecord] = useState<StoreRow | null>(null);
-  const [profileAvatarUrl, setProfileAvatarUrl] = useState<string | null>(null);
-  const [profileBannerUrl, setProfileBannerUrl] = useState<string | null>(null);
-  const [sellerAvatarUrl, setSellerAvatarUrl] = useState<string | null>(null);
-  const [sellerBannerUrl, setSellerBannerUrl] = useState<string | null>(null);
-  const [storeLogoUrl, setStoreLogoUrl] = useState<string | null>(null);
-  const [storeBannerUrl, setStoreBannerUrl] = useState<string | null>(null);
-  const [profileAssetMessage, setProfileAssetMessage] = useState<string | null>(null);
-  const [profileAssetError, setProfileAssetError] = useState<string | null>(null);
-  const [profileAssetUploading, setProfileAssetUploading] = useState<string | null>(null);
+  const [brandAssets, setBrandAssets] = useState<Record<BrandAssetField, BrandAssetDraft>>({
+    profileAvatar: createBrandAssetDraft("profileAvatar", "Profile avatar", null),
+    storeLogo: createBrandAssetDraft("storeLogo", "Store logo", null),
+    storeBanner: createBrandAssetDraft("storeBanner", "Store banner", null),
+  });
+  const [brandSaveStatus, setBrandSaveStatus] = useState<string | null>(null);
+  const [brandSaveError, setBrandSaveError] = useState<string | null>(null);
+  const [brandSavePending, setBrandSavePending] = useState(false);
+  const [brandAssetBusy, setBrandAssetBusy] = useState<BrandAssetField | null>(null);
   const [wallet, setWallet] = useState<SellerWallet | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [purchases, setPurchases] = useState<DashboardOrder[]>([]);
@@ -143,14 +275,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         more_information_request: verificationRow.more_information_request,
         verified_at: verificationRow.verified_at,
       } : null);
-      setSellerRecord(storeRow as SellerRow | null);
+      setSellerRecord({ avatar_url: profileRow?.avatar_url ?? null, banner_url: null });
       setStoreRecord(storeRow);
-      setProfileAvatarUrl(profileRow?.avatar_url ?? null);
-      setProfileBannerUrl(null);
-      setSellerAvatarUrl(storeRow?.logo_url ?? null);
-      setSellerBannerUrl(storeRow?.banner_url ?? null);
-      setStoreLogoUrl(storeRow?.logo_url ?? null);
-      setStoreBannerUrl(storeRow?.banner_url ?? null);
+      setBrandAssets(createBrandAssetsState(profileRow, storeRow));
+      setBrandSaveStatus(null);
+      setBrandSaveError(null);
+      setBrandSavePending(false);
       setWallet(walletData ?? null);
       setListings(listingData ?? []);
       setPurchases((purchaseData ?? []) as DashboardOrder[]);
@@ -412,101 +542,194 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     }
   };
 
-  const saveSellerAssets = async (updates: {
-    profile?: { avatar_url?: string | null; seller_state?: string | null };
-    seller?: { avatar_url?: string | null; banner_url?: string | null };
-    store?: { banner_url?: string | null; logo_url?: string | null };
-  }) => {
-    if (!supabase || !profile) return;
+  const refreshBrandAssets = async () => {
+    if (!supabase || !profile?.id) return;
+    const [{ data: freshProfile }, { data: freshStore }] = await Promise.all([
+      supabase.from("profiles").select("avatar_url").eq("id", profile.id).maybeSingle(),
+      supabase.from("seller_stores").select("logo_url, banner_url").eq("seller_id", profile.id).maybeSingle(),
+    ]);
 
-    if (updates.profile) {
-      await fetch("/api/profile-assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target: "profile", ...updates.profile }),
-      });
-      if (updates.profile?.seller_state !== undefined) {
-        setProfile((current) => (current ? { ...current, seller_state: updates.profile?.seller_state ?? null } : current));
-      }
-    }
-    if (updates.seller) {
-      await fetch("/api/profile-assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target: "seller", ...updates.seller }),
-      });
-      setSellerRecord((current) => (current ? { ...current, ...updates.seller } : current));
-    }
-    if (updates.store) {
-      await fetch("/api/profile-assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target: "store", ...updates.store }),
-      });
-      setStoreRecord((current) => (current ? { ...current, ...updates.store } : current));
-    }
+    const freshProfileRow = freshProfile as Profile | null;
+    const freshStoreRow = freshStore as StoreRow | null;
+    setProfile((current) => (current ? { ...current, avatar_url: freshProfileRow?.avatar_url ?? current.avatar_url ?? null } : current));
+    setStoreRecord(freshStoreRow ?? null);
+    setBrandAssets(createBrandAssetsState(freshProfileRow ?? profile, freshStoreRow));
   };
 
-  const uploadSellerAsset = async (kind: "profileAvatar" | "profileBanner" | "sellerAvatar" | "sellerBanner" | "storeLogo" | "storeBanner", file: File) => {
-    if (!supabase || !profile) return;
+  useEffect(() => {
+    if (!profile) return;
+    setBrandAssets(createBrandAssetsState(profile, storeRecord));
+  }, [profile, storeRecord]);
 
-    setProfileAssetUploading(kind);
-    setProfileAssetError(null);
-    setProfileAssetMessage(null);
+  const updateBrandAssetDraft = (field: BrandAssetField, next: Partial<BrandAssetDraft>) => {
+    setBrandAssets((current) => ({
+      ...current,
+      [field]: { ...current[field], ...next },
+    }));
+  };
+
+  const handleBrandAssetFile = async (field: BrandAssetField, file: File | null) => {
+    if (!file || !isImageFile(file)) return;
+    updateBrandAssetDraft(field, {
+      file,
+      fileName: file.name,
+      previewUrl: URL.createObjectURL(file),
+      error: null,
+      success: null,
+      inputKey: brandAssets[field].inputKey + 1,
+      currentPath: null,
+    });
+  };
+
+  const saveBrandAssets = async () => {
+    if (!supabase || !profile) return;
+    setBrandSavePending(true);
+    setBrandSaveStatus(null);
+    setBrandSaveError(null);
+
+    const draftFields = toUploadFields().filter((field) => brandAssets[field].file) as BrandAssetField[];
 
     try {
-      const uploaded = await uploadImageFile({
-        supabase,
-        target: "seller-store",
-        ownerId: profile.id,
-        file,
-        prefix: kind,
-      });
-
-      if (kind === "profileAvatar") {
-        await saveSellerAssets({ profile: { avatar_url: uploaded.publicUrl } });
-        setProfileAvatarUrl(uploaded.publicUrl);
-      } else if (kind === "profileBanner") {
-        await saveSellerAssets({ seller: { banner_url: uploaded.publicUrl } });
-        setProfileBannerUrl(uploaded.publicUrl);
-      } else if (kind === "sellerAvatar") {
-        await saveSellerAssets({ seller: { avatar_url: uploaded.publicUrl } });
-        setSellerAvatarUrl(uploaded.publicUrl);
-      } else if (kind === "sellerBanner") {
-        await saveSellerAssets({ seller: { banner_url: uploaded.publicUrl } });
-        setSellerBannerUrl(uploaded.publicUrl);
-      } else if (kind === "storeLogo") {
-        await saveSellerAssets({ store: { logo_url: uploaded.publicUrl } });
-        setStoreLogoUrl(uploaded.publicUrl);
-      } else {
-        await saveSellerAssets({ store: { banner_url: uploaded.publicUrl } });
-        setStoreBannerUrl(uploaded.publicUrl);
+      const uploadResults: Partial<Record<BrandAssetField, { publicUrl: string; path: string }>> = {};
+      for (const field of draftFields) {
+        updateBrandAssetDraft(field, { saving: true, error: null, success: null });
+        const draft = brandAssets[field];
+        const uploaded = await uploadImageFile({
+          supabase,
+          target: "seller-store",
+          ownerId: profile.id,
+          file: draft.file as File,
+          prefix: brandAssetPrefix(field),
+        });
+        uploadResults[field] = { publicUrl: uploaded.publicUrl, path: uploaded.path };
       }
 
-      setProfileAssetMessage("Asset uploaded and saved.");
+      const updates: Array<Promise<Response>> = [];
+      const profilePayload: Record<string, string | null> = {};
+      const storePayload: Record<string, string | null> = {};
+
+      for (const field of toUploadFields()) {
+        const uploaded = uploadResults[field];
+        if (!uploaded) continue;
+        if (field === "profileAvatar") profilePayload.avatar_url = uploaded.publicUrl;
+        if (field === "storeLogo") storePayload.logo_url = uploaded.publicUrl;
+        if (field === "storeBanner") storePayload.banner_url = uploaded.publicUrl;
+      }
+
+      if (Object.keys(profilePayload).length) {
+        updates.push(fetch("/api/profile-assets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target: "profile", ...profilePayload }),
+        }));
+      }
+      if (Object.keys(storePayload).length) {
+        updates.push(fetch("/api/profile-assets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target: "store", ...storePayload }),
+        }));
+      }
+
+      const responses = await Promise.all(updates);
+      for (const response of responses) {
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({} as { error?: string }));
+          throw new Error(payload.error ?? "Unable to save brand assets.");
+        }
+      }
+
+      await refreshBrandAssets();
+
+      for (const field of draftFields) {
+        const draft = brandAssets[field];
+        if (draft.originalUrl && draft.originalUrl !== draft.previewUrl) {
+          await deleteUploadedFile({ supabase, target: "seller-store", path: clearStoragePath(draft.originalUrl) ?? "" }).catch(() => null);
+        }
+        updateBrandAssetDraft(field, {
+          file: null,
+          saving: false,
+          success: "Saved",
+          originalUrl: uploadResults[field]?.publicUrl ?? draft.previewUrl,
+          previewUrl: uploadResults[field]?.publicUrl ?? draft.previewUrl,
+          currentPath: uploadResults[field]?.path ?? null,
+          fileName: null,
+          inputKey: draft.inputKey + 1,
+        });
+      }
+
+      setBrandSaveStatus(BRAND_SAVE_SUCCESS);
     } catch (error) {
-      setProfileAssetError(error instanceof Error ? error.message : "Unable to upload asset.");
+      const message = error instanceof Error ? error.message : "Unable to save brand assets.";
+      setBrandSaveError(message);
+      for (const field of draftFields) updateBrandAssetDraft(field, { saving: false, error: message });
     } finally {
-      setProfileAssetUploading(null);
+      setBrandSavePending(false);
     }
   };
 
-  const renderUploadCard = (label: string, previewUrl: string | null, kind: "profileAvatar" | "profileBanner" | "sellerAvatar" | "sellerBanner" | "storeLogo" | "storeBanner") => (
-    <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
-      <div className="mb-2 text-sm font-semibold text-white">{label}</div>
-      <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => {
-        const file = e.target.files?.[0];
-        if (file) void uploadSellerAsset(kind, file);
-      }} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
-      <div className="mt-3 aspect-[16/9] overflow-hidden rounded-xl border border-white/10 bg-black/20">
-        {previewUrl ? (
-          <img src={previewUrl} alt={label} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex h-full items-center justify-center text-xs text-gray-500">No image yet</div>
-        )}
+  const brandAssetsList = [brandAssets.profileAvatar, brandAssets.storeLogo, brandAssets.storeBanner] as BrandAssetDraft[];
+
+  const brandAssetPreview = (asset: BrandAssetDraft) => asset.previewUrl ?? asset.originalUrl;
+
+  const resetBrandAsset = (field: BrandAssetField) => {
+    const originalUrl = brandAssets[field].originalUrl;
+    updateBrandAssetDraft(field, {
+      file: null,
+      previewUrl: originalUrl,
+      error: null,
+      success: null,
+      fileName: null,
+      currentPath: null,
+      inputKey: brandAssets[field].inputKey + 1,
+    });
+  };
+
+  const renderBrandAssetCard = (field: BrandAssetField) => {
+    const asset = brandAssets[field];
+    const previewUrl = brandAssetPreview(asset);
+    const isBusy = brandAssetBusy === field || asset.saving;
+    return (
+      <div key={field} className="rounded-3xl border border-white/10 bg-[#11111c] p-4 shadow-xl shadow-black/10">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-white">{asset.label}</div>
+            <div className="mt-1 text-xs text-gray-400">{asset.file ? asset.file.name : asset.originalUrl ? "Saved image" : "No image uploaded yet"}</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => resetBrandAsset(field)}
+            className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-gray-300 hover:border-white/20 hover:text-white"
+          >
+            Reset
+          </button>
+        </div>
+
+        <div className={`mt-4 overflow-hidden border border-white/10 bg-black/20 ${fieldToPreviewStyles(field)}`}>
+          {previewUrl ? <img src={previewUrl} alt={getBrandAssetAlt(field, asset.label)} className="h-full w-full object-cover" /> : <div className="flex h-full min-h-[180px] items-center justify-center text-sm text-gray-500">Preview will appear here</div>}
+        </div>
+
+        <div className="mt-4 space-y-3">
+          <input
+            key={asset.inputKey}
+            type="file"
+            accept={BRAND_IMAGE_ACCEPT}
+            disabled={isBusy}
+            onChange={(e) => void handleBrandAssetFile(field, e.target.files?.[0] ?? null)}
+            className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300 disabled:opacity-50"
+          />
+          <div className="flex items-center justify-between gap-3 text-xs text-gray-400">
+            <span>{asset.file ? "Ready to save" : "Changes save from the main button"}</span>
+            {asset.success && <span className="font-semibold text-green-400">{BRAND_SAVE_SUCCESS}</span>}
+          </div>
+          {asset.error && <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-200">{asset.error}</div>}
+          {isBusy && <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-100">Uploading {asset.label.toLowerCase()}...</div>}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
+
+  const brandDraftCount = brandAssetsList.filter((asset) => asset.file).length;
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
@@ -578,36 +801,55 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
           </div>
 
           <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-sm uppercase tracking-widest text-yellow-400">Quick action</p>
-                <h2 className="mt-2 text-xl font-black">Copy dashboard summary</h2>
+                <p className="text-sm uppercase tracking-widest text-yellow-400">Store Branding</p>
+                <h2 className="mt-2 text-xl font-black">Update your profile avatar and storefront visuals</h2>
+                <p className="mt-2 max-w-2xl text-sm text-gray-400">Choose images, preview them instantly, then save once to update your public profile and store branding.</p>
               </div>
               <button
+                type="button"
+                onClick={() => void saveBrandAssets()}
+                disabled={!hasPendingBrandChanges(brandAssets) || brandSavePending}
+                className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition-colors hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {brandSavePending ? "Saving..." : `Save Changes${brandDraftCount > 0 ? ` (${brandDraftCount})` : ""}`}
+              </button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
+              <div className="space-y-4">
+                {renderBrandAssetCard("profileAvatar")}
+                {renderBrandAssetCard("storeLogo")}
+              </div>
+              <div className="space-y-4">
+                {renderBrandAssetCard("storeBanner")}
+                <div className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">
+                  <div className="font-semibold text-white">Saved instantly on load</div>
+                  <p className="mt-2 text-gray-400">Current database values are loaded as soon as the dashboard opens so the editor always starts with the latest saved images.</p>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-400">
+                    <span className="rounded-full border border-white/10 px-3 py-1">Refreshes after save</span>
+                    <span className="rounded-full border border-white/10 px-3 py-1">Owner-only updates</span>
+                    <span className="rounded-full border border-white/10 px-3 py-1">No placeholder cards</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {brandSaveStatus && <div className="rounded-xl border border-green-400/20 bg-green-400/10 px-4 py-3 text-sm text-green-300">✓ {brandSaveStatus}</div>}
+            {brandSaveError && <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{brandSaveError}</div>}
+            {brandSavePending && <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">Saving your branding updates...</div>}
+            <div className="flex justify-end">
+              <button
+                type="button"
                 onClick={handleCopyBrainSummary}
                 className="rounded-xl border border-yellow-400/40 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-400 transition-colors hover:bg-yellow-400/20"
               >
-                {brainCopied ? "Copied" : "Copy"}
+                {brainCopied ? "Copied" : "Copy dashboard summary"}
               </button>
             </div>
-            <p className="text-sm text-gray-400">Grab a clean summary of your store metrics for notes or planning.</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {renderUploadCard("Profile avatar", profileAvatarUrl, "profileAvatar")}
-              {renderUploadCard("Profile banner", profileBannerUrl, "profileBanner")}
-              {renderUploadCard("Seller avatar", sellerAvatarUrl, "sellerAvatar")}
-              {renderUploadCard("Seller banner", sellerBannerUrl, "sellerBanner")}
-              {renderUploadCard("Store logo", storeLogoUrl, "storeLogo")}
-              {renderUploadCard("Store banner", storeBannerUrl, "storeBanner")}
-            </div>
-            {profileAssetUploading && <div className="text-xs text-gray-500">Uploading {profileAssetUploading}...</div>}
-            {profileAssetMessage && <div className="rounded-xl border border-green-400/20 bg-green-400/10 px-4 py-3 text-sm text-green-300">{profileAssetMessage}</div>}
-            {profileAssetError && <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{profileAssetError}</div>}
           </div>
         </div>
-
-        {profileAssetUploading && <div className="mb-6 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">Uploading asset...</div>}
-
-
 
 
         <div className="mb-8 flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-white/5 p-1">
