@@ -6,6 +6,7 @@ import {
   createConversation,
   deleteConversation,
   getConversationMembers,
+  listUserConversations,
   markConversationRead,
   reportMessage,
   sendMessage,
@@ -35,15 +36,52 @@ async function requireConversationMember(conversationId: string, userId: string)
   return members.some((member) => member.user_id === userId);
 }
 
-export async function GET(req: NextRequest) {
+function normalizeString(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function handleInboxList() {
   const { supabase, user } = await getAuthedUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const conversationId = req.nextUrl.searchParams.get("conversationId");
-  if (!conversationId) return NextResponse.json({ error: "Missing conversationId" }, { status: 400 });
+  const rows = await listUserConversations(user.id);
+  const conversationIds = rows.map((row) => row.conversation_id);
+  const unreadConversationIds = new Set<string>();
 
-  const isMember = await requireConversationMember(conversationId, user.id);
-  if (!isMember) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (conversationIds.length) {
+    const { data: unreadMessages, error } = await supabase
+      .from("messages")
+      .select("conversation_id")
+      .in("conversation_id", conversationIds)
+      .eq("read_status", false)
+      .neq("sender_id", user.id);
+
+    if (!error) {
+      for (const row of unreadMessages ?? []) {
+        unreadConversationIds.add((row as { conversation_id: string }).conversation_id);
+      }
+    }
+  }
+
+  return NextResponse.json({
+    conversations: rows.map((row) => ({
+      conversationId: row.conversation_id,
+      archived: row.archived,
+      muted: row.muted,
+      lastReadAt: row.last_read_at,
+      unread: unreadConversationIds.has(row.conversation_id),
+      conversation: row.conversations,
+    })),
+  });
+}
+
+async function handleConversationMessages(conversationId: string) {
+  const { supabase, user } = await getAuthedUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  if (!(await requireConversationMember(conversationId, user.id))) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
 
   const { data, error } = await supabase
     .from("messages")
@@ -56,46 +94,47 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ messages: data ?? [] });
 }
 
+export async function GET(req: NextRequest) {
+  const conversationId = req.nextUrl.searchParams.get("conversationId")?.trim() ?? "";
+  if (!conversationId) {
+    return handleInboxList();
+  }
+
+  return handleConversationMessages(conversationId);
+}
+
 export async function POST(req: Request) {
   const { user } = await getAuthedUser();
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-  const action = String(body.action ?? "send");
-  const conversationId = typeof body.conversationId === "string" ? body.conversationId.trim() : "";
+  const action = normalizeString(body.action) || "send";
+  const conversationId = normalizeString(body.conversationId);
 
   if (action === "read") {
     if (!conversationId) return NextResponse.json({ error: "Missing conversationId" }, { status: 400 });
-    if (!(await requireConversationMember(conversationId, user.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (!(await requireConversationMember(conversationId, user.id))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     await markConversationRead(conversationId, user.id);
     return NextResponse.json({ ok: true });
   }
 
   if (action === "archive") {
     if (!conversationId) return NextResponse.json({ error: "Missing conversationId" }, { status: 400 });
-    if (!(await requireConversationMember(conversationId, user.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (!(await requireConversationMember(conversationId, user.id))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     await archiveConversation(conversationId, user.id, Boolean(body.archived ?? true));
     return NextResponse.json({ ok: true });
   }
 
   if (action === "delete") {
     if (!conversationId) return NextResponse.json({ error: "Missing conversationId" }, { status: 400 });
-    if (!(await requireConversationMember(conversationId, user.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (!(await requireConversationMember(conversationId, user.id))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     await deleteConversation(conversationId, user.id);
     return NextResponse.json({ ok: true });
   }
 
   if (action === "mute") {
     if (!conversationId) return NextResponse.json({ error: "Missing conversationId" }, { status: 400 });
-    if (!(await requireConversationMember(conversationId, user.id))) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
+    if (!(await requireConversationMember(conversationId, user.id))) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     await setConversationMuted(conversationId, user.id, Boolean(body.muted ?? true));
     return NextResponse.json({ ok: true });
   }
@@ -112,29 +151,29 @@ export async function POST(req: Request) {
   }
 
   if (action === "block") {
-    const blockedId = typeof body.blockedId === "string" ? body.blockedId.trim() : "";
+    const blockedId = normalizeString(body.blockedId);
     if (!blockedId) return NextResponse.json({ error: "Missing blockedId" }, { status: 400 });
     await blockConversationUser(user.id, blockedId);
     return NextResponse.json({ ok: true });
   }
 
   if (action === "report") {
-    const messageId = typeof body.messageId === "string" ? body.messageId.trim() : "";
-    const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+    const messageId = normalizeString(body.messageId);
+    const reason = normalizeString(body.reason);
     if (!messageId || !reason) return NextResponse.json({ error: "Missing report data" }, { status: 400 });
-    await reportMessage(messageId, user.id, reason, typeof body.details === "string" ? body.details : undefined);
+    await reportMessage(messageId, user.id, reason, normalizeString(body.details) || undefined);
     return NextResponse.json({ ok: true });
   }
 
   if (action === "support") {
     try {
-      const category = typeof body.category === "string" ? body.category.trim() : "general_question";
-      const issueSummary = typeof body.issueSummary === "string" ? body.issueSummary.trim() : "";
-      const priority = typeof body.priority === "string" ? body.priority.trim() : "normal";
-      const orderId = typeof body.orderId === "string" ? body.orderId.trim() || null : null;
-      const listingId = typeof body.listingId === "string" ? body.listingId.trim() || null : null;
-      const sellerId = typeof body.sellerId === "string" ? body.sellerId.trim() || null : null;
-      const conversationIdInput = typeof body.conversationId === "string" ? body.conversationId.trim() || null : null;
+      const category = normalizeString(body.category) || "general_question";
+      const issueSummary = normalizeString(body.issueSummary);
+      const priority = normalizeString(body.priority) || "normal";
+      const orderId = normalizeString(body.orderId) || null;
+      const listingId = normalizeString(body.listingId) || null;
+      const sellerId = normalizeString(body.sellerId) || null;
+      const conversationIdInput = normalizeString(body.conversationId) || null;
       if (!issueSummary) return NextResponse.json({ error: "Missing issue summary" }, { status: 400 });
 
       const assignedAiAgent = routeSupportAgent(category as Parameters<typeof routeSupportAgent>[0]);
@@ -176,8 +215,8 @@ export async function POST(req: Request) {
     }
   }
 
-  const message = typeof body.message === "string" ? body.message.trim() : "";
-  const recipientId = typeof body.recipientId === "string" ? body.recipientId.trim() : "";
+  const message = normalizeString(body.message);
+  const recipientId = normalizeString(body.recipientId);
   const contextType = typeof body.contextType === "string" ? body.contextType : null;
   const contextId = typeof body.contextId === "string" ? body.contextId : null;
   const attachmentUrl = typeof body.attachmentUrl === "string" ? body.attachmentUrl : null;
@@ -186,10 +225,15 @@ export async function POST(req: Request) {
   if (!message) return NextResponse.json({ error: "Message required" }, { status: 400 });
   if (!conversationId && !recipientId) return NextResponse.json({ error: "Missing recipient" }, { status: 400 });
 
-  let resolvedConversationId = conversationId;
-  if (!resolvedConversationId) {
-    resolvedConversationId = await createConversation({ contextType, contextId, memberIds: [user.id, recipientId] });
-  } else if (!(await requireConversationMember(resolvedConversationId, user.id))) {
+  const resolvedConversationId = conversationId
+    ? conversationId
+    : await createConversation({
+        contextType,
+        contextId,
+        memberIds: [user.id, recipientId],
+      });
+
+  if (!(await requireConversationMember(resolvedConversationId, user.id))) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

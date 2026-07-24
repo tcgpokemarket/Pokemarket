@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
 import type { Listing } from "@/lib/supabase/types";
+import { getSocialCounts } from "@/lib/social-network";
+import { createClient } from "@/lib/supabase/server";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -121,27 +123,24 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
     banner_url: sellerRow.banner_url,
     verified: sellerRow.verified,
     rating: sellerRow.verified ? 5 : 0,
-    follower_count: sellerRow.featured ? 1 : 0,
-    sales_count: sellerRow.featured ? 1 : 0,
     total_revenue: 0,
-    total_listings: 0,
     total_live_shows: 0,
   };
 
-
-
-
-  const [listingsResult, reviewsResult, profileResult, storeResult, liveShowsResult] = await Promise.all([
+  const [activeListingsResult, soldListingsResult, reviewsResult, profileResult, storeResult, liveShowsResult, socialCounts] = await Promise.all([
     fetchPublicRows<Listing>("listings", "*", [["seller_id", `eq.${sellerData.id}`], ["status", "eq.active"]], 2000),
+    fetchPublicRows<Listing>("listings", "*", [["seller_id", `eq.${sellerData.id}`], ["status", "eq.sold"]], 50),
     fetchPublicRows<{ id: string; title: string | null; body: string | null; rating: number }>("seller_reviews", "*", [["seller_id", `eq.${sellerData.id}`]], 6),
     fetchPublicRows<ProfileRow>("profiles", "username, full_name, is_seller, avatar_url, seller_rating, total_sales", [["id", `eq.${sellerData.id}`]], 1),
     fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme", [["seller_id", `eq.${sellerData.id}`]], 1),
     fetchPublicRows<LiveShowRow>("live_shows", "id, title, description, status, viewer_count, scheduled_start", [["seller_id", `eq.${sellerData.id}`]], 12),
+    getSocialCounts(sellerData.id),
   ]);
 
   const profile = profileResult[0] ?? null;
   const store = storeResult[0] ?? null;
-  const listings = listingsResult ?? [];
+  const activeListings = activeListingsResult ?? [];
+  const soldListings = soldListingsResult ?? [];
   const reviews = reviewsResult ?? [];
   const liveShows = liveShowsResult ?? [];
   const sellerStorefront = store ?? {
@@ -157,16 +156,17 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
   };
   const shopName = sellerStorefront.name;
   const shopSlug = sellerStorefront.slug;
-  const sellerSales = profile?.total_sales ?? sellerData.sales_count;
+  const sellerSales = profile?.total_sales ?? soldListings.length;
   const sellerRating = profile?.seller_rating ?? sellerData.rating;
   const sellerStatus = profile?.is_seller || sellerData.verified ? "Approved seller" : "Seller not approved";
   const activeLiveShows = liveShows.filter((show) => show.status === "live" || show.status === "scheduled");
-  const soldItems = listings.filter((listing) => listing.status === "sold").slice(0, 6);
+  const soldItems = soldListings.slice(0, 6);
   const policies = sellerStorefront.description ? [sellerStorefront.description, ...DEFAULT_POLICIES] : DEFAULT_POLICIES;
   const storeTheme = sellerStorefront.theme ?? null;
   const accent = storeTheme?.accent ?? "#e22400";
   const secondary = storeTheme?.secondary ?? "#ffab01";
   const highlight = storeTheme?.highlight ?? "#fefb41";
+  const followerCount = socialCounts.followers;
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -210,15 +210,15 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   <div className="text-xs text-gray-400">Rating</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerData.follower_count}</div>
+                  <div className="text-2xl font-black text-yellow-400">{followerCount}</div>
                   <div className="text-xs text-gray-400">Followers</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerData.sales_count}</div>
+                  <div className="text-2xl font-black text-yellow-400">{sellerSales}</div>
                   <div className="text-xs text-gray-400">Sales</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerData.total_listings}</div>
+                  <div className="text-2xl font-black text-yellow-400">{activeListings.length}</div>
                   <div className="text-xs text-gray-400">Total listings</div>
                 </div>
               </div>
@@ -237,8 +237,8 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   <p className="text-sm text-gray-400">Dedicated storefront URL, verified status, and seller tools.</p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-sm">
-                  <Link href={`/messages?shop=${shopSlug}`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Message seller</Link>
-                  <Link href="/social" className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Follow shop</Link>
+                  <Link href={`/messages?recipient=${sellerData.id}&contextType=seller_store&contextId=${sellerData.id}&title=${encodeURIComponent(shopName)}`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Message seller</Link>
+                  <Link href={`/profile/${profile?.username ?? shopSlug}`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Follow shop</Link>
                   <Link href={`/listings?seller=${shopSlug}`} className="rounded-full bg-yellow-400 px-4 py-2 font-semibold text-black transition hover:bg-yellow-300">Browse inventory</Link>
                 </div>
               </div>

@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { searchMessages } from "@/lib/messaging";
+import { listUserConversations, searchMessages } from "@/lib/messaging";
 
 export default async function MessagesPage({ searchParams }: { searchParams?: { q?: string } }) {
   const query = searchParams?.q?.trim() ?? "";
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const results = user && query ? await searchMessages(user.id, query) : [];
+  const conversations = user ? await listUserConversations(user.id) : [];
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-10 text-white">
@@ -30,25 +33,53 @@ export default async function MessagesPage({ searchParams }: { searchParams?: { 
           </div>
         </div>
 
-        {query ? (
-          <div className="mt-6 rounded-2xl border border-white/10 bg-[#13131f] p-4">
-            <div className="text-sm font-semibold text-white">Search results for “{query}”</div>
-            <div className="mt-3 space-y-2">
-              {results.length ? results.map((item) => (
-                <Link key={item.id} href={`/messages/${item.conversation_id}`} className="block rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300 transition hover:border-yellow-400/40">
-                  <div className="font-semibold text-white">Conversation {item.conversation_id}</div>
-                  <div className="mt-1 text-gray-400">{item.message}</div>
-                </Link>
-              )) : (
-                <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300">No matching messages yet.</div>
-              )}
-            </div>
-          </div>
-        ) : null}
-
         {user ? (
-          <div className="mt-6 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
-            Your recent conversations load in the conversation view after sign-in.
+          <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+            <section className="space-y-4 rounded-3xl border border-white/10 bg-[#13131f] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-white">Recent conversations</div>
+                  <div className="text-xs text-gray-500">{conversations.length} total</div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {conversations.length ? conversations.map((row) => {
+                  const conversation = row.conversations;
+                  return (
+                    <Link key={row.conversation_id} href={`/messages/${row.conversation_id}`} className="block rounded-2xl border border-white/10 bg-[#0f0f1a] p-4 text-sm text-gray-300 transition hover:border-yellow-400/40">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="font-semibold text-white">{conversation?.last_message_preview ?? "Conversation"}</div>
+                          <div className="mt-1 text-xs text-gray-500">{conversation?.context_type ?? "private thread"}{conversation?.context_id ? ` · ${conversation.context_id}` : ""}</div>
+                        </div>
+                        {row.archived ? <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-gray-400">Archived</span> : null}
+                      </div>
+                      <div className="mt-2 text-xs text-gray-500">{row.unread ? "Unread messages" : row.last_read_at ? `Last read ${new Date(row.last_read_at).toLocaleString()}` : "No messages read yet"}</div>
+                    </Link>
+                  );
+                }) : (
+                  <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300">No conversations yet.</div>
+                )}
+              </div>
+            </section>
+
+            <aside className="space-y-4">
+              {query ? (
+                <div className="rounded-3xl border border-white/10 bg-[#13131f] p-4">
+                  <div className="text-sm font-semibold text-white">Search results for “{query}”</div>
+                  <div className="mt-3 space-y-2">
+                    {results.length ? results.map((item) => (
+                      <Link key={item.id} href={`/messages/${item.conversation_id}`} className="block rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300 transition hover:border-yellow-400/40">
+                        <div className="font-semibold text-white">Conversation {item.conversation_id}</div>
+                        <div className="mt-1 text-gray-400">{item.message}</div>
+                      </Link>
+                    )) : (
+                      <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm text-gray-300">No matching messages yet.</div>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+            </aside>
           </div>
         ) : (
           <div className="mt-6 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">

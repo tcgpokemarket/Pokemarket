@@ -28,6 +28,14 @@ export type MessageRow = {
   updated_at: string;
 };
 
+export type ConversationListRow = {
+  conversation_id: string;
+  archived: boolean | null;
+  muted: boolean | null;
+  last_read_at: string | null;
+  conversations: ConversationRow | null;
+};
+
 export type MessageReportRow = {
   id: string;
   message_id: string;
@@ -40,6 +48,46 @@ export type MessageReportRow = {
   messages?: MessageRow | null;
 };
 
+function uniqueValues(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean)));
+}
+
+async function conversationHasMembers(conversationId: string, memberIds: string[]) {
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("conversation_members").select("user_id").eq("conversation_id", conversationId);
+  if (error) throw new Error(error.message);
+
+  const present = uniqueValues((data ?? []).map((row) => row.user_id));
+  return present.length === memberIds.length && memberIds.every((memberId) => present.includes(memberId));
+}
+
+async function findConversationId(input: { contextType?: string | null; contextId?: string | null; memberIds: string[] }) {
+  const admin = createAdminClient();
+  const contextType = input.contextType ?? null;
+  const contextId = input.contextId ?? null;
+  const memberIds = uniqueValues(input.memberIds);
+
+  if (!memberIds.length) return null;
+
+  let query = admin.from("conversations").select("id, context_type, context_id").order("created_at", { ascending: false }).limit(50);
+  if (contextType !== null || contextId !== null) {
+    query = query.eq("context_type", contextType).eq("context_id", contextId);
+  } else {
+    query = query.is("context_type", null).is("context_id", null);
+  }
+
+  const { data, error } = await query;
+  if (error) throw new Error(error.message);
+
+  for (const conversation of data ?? []) {
+    if (await conversationHasMembers(conversation.id, memberIds)) {
+      return conversation.id;
+    }
+  }
+
+  return null;
+}
+
 export async function getConversationMembers(conversationId: string) {
   const admin = createAdminClient();
   const { data, error } = await admin
@@ -50,6 +98,19 @@ export async function getConversationMembers(conversationId: string) {
 
   if (error) throw new Error(error.message);
   return (data ?? []) as ConversationMemberRow[];
+}
+
+export async function listUserConversations(userId: string) {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("conversation_members")
+    .select("conversation_id, archived, muted, last_read_at, conversations(id, context_type, context_id, is_archived, last_message_at, last_message_preview)")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ConversationListRow[];
 }
 
 type ConversationInsert = {
@@ -94,6 +155,10 @@ type MessageAccessRuleInsert = {
 
 export async function createConversation(input: { contextType?: string | null; contextId?: string | null; memberIds: string[] }) {
   const admin = createAdminClient();
+  const memberIds = uniqueValues(input.memberIds);
+  const existingConversationId = await findConversationId({ contextType: input.contextType ?? null, contextId: input.contextId ?? null, memberIds });
+  if (existingConversationId) return existingConversationId;
+
   const { data: conversation, error: conversationError } = await ((admin.from("conversations") as any)
     .insert({
       context_type: input.contextType ?? null,
@@ -108,7 +173,7 @@ export async function createConversation(input: { contextType?: string | null; c
   if (conversationError) throw new Error(conversationError.message);
   if (!conversation) throw new Error("Failed to create conversation.");
 
-  const members = input.memberIds.filter(Boolean).filter((userId, index, array) => array.indexOf(userId) === index).map((userId) => ({ conversation_id: conversation.id, user_id: userId })) as ConversationMemberInsert[];
+  const members = memberIds.map((userId) => ({ conversation_id: conversation.id, user_id: userId })) as ConversationMemberInsert[];
   const { error: membersError } = await (admin.from("conversation_members") as any).upsert(members as ConversationMemberInsert[], { onConflict: "conversation_id,user_id" });
   if (membersError) throw new Error(membersError.message);
 
@@ -138,7 +203,6 @@ export async function sendMessage(input: {
     .single()) as { data: MessageRow | null; error: { message: string } | null };
 
   if (error) throw new Error(error.message);
-
   if (!inserted) throw new Error("Failed to create message.");
 
   await (admin.from("conversations") as any)
@@ -266,4 +330,3 @@ export async function searchMessages(userId: string, query: string): Promise<Arr
 
   return (data ?? []) as Array<{ id: string; conversation_id: string; message: string }>;
 }
-
