@@ -29,10 +29,26 @@ function defaultDestination(role: string | null) {
   return role === "admin" || role === "super_admin" ? "/admin" : "/dashboard";
 }
 
+function getDestination(role: string | null, redirectTo: string, preserveRedirect: boolean) {
+  if (preserveRedirect) return redirectTo;
+  return defaultDestination(role);
+}
+
+function formatAuthError(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : fallback;
+  if (/invalid login credentials/i.test(message)) return "Incorrect email or password.";
+  if (/email not confirmed/i.test(message)) return "Please confirm your email before signing in.";
+  if (/rate limit/i.test(message)) return "Too many attempts. Please wait a moment and try again.";
+  if (/already registered/i.test(message)) return "That email already has an account. Try signing in instead.";
+  return message;
+}
+
 export default function AuthClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = useMemo(() => safeRedirect(searchParams.get("redirectTo")), [searchParams]);
+  const redirectParam = searchParams.get("redirectTo");
+  const redirectTo = useMemo(() => safeRedirect(redirectParam), [redirectParam]);
+  const preserveRedirect = searchParams.has("redirectTo");
   const [mode, setMode] = useState<"signin" | "signup">(searchParams.get("mode") === "signup" ? "signup" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -46,9 +62,10 @@ export default function AuthClient() {
   useEffect(() => {
     const client = createClient({ rememberSession: rememberMe });
     client.auth.getUser().then(({ data: { user } }) => {
-      if (user) router.replace(redirectTo);
+      if (!user) return;
+      router.replace(getDestination((user.app_metadata?.role ?? user.user_metadata?.role) as string | null, redirectTo, preserveRedirect));
     });
-  }, [rememberMe, redirectTo, router]);
+  }, [preserveRedirect, rememberMe, redirectTo, router]);
 
   const handleGoogleSignIn = async () => {
     setMessage(null);
@@ -56,16 +73,19 @@ export default function AuthClient() {
 
     try {
       const client = createClient({ rememberSession: rememberMe });
+      const redirectUrl = preserveRedirect
+        ? `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
+        : `${window.location.origin}/auth/callback`;
       const { error } = await client.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+          redirectTo: redirectUrl,
           queryParams: { prompt: "select_account" },
         },
       });
       if (error) throw error;
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "Google sign-in failed. Please try again." });
+      setMessage({ type: "error", text: formatAuthError(error, "Google sign-in failed. Please try again.") });
       setGoogleLoading(false);
     }
   };
@@ -83,7 +103,7 @@ export default function AuthClient() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+            emailRedirectTo: `${window.location.origin}/auth/callback${preserveRedirect ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ""}`,
             data: { full_name: fullName },
           },
         });
@@ -92,10 +112,10 @@ export default function AuthClient() {
       } else {
         const { data, error } = await client.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        router.replace(defaultDestination(data.user?.app_metadata?.role ?? data.user?.user_metadata?.role));
+        router.replace(getDestination((data.user?.app_metadata?.role ?? data.user?.user_metadata?.role) as string | null, redirectTo, preserveRedirect));
       }
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "Auth error" });
+      setMessage({ type: "error", text: formatAuthError(error, "We could not sign you in right now.") });
     } finally {
       setLoading(false);
     }
@@ -113,12 +133,12 @@ export default function AuthClient() {
     try {
       const client = createClient({ rememberSession: rememberMe });
       const { error } = await client.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?redirectTo=/dashboard`,
+        redirectTo: `${window.location.origin}/auth/reset-password${preserveRedirect ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ""}`,
       });
       if (error) throw error;
       setMessage({ type: "success", text: "Password reset email sent. Check your inbox." });
     } catch (error) {
-      setMessage({ type: "error", text: error instanceof Error ? error.message : "Unable to send reset email." });
+      setMessage({ type: "error", text: formatAuthError(error, "Unable to send reset email.") });
     } finally {
       setResetLoading(false);
     }
