@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAuthenticatedUser } from "@/lib/auth-guards";
 import ReferralDashboardClient from "./ReferralDashboardClient";
 import type { ReferralAttributionWithRewards, ReferralDashboardStats } from "@/lib/referral-types";
 
@@ -10,7 +9,7 @@ export default async function ReferralDashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user || !isAuthenticatedUser(user)) {
+  if (!user) {
     return null;
   }
 

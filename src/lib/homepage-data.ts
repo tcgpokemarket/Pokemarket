@@ -158,8 +158,8 @@ export async function getHomepageData(): Promise<HomepageData> {
       .map(mapListing)
       .sort((a, b) => Number(Boolean(b.promotion_badge)) - Number(Boolean(a.promotion_badge)));
     const featuredSellers = sellerRows
-      .filter(Boolean)
-      .sort((a, b) => Number(Boolean(b.promotion_badge)) - Number(Boolean(a.promotion_badge))) as HomepageSeller[];
+      .filter((seller): seller is HomepageSeller => Boolean(seller))
+      .sort((a, b) => Number(Boolean(b.promotion_badge)) - Number(Boolean(a.promotion_badge)));
 
     return {
       liveNow: [],

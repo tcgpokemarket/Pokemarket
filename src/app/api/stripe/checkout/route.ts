@@ -88,9 +88,9 @@ export async function POST(request: Request) {
       },
     });
 
-    const { data: promotion, error: promotionError } = await admin.from("promotions").insert({
+    const promotionInsert = await (admin as any).from("promotions").insert({
       seller_id: user.id,
-      target_type: targetType as "listing" | "auction" | "store" | "event",
+      target_type: targetType as "listing" | "store" | "event",
       target_id: targetId,
       tier: promotionTier,
       title,
@@ -105,13 +105,16 @@ export async function POST(request: Request) {
       badge_label: pricing.badgeLabel,
       placement_label: pricing.placementLabel,
       stripe_checkout_session_id: checkoutSession.id,
-    }).select("id").single<{ id: string }>();
+    }).select("id").single();
 
-    if (promotionError) {
-      return NextResponse.json({ error: promotionError.message }, { status: 400 });
+    const promotion = promotionInsert.data as { id: string } | null;
+    const promotionError = promotionInsert.error;
+
+    if (promotionError || !promotion) {
+      return NextResponse.json({ error: promotionError?.message ?? "Unable to create promotion." }, { status: 400 });
     }
 
-    await admin.from("promotion_ledger").insert({
+    await (admin as any).from("promotion_ledger").insert({
       promotion_id: promotion.id,
       seller_id: user.id,
       entry_type: "hold",

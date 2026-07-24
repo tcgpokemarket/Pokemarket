@@ -91,6 +91,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   };
 
   const handleAddToCart = () => {
+    if (!activeListing) return;
     addToCart(toCartItem(activeListing, 1));
     router.push("/cart");
   };

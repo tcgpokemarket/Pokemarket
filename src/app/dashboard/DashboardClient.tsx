@@ -593,6 +593,9 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ seller_id: wallet.seller_id }),
       });
+      if (!response.ok && response.status === 409) {
+        throw new Error("A payout request is already in progress or blocked.");
+      }
       const data = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
 
       if (!response.ok || !data.ok) {

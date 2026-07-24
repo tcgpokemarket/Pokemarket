@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isAuthenticatedUser } from "@/lib/auth-guards";
+import { isAdminUser } from "@/lib/admin-access";
 import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
 import { canUseInstantPayout, getPayoutTier } from "@/lib/payouts";
 import { isEscrowBlockingPayout, shouldReleaseFromEscrow } from "@/lib/escrow";
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ ok: tru
   const supabase = await createClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-  if (authError || !user || !isAuthenticatedUser(user)) {
+  if (authError || !user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -90,6 +90,28 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ ok: tru
   const now = new Date().toISOString();
   const payoutAmount = canInstant ? availableBalance : Math.max(availableBalance - frozenBalance, 0);
   const payoutStatus = canInstant ? "processing" : "pending";
+  if (payoutAmount <= 0) {
+    return NextResponse.json({ error: "No payout amount is available." }, { status: 409 });
+  }
+
+  const { data: existingLockedOrders } = await (admin as any)
+    .from("orders")
+    .select("id")
+    .eq("seller_id", user.id)
+    .in("payout_status", ["held", "frozen"])
+    .limit(1);
+  if (existingLockedOrders && existingLockedOrders.length > 0) {
+    return NextResponse.json({ error: "Some funds are still locked." }, { status: 409 });
+  }
+
+  const { data: existingRequests } = await (admin as any)
+    .from("seller_wallets")
+    .select("next_payout_at")
+    .eq("seller_id", user.id)
+    .maybeSingle();
+  if (existingRequests?.next_payout_at && new Date(existingRequests.next_payout_at).getTime() > Date.now()) {
+    return NextResponse.json({ error: "A payout request is already queued." }, { status: 409 });
+  }
 
   const { error: updateError } = await (admin as any)
     .from("seller_wallets")
@@ -119,7 +141,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<{ ok: tru
   });
 
   recordAuditEvent({
-    event_type: "finance.action",
+    event_type: "finance.escrow",
     actor_id: user.id,
     action: canInstant ? "payout.request_instant" : "payout.queue_standard",
     resource_type: "seller_wallets",
