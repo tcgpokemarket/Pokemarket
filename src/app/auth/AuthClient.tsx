@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -58,8 +58,12 @@ export default function AuthClient() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
+  const bootstrapHandled = useRef(false);
 
   useEffect(() => {
+    if (bootstrapHandled.current) return;
+    bootstrapHandled.current = true;
+
     const client = createClient({ rememberSession: rememberMe });
     client.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;

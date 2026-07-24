@@ -185,7 +185,7 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
 
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) {
-        router.push(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`);
+        router.replace(`/auth?redirectTo=${encodeURIComponent(redirectTo)}`);
         return;
       }
 

@@ -106,8 +106,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
       }
 
       if (isProtectedPage && !user) {
-        setAuthState("redirecting");
-        router.replace(`/auth?redirectTo=${encodeURIComponent(requestedPath)}`);
+        setAuthState("ready");
         return;
       }
 
