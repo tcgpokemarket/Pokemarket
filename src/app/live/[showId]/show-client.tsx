@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { LiveShowBid, LiveShowItem, LiveShowMessage, LiveShow } from "@/lib/supabase/types";
 
@@ -53,6 +54,7 @@ function getActiveGiveaway(giveaways: LiveShowGiveaway[]) {
 }
 
 export default function LiveShowClient({ initialData }: { initialData: { show: LiveShow; products: LiveShowItem[]; bids: LiveShowBid[]; chat: LiveShowMessage[]; giveaways?: LiveShowGiveaway[] } }) {
+  const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
   const [show, setShow] = useState(initialData.show);
   const [products, setProducts] = useState<LiveShowItem[]>(initialData.products);
@@ -179,6 +181,12 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const swipeTrackRef = useRef<HTMLDivElement | null>(null);
   const activeGiveaway = useMemo(() => getActiveGiveaway(giveaways), [giveaways]);
   const roomName = `tcg-poke-market-${show.id}`;
+  const returnTo = `/live/${show.id}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
+  const canPublishLiveVideo = showMode === "host" && isHost;
+  const liveJoinLabel = canPublishLiveVideo ? "Host broadcast" : "Viewer session";
+  const roomInstructions = canPublishLiveVideo
+    ? "Turn on your camera and microphone to broadcast the live auction."
+    : "Join the room to watch the auction and listen in real time.";
   const swipeHint = activeItem ? `Swipe to bid $${getNextSwipeBid(Number(activeItem.current_bid ?? 0)).toFixed(2)}` : "Swipe to bid";
   const currentBid = Number(activeItem?.current_bid ?? 0);
   const nextBid = getNextSwipeBid(currentBid);
@@ -545,16 +553,34 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
               )}
 
               <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black">
-                <LiveKitStage token={null} roomName={roomName} />
-                <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-4">
-                  <div className="rounded-2xl bg-black/70 p-3 text-sm backdrop-blur">
-                    <div className="text-gray-400">Current item</div>
-                    <div className="font-bold">{activeItem?.title ?? "Waiting for auction"}</div>
+                <LiveKitStage roomName={roomName} canPublish={canPublishLiveVideo} title={liveJoinLabel} returnTo={returnTo} />
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+                <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+                  <div>
+                    <div className="text-xs uppercase tracking-[0.3em] text-yellow-400">Live room</div>
+                    <div className="mt-1 font-semibold text-white">{canPublishLiveVideo ? "You are broadcasting live" : "You are watching the auction"}</div>
+                    <div className="mt-1 text-gray-400">{roomInstructions}</div>
+                  </div>
+                  <a href={canPublishLiveVideo ? "/dashboard/live-auctions/create" : "/support"} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-center font-semibold text-white">
+                    {canPublishLiveVideo ? "Open host studio" : "Need help?"}
+                  </a>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                    <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Current item</div>
+                    <div className="mt-1 font-semibold text-white">{activeItem?.title ?? "Waiting for auction"}</div>
                     <div className="text-gray-400">${currentBid.toFixed(2)}</div>
                   </div>
-                  <div className="rounded-2xl bg-black/70 p-3 text-right text-sm backdrop-blur">
-                    <div className="text-gray-400">Viewers</div>
-                    <div className="font-bold text-yellow-400">{show.viewer_count}</div>
+                  <div className="rounded-xl border border-white/10 bg-black/30 p-3">
+                    <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Room</div>
+                    <div className="mt-1 font-semibold text-white">{roomName}</div>
+                    <div className="text-gray-400">{canPublishLiveVideo ? "Publishing enabled" : "Viewer access"}</div>
+                  </div>
+                  <div className="rounded-xl border border-white/10 bg-black/30 p-3 text-right">
+                    <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Viewers</div>
+                    <div className="mt-1 font-semibold text-yellow-400">{show.viewer_count}</div>
                     <div className="text-gray-400">Peak {show.peak_viewers}</div>
                   </div>
                 </div>

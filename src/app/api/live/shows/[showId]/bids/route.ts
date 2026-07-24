@@ -102,7 +102,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ sho
     .limit(1)
     .maybeSingle();
 
-  if (existingBid && bidNonce && !bidNonce) {
+  if (!bidNonce) {
+    return NextResponse.json({ error: "Bid nonce is required." }, { status: 400 });
+  }
+
+  if (existingBid) {
     return NextResponse.json({ error: "Duplicate bid." }, { status: 400 });
   }
 

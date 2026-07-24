@@ -6,6 +6,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const room = url.searchParams.get("room") ?? "tcg-poke-market-live";
   const identity = url.searchParams.get("identity") ?? "host";
+  const publish = url.searchParams.get("publish") === "true";
 
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -26,7 +27,8 @@ export async function GET(request: Request) {
     ttl: "10m",
   });
 
-  token.addGrant({ roomJoin: true, room });
+  token.addGrant({ roomJoin: true, room, canPublish: publish, canSubscribe: true });
+  token.metadata = JSON.stringify({ role: publish ? "host" : "viewer" });
 
   return NextResponse.json({ token: await token.toJwt(), room, url: livekitUrl });
 }
