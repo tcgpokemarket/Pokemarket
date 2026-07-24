@@ -6,14 +6,10 @@ import SiteShell from "@/components/site-shell";
 import { createClient } from "@/lib/supabase/client";
 import { getAppRole } from "@/lib/security";
 
-const PUBLIC_PATHS = [
+const AUTH_PATHS = ["/auth", "/auth/signin", "/auth/callback", "/auth/reset-password", "/login", "/signup"] as const;
+
+const PUBLIC_EXACT_PATHS = new Set([
   "/",
-  "/auth",
-  "/auth/signin",
-  "/auth/callback",
-  "/auth/reset-password",
-  "/login",
-  "/signup",
   "/about",
   "/cards",
   "/collection",
@@ -29,18 +25,22 @@ const PUBLIC_PATHS = [
   "/seller-agreement",
   "/marketplace-rules",
   "/dmca",
-] as const;
-
-const PUBLIC_PREFIXES = ["/profile/", "/sellers/"] as const;
+  "/cart",
+]);
 
 function isPathMatch(pathname: string, route: string) {
   return pathname === route || pathname.startsWith(`${route}/`);
 }
 
+function isAuthPath(pathname: string) {
+  return AUTH_PATHS.some((route) => isPathMatch(pathname, route));
+}
+
 function isPublicPath(pathname: string) {
+  if (PUBLIC_EXACT_PATHS.has(pathname)) return true;
   if (pathname.startsWith("/profile/") || pathname.startsWith("/sellers/")) return true;
-  if (pathname === "/listings" || (pathname.startsWith("/listings/") && pathname !== "/listings/create")) return true;
-  return PUBLIC_PATHS.some((route) => isPathMatch(pathname, route));
+  if (pathname.startsWith("/listings/") && pathname !== "/listings/create") return true;
+  return false;
 }
 
 function getRequestedPath(pathname: string, searchParams: URLSearchParams) {
@@ -79,7 +79,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [authState, setAuthState] = useState<"loading" | "ready" | "redirecting">("loading");
 
-  const isAuthPage = isPathMatch(pathname, "/auth") || pathname === "/login" || pathname === "/signup";
+  const isAuthPage = isAuthPath(pathname);
   const isPublicPage = isPublicPath(pathname);
   const isProtectedPage = !isPublicPage && !isAuthPage;
   const requestedPath = useMemo(() => getRequestedPath(pathname, searchParams), [pathname, searchParams]);
