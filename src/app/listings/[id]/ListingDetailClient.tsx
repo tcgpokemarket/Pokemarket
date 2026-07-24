@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addToCart, toCartItem } from "@/lib/cart";
 import { createClient } from "@/lib/supabase/client";
+import MessageSellerButton from "./message-seller-button";
 import type { Listing } from "@/lib/supabase/types";
 
 type ListingWithSeller = Listing & {
@@ -35,19 +36,16 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [contactingSeller, setContactingSeller] = useState(false);
   const [sharing, setSharing] = useState(false);
+  const [offering, setOffering] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [shared, setShared] = useState(false);
-  const [contactStatus, setContactStatus] = useState<string | null>(null);
-  const [reportStatus, setReportStatus] = useState<string | null>(null);
   const [offerStatus, setOfferStatus] = useState<string | null>(null);
-  const [messageText, setMessageText] = useState("");
   const [offerAmount, setOfferAmount] = useState("");
   const [offerNote, setOfferNote] = useState("");
+  const [reportStatus, setReportStatus] = useState<string | null>(null);
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
-  const [showContactForm, setShowContactForm] = useState(false);
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
 
@@ -112,57 +110,14 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
     }
   };
 
-  const openContact = () => {
-    setShowContactForm((current) => !current);
-    setShowOfferForm(false);
-    setShowReportForm(false);
-  };
-
   const openOffer = () => {
     setShowOfferForm((current) => !current);
-    setShowContactForm(false);
     setShowReportForm(false);
   };
 
   const openReport = () => {
     setShowReportForm((current) => !current);
-    setShowContactForm(false);
     setShowOfferForm(false);
-  };
-
-  const handleContactSeller = async () => {
-    if (!listing.profiles?.id) {
-      setContactStatus("Seller contact is unavailable right now.");
-      return;
-    }
-    if (!messageText.trim()) {
-      setContactStatus("Add a message first.");
-      return;
-    }
-    if (!user) {
-      router.push(`/auth?redirectTo=/listings/${id}`);
-      return;
-    }
-
-    setContactingSeller(true);
-    setContactStatus("Sending message…");
-    const res = await fetch("/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: messageText.trim(),
-        recipientId: listing.profiles.id,
-        contextType: "listing",
-        contextId: listing.id,
-      }),
-    });
-    const data = await res.json();
-    if (data.ok && data.conversationId) {
-      router.push(`/messages/${data.conversationId}`);
-      return;
-    }
-    setContactStatus(data.error ?? "Unable to contact seller right now.");
-    setContactingSeller(false);
   };
 
   const handleMakeOffer = async () => {
@@ -185,7 +140,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       return;
     }
 
-    setContactingSeller(true);
+    setOffering(true);
     setOfferStatus("Sending offer…");
     const res = await fetch("/api/messages", {
       method: "POST",
@@ -207,7 +162,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       return;
     }
     setOfferStatus(data.error ?? "Unable to send offer right now.");
-    setContactingSeller(false);
+    setOffering(false);
   };
 
   const handleReportListing = async () => {
@@ -334,7 +289,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button onClick={handleBuy} disabled={buying || listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">{buying ? "Redirecting..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}</button>
               <button onClick={handleAddToCart} disabled={listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Add to Cart</button>
-              <button onClick={openOffer} disabled={listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Make Offer</button>
+              <MessageSellerButton sellerId={listing.profiles?.id ?? listing.seller_id} listingId={listing.id} listingTitle={listing.card_name} />
               <button onClick={handleShare} disabled={sharing} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">{sharing ? "Sharing..." : shared ? "Link Copied" : "Share Listing"}</button>
               <button onClick={openReport} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
             </div>
