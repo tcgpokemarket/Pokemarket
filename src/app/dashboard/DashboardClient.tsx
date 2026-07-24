@@ -92,9 +92,27 @@ type SellerRow = {
   banner_url?: string | null;
 };
 
+type StoreTheme = {
+  accent?: string | null;
+  secondary?: string | null;
+  highlight?: string | null;
+  social_links?: {
+    instagram?: string | null;
+    facebook?: string | null;
+    youtube?: string | null;
+    tiktok?: string | null;
+    x?: string | null;
+    website?: string | null;
+  } | null;
+};
+
 type StoreRow = {
+  name?: string | null;
+  slug?: string | null;
+  description?: string | null;
   logo_url?: string | null;
   banner_url?: string | null;
+  theme?: StoreTheme | null;
 };
 
 const BRAND_ASSET_FIELDS: Array<Pick<BrandAssetDraft, "field" | "label">> = [
@@ -238,6 +256,19 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [brandSaveStatus, setBrandSaveStatus] = useState<string | null>(null);
   const [brandSaveError, setBrandSaveError] = useState<string | null>(null);
   const [brandSavePending, setBrandSavePending] = useState(false);
+  const [storeName, setStoreName] = useState("");
+  const [storeSlug, setStoreSlug] = useState("");
+  const [storeDescription, setStoreDescription] = useState("");
+  const [storeAccent, setStoreAccent] = useState("#e22400");
+  const [storeSecondary, setStoreSecondary] = useState("#ffab01");
+  const [storeHighlight, setStoreHighlight] = useState("#fefb41");
+  const [storeInstagram, setStoreInstagram] = useState("");
+  const [storeFacebook, setStoreFacebook] = useState("");
+  const [storeYouTube, setStoreYouTube] = useState("");
+  const [storeTikTok, setStoreTikTok] = useState("");
+  const [storeX, setStoreX] = useState("");
+  const [storeWebsite, setStoreWebsite] = useState("");
+  const [storeSettingsLoaded, setStoreSettingsLoaded] = useState(false);
   const [brandAssetBusy, setBrandAssetBusy] = useState<BrandAssetField | null>(null);
   const [wallet, setWallet] = useState<SellerWallet | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -286,6 +317,19 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       setSellerRecord({ avatar_url: profileRow?.avatar_url ?? null, banner_url: null });
       setStoreRecord(storeRow);
       setBrandAssets(createBrandAssetsState(profileRow, storeRow));
+      setStoreName(storeRow?.name ?? "");
+      setStoreSlug(storeRow?.slug ?? "");
+      setStoreDescription(storeRow?.description ?? "");
+      setStoreAccent((storeRow?.theme?.accent as string | null | undefined) ?? "#e22400");
+      setStoreSecondary((storeRow?.theme?.secondary as string | null | undefined) ?? "#ffab01");
+      setStoreHighlight((storeRow?.theme?.highlight as string | null | undefined) ?? "#fefb41");
+      setStoreInstagram((storeRow?.theme?.social_links?.instagram as string | null | undefined) ?? "");
+      setStoreFacebook((storeRow?.theme?.social_links?.facebook as string | null | undefined) ?? "");
+      setStoreYouTube((storeRow?.theme?.social_links?.youtube as string | null | undefined) ?? "");
+      setStoreTikTok((storeRow?.theme?.social_links?.tiktok as string | null | undefined) ?? "");
+      setStoreX((storeRow?.theme?.social_links?.x as string | null | undefined) ?? "");
+      setStoreWebsite((storeRow?.theme?.social_links?.website as string | null | undefined) ?? "");
+      setStoreSettingsLoaded(true);
       setBrandSaveStatus(null);
       setBrandSaveError(null);
       setBrandSavePending(false);
@@ -295,6 +339,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       setSales((salesData ?? []) as DashboardOrder[]);
       setSellerLiveShows((sellerLiveShowsData ?? []) as LiveShowDirectoryItem[]);
       setLoading(false);
+      if (!storeRow) {
+        setStoreName(profileRow?.full_name ?? profileRow?.username ?? "");
+        setStoreSlug(profileRow?.username ?? "");
+        setStoreDescription("");
+      }
     };
 
     init();
@@ -566,7 +615,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     if (!supabase || !profile?.id) return;
     const [{ data: freshProfile }, { data: freshStore }] = await Promise.all([
       supabase.from("profiles").select("avatar_url").eq("id", profile.id).maybeSingle(),
-      supabase.from("seller_stores").select("logo_url, banner_url").eq("seller_id", profile.id).maybeSingle(),
+      supabase.from("seller_stores").select("name, slug, description, logo_url, banner_url, theme").eq("seller_id", profile.id).maybeSingle(),
     ]);
 
     const freshProfileRow = freshProfile as Profile | null;
@@ -574,6 +623,20 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     setProfile((current) => (current ? { ...current, avatar_url: freshProfileRow?.avatar_url ?? current.avatar_url ?? null } : current));
     setStoreRecord(freshStoreRow ?? null);
     setBrandAssets(createBrandAssetsState(freshProfileRow ?? profile, freshStoreRow));
+    if (freshStoreRow) {
+      setStoreName(freshStoreRow.name ?? "");
+      setStoreSlug(freshStoreRow.slug ?? "");
+      setStoreDescription(freshStoreRow.description ?? "");
+      setStoreAccent((freshStoreRow.theme?.accent as string | null | undefined) ?? "#e22400");
+      setStoreSecondary((freshStoreRow.theme?.secondary as string | null | undefined) ?? "#ffab01");
+      setStoreHighlight((freshStoreRow.theme?.highlight as string | null | undefined) ?? "#fefb41");
+      setStoreInstagram((freshStoreRow.theme?.social_links?.instagram as string | null | undefined) ?? "");
+      setStoreFacebook((freshStoreRow.theme?.social_links?.facebook as string | null | undefined) ?? "");
+      setStoreYouTube((freshStoreRow.theme?.social_links?.youtube as string | null | undefined) ?? "");
+      setStoreTikTok((freshStoreRow.theme?.social_links?.tiktok as string | null | undefined) ?? "");
+      setStoreX((freshStoreRow.theme?.social_links?.x as string | null | undefined) ?? "");
+      setStoreWebsite((freshStoreRow.theme?.social_links?.website as string | null | undefined) ?? "");
+    }
   };
 
 
@@ -584,18 +647,24 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     }));
   };
 
-  const handleBrandAssetFile = async (field: BrandAssetField, file: File | null) => {
-    if (!file || !isImageFile(file)) return;
-    updateBrandAssetDraft(field, {
-      file,
-      fileName: file.name,
-      previewUrl: URL.createObjectURL(file),
-      error: null,
-      success: null,
-      inputKey: brandAssets[field].inputKey + 1,
-      currentPath: null,
-    });
+  const handleStoreInput = (setter: (value: string) => void, value: string) => {
+    setter(value);
+    setBrandSaveStatus(null);
+    setBrandSaveError(null);
   };
+
+  const handleStoreNameInput = (value: string) => handleStoreInput(setStoreName, value);
+  const handleStoreSlugInput = (value: string) => handleStoreInput(setStoreSlug, value);
+  const handleStoreDescriptionInput = (value: string) => handleStoreInput(setStoreDescription, value);
+  const handleStoreAccentInput = (value: string) => handleStoreInput(setStoreAccent, value);
+  const handleStoreSecondaryInput = (value: string) => handleStoreInput(setStoreSecondary, value);
+  const handleStoreHighlightInput = (value: string) => handleStoreInput(setStoreHighlight, value);
+  const handleStoreInstagramInput = (value: string) => handleStoreInput(setStoreInstagram, value);
+  const handleStoreFacebookInput = (value: string) => handleStoreInput(setStoreFacebook, value);
+  const handleStoreYouTubeInput = (value: string) => handleStoreInput(setStoreYouTube, value);
+  const handleStoreTikTokInput = (value: string) => handleStoreInput(setStoreTikTok, value);
+  const handleStoreXInput = (value: string) => handleStoreInput(setStoreX, value);
+  const handleStoreWebsiteInput = (value: string) => handleStoreInput(setStoreWebsite, value);
 
   const saveBrandAssets = async () => {
     if (!supabase || !profile) return;
@@ -604,6 +673,20 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     setBrandSaveError(null);
 
     const draftFields = toUploadFields().filter((field) => brandAssets[field].file) as BrandAssetField[];
+    const settingsChanged = storeSettingsLoaded && (
+      storeName.trim() !== (storeRecord?.name ?? "") ||
+      storeSlug.trim() !== (storeRecord?.slug ?? "") ||
+      storeDescription.trim() !== (storeRecord?.description ?? "") ||
+      storeAccent.trim() !== ((storeRecord?.theme?.accent as string | null | undefined) ?? "#e22400") ||
+      storeSecondary.trim() !== ((storeRecord?.theme?.secondary as string | null | undefined) ?? "#ffab01") ||
+      storeHighlight.trim() !== ((storeRecord?.theme?.highlight as string | null | undefined) ?? "#fefb41") ||
+      storeInstagram.trim() !== ((storeRecord?.theme?.social_links?.instagram as string | null | undefined) ?? "") ||
+      storeFacebook.trim() !== ((storeRecord?.theme?.social_links?.facebook as string | null | undefined) ?? "") ||
+      storeYouTube.trim() !== ((storeRecord?.theme?.social_links?.youtube as string | null | undefined) ?? "") ||
+      storeTikTok.trim() !== ((storeRecord?.theme?.social_links?.tiktok as string | null | undefined) ?? "") ||
+      storeX.trim() !== ((storeRecord?.theme?.social_links?.x as string | null | undefined) ?? "") ||
+      storeWebsite.trim() !== ((storeRecord?.theme?.social_links?.website as string | null | undefined) ?? "")
+    );
 
     try {
       const uploadResults: Partial<Record<BrandAssetField, { publicUrl: string; path: string }>> = {};
@@ -620,10 +703,35 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         uploadResults[field] = { publicUrl: uploaded.publicUrl, path: uploaded.path };
       }
 
-      const updates: Array<Promise<Response>> = [];
+      const requests: Promise<Response>[] = [];
+      if (settingsChanged) {
+        requests.push(fetch("/api/profile-assets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            target: "store",
+            name: storeName.trim(),
+            slug: storeSlug.trim(),
+            description: storeDescription.trim(),
+            theme: {
+              accent: storeAccent.trim() || null,
+              secondary: storeSecondary.trim() || null,
+              highlight: storeHighlight.trim() || null,
+              social_links: {
+                instagram: storeInstagram.trim() || null,
+                facebook: storeFacebook.trim() || null,
+                youtube: storeYouTube.trim() || null,
+                tiktok: storeTikTok.trim() || null,
+                x: storeX.trim() || null,
+                website: storeWebsite.trim() || null,
+              },
+            },
+          }),
+        }));
+      }
+
       const profilePayload: Record<string, string | null> = {};
       const storePayload: Record<string, string | null> = {};
-
       for (const field of toUploadFields()) {
         const uploaded = uploadResults[field];
         if (!uploaded) continue;
@@ -633,21 +741,21 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       }
 
       if (Object.keys(profilePayload).length) {
-        updates.push(fetch("/api/profile-assets", {
+        requests.push(fetch("/api/profile-assets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ target: "profile", ...profilePayload }),
         }));
       }
       if (Object.keys(storePayload).length) {
-        updates.push(fetch("/api/profile-assets", {
+        requests.push(fetch("/api/profile-assets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ target: "store", ...storePayload }),
         }));
       }
 
-      const responses = await Promise.all(updates);
+      const responses = await Promise.all(requests);
       for (const response of responses) {
         if (!response.ok) {
           const payload = await response.json().catch(() => ({} as { error?: string }));
@@ -682,6 +790,19 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     } finally {
       setBrandSavePending(false);
     }
+  };
+
+  const handleBrandAssetFile = async (field: BrandAssetField, file: File | null) => {
+    if (!file || !isImageFile(file)) return;
+    updateBrandAssetDraft(field, {
+      file,
+      fileName: file.name,
+      previewUrl: URL.createObjectURL(file),
+      error: null,
+      success: null,
+      inputKey: brandAssets[field].inputKey + 1,
+      currentPath: null,
+    });
   };
 
   const brandAssetsList = [brandAssets.profileAvatar, brandAssets.storeLogo, brandAssets.storeBanner] as BrandAssetDraft[];
@@ -841,9 +962,43 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               <div className="space-y-4">
                 {renderBrandAssetCard("storeBanner")}
                 <div className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">
-                  <div className="font-semibold text-white">Saved instantly on load</div>
-                  <p className="mt-2 text-gray-400">Current database values are loaded as soon as the dashboard opens so the editor always starts with the latest saved images.</p>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-gray-400">
+                  <div className="font-semibold text-white">Store settings</div>
+                  <p className="mt-2 text-gray-400">Edit your storefront name, URL, description, theme colors, and social links. Changes save with your branding updates.</p>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Store name</label>
+                      <input value={storeName} onChange={(e) => handleStoreNameInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Store slug</label>
+                      <input value={storeSlug} onChange={(e) => handleStoreSlugInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Description</label>
+                      <textarea value={storeDescription} onChange={(e) => handleStoreDescriptionInput(e.target.value)} rows={3} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Accent color</label>
+                      <input value={storeAccent} onChange={(e) => handleStoreAccentInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Secondary color</label>
+                      <input value={storeSecondary} onChange={(e) => handleStoreSecondaryInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Highlight color</label>
+                      <input value={storeHighlight} onChange={(e) => handleStoreHighlightInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                    </div>
+                    <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
+                      <input value={storeInstagram} onChange={(e) => handleStoreInstagramInput(e.target.value)} placeholder="Instagram URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                      <input value={storeFacebook} onChange={(e) => handleStoreFacebookInput(e.target.value)} placeholder="Facebook URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                      <input value={storeYouTube} onChange={(e) => handleStoreYouTubeInput(e.target.value)} placeholder="YouTube URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                      <input value={storeTikTok} onChange={(e) => handleStoreTikTokInput(e.target.value)} placeholder="TikTok URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                      <input value={storeX} onChange={(e) => handleStoreXInput(e.target.value)} placeholder="X URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                      <input value={storeWebsite} onChange={(e) => handleStoreWebsiteInput(e.target.value)} placeholder="Website URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-400">
                     <span className="rounded-full border border-white/10 px-3 py-1">Refreshes after save</span>
                     <span className="rounded-full border border-white/10 px-3 py-1">Owner-only updates</span>
                     <span className="rounded-full border border-white/10 px-3 py-1">No placeholder cards</span>
