@@ -576,10 +576,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     setBrandAssets(createBrandAssetsState(freshProfileRow ?? profile, freshStoreRow));
   };
 
-  useEffect(() => {
-    if (!profile) return;
-    setBrandAssets(createBrandAssetsState(profile, storeRecord));
-  }, [profile, storeRecord]);
 
   const updateBrandAssetDraft = (field: BrandAssetField, next: Partial<BrandAssetDraft>) => {
     setBrandAssets((current) => ({

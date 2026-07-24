@@ -166,7 +166,6 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
   const [coverImageIndex, setCoverImageIndex] = useState(0);
   const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null);
   const [autosaveStatus, setAutosaveStatus] = useState<string | null>(null);
-  const [validationHint, setValidationHint] = useState<string | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const [uploadErrorLabel, setUploadErrorLabel] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -213,17 +212,19 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
     if (!userId || typeof window === "undefined") return;
     const raw = window.localStorage.getItem(draftKey(userId, redirectTo));
     if (!raw) {
-      setDraftLoaded(true);
+      queueMicrotask(() => setDraftLoaded(true));
       return;
     }
 
     try {
       const parsed = JSON.parse(raw) as Partial<DraftState>;
-      if (parsed.form) setForm((current) => ({ ...current, ...parsed.form }));
-      if (Array.isArray(parsed.imageUrls)) setImageUrls(parsed.imageUrls.filter((value): value is string => typeof value === "string"));
-      if (typeof parsed.coverImageIndex === "number") setCoverImageIndex(parsed.coverImageIndex);
-      setDraftSavedAt(new Date().toLocaleString());
-      setAutosaveStatus("Draft restored.");
+      queueMicrotask(() => {
+        if (parsed.form) setForm((current) => ({ ...current, ...parsed.form }));
+        if (Array.isArray(parsed.imageUrls)) setImageUrls(parsed.imageUrls.filter((value): value is string => typeof value === "string"));
+        if (typeof parsed.coverImageIndex === "number") setCoverImageIndex(parsed.coverImageIndex);
+        setDraftSavedAt(new Date().toLocaleString());
+        setAutosaveStatus("Draft restored.");
+      });
     } catch {
       window.localStorage.removeItem(draftKey(userId, redirectTo));
     } finally {
@@ -235,10 +236,12 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
     if (!userId || typeof window === "undefined" || !draftLoaded) return;
     const draft: DraftState = { form, imageUrls, coverImageIndex };
     window.localStorage.setItem(draftKey(userId, redirectTo), JSON.stringify(draft));
-    setDraftSavedAt(new Date().toLocaleString());
-    setAutosaveStatus("Draft saved.");
-    const timer = window.setTimeout(() => setAutosaveStatus(null), 1600);
-    return () => window.clearTimeout(timer);
+    queueMicrotask(() => {
+      setDraftSavedAt(new Date().toLocaleString());
+      setAutosaveStatus("Draft saved.");
+      const timer = window.setTimeout(() => setAutosaveStatus(null), 1600);
+      return () => window.clearTimeout(timer);
+    });
   }, [coverImageIndex, draftLoaded, form, imageUrls, redirectTo, userId]);
 
   const validationErrors = useMemo(() => {
@@ -255,9 +258,7 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
     return errors;
   }, [form]);
 
-  useEffect(() => {
-    setValidationHint(validationErrors[0] ?? null);
-  }, [validationErrors]);
+  const validationHint = validationErrors[0] ?? null;
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = event.target;

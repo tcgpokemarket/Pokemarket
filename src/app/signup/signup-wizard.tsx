@@ -84,7 +84,7 @@ export default function SignupWizard() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [progress, setProgress] = useState("Ready to create your account");
-  const [form, setForm] = useState<FormState>({
+  const [form, setForm] = useState<FormState>(() => ({
     fullName: "",
     email: "",
     password: "",
@@ -93,7 +93,16 @@ export default function SignupWizard() {
     sellerState: "",
     referralCode,
     agreeToTerms: false,
-  });
+  }));
+
+  const referralSource = useMemo(() => referralCode, [referralCode]);
+
+  useEffect(() => {
+    if (!referralSource || form.referralCode === referralSource) return;
+    queueMicrotask(() => {
+      setForm((current) => (current.referralCode === referralSource ? current : { ...current, referralCode: referralSource }));
+    });
+  }, [form.referralCode, referralSource]);
 
   useEffect(() => {
     const client = createClient();
