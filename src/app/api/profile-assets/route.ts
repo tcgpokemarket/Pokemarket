@@ -28,6 +28,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true });
   }
 
+  if (target === "privacy") {
+    const privacyUpdate: Record<string, string> = {};
+    const allowedVisibility = new Set(["public", "followers_only", "friends_only", "private"]);
+    const allowedMessageVisibility = new Set(["everyone", "followers_only", "friends_only", "no_one"]);
+    const allowedFollowVisibility = new Set(["everyone", "followers_only", "no_one"]);
+
+    if ("profile_visibility" in body && allowedVisibility.has(String(body.profile_visibility ?? ""))) privacyUpdate.profile_visibility = String(body.profile_visibility);
+    if ("collection_visibility" in body && allowedVisibility.has(String(body.collection_visibility ?? ""))) privacyUpdate.collection_visibility = String(body.collection_visibility);
+    if ("activity_visibility" in body && allowedVisibility.has(String(body.activity_visibility ?? ""))) privacyUpdate.activity_visibility = String(body.activity_visibility);
+    if ("message_visibility" in body && allowedMessageVisibility.has(String(body.message_visibility ?? ""))) privacyUpdate.message_visibility = String(body.message_visibility);
+    if ("who_can_follow" in body && allowedFollowVisibility.has(String(body.who_can_follow ?? ""))) privacyUpdate.who_can_follow = String(body.who_can_follow);
+    if ("who_can_friend_request" in body && allowedFollowVisibility.has(String(body.who_can_friend_request ?? ""))) privacyUpdate.who_can_friend_request = String(body.who_can_friend_request);
+
+    if (Object.keys(privacyUpdate).length === 0) {
+      return NextResponse.json({ error: "No privacy settings provided." }, { status: 400 });
+    }
+
+    const { error } = await (admin.from("profile_privacy_settings") as any).upsert({ user_id: user.id, ...privacyUpdate, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    return NextResponse.json({ success: true });
+  }
+
   if (target === "seller") {
     const updates: Record<string, string | null> = {};
     if ("avatar_url" in body) updates.avatar_url = body.avatar_url ?? null;

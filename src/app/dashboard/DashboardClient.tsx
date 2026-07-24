@@ -19,6 +19,87 @@ import SupportInlineCard from "@/components/support/support-inline-card";
 
 
 type BrandAssetField = "profileAvatar" | "storeLogo" | "storeBanner";
+type PrivacyVisibility = "public" | "followers_only" | "friends_only" | "private";
+type MessageVisibility = "everyone" | "followers_only" | "friends_only" | "no_one";
+type FollowVisibility = "everyone" | "followers_only" | "no_one";
+
+type PrivacySettingsRow = {
+  profile_visibility?: PrivacyVisibility | null;
+  collection_visibility?: PrivacyVisibility | null;
+  activity_visibility?: PrivacyVisibility | null;
+  message_visibility?: MessageVisibility | null;
+  who_can_follow?: FollowVisibility | null;
+  who_can_friend_request?: FollowVisibility | null;
+};
+
+type PrivacySettingsState = {
+  profileVisibility: PrivacyVisibility;
+  collectionVisibility: PrivacyVisibility;
+  activityVisibility: PrivacyVisibility;
+  messageVisibility: MessageVisibility;
+  whoCanFollow: FollowVisibility;
+  whoCanFriendRequest: FollowVisibility;
+};
+
+const DEFAULT_PRIVACY_SETTINGS: PrivacySettingsState = {
+  profileVisibility: "public",
+  collectionVisibility: "public",
+  activityVisibility: "public",
+  messageVisibility: "everyone",
+  whoCanFollow: "everyone",
+  whoCanFriendRequest: "everyone",
+};
+
+const PRIVACY_VISIBILITY_OPTIONS: Array<{ value: PrivacyVisibility; label: string }> = [
+  { value: "public", label: "Public" },
+  { value: "followers_only", label: "Followers only" },
+  { value: "friends_only", label: "Friends only" },
+  { value: "private", label: "Private" },
+];
+
+const MESSAGE_VISIBILITY_OPTIONS: Array<{ value: MessageVisibility; label: string }> = [
+  { value: "everyone", label: "Everyone" },
+  { value: "followers_only", label: "Followers only" },
+  { value: "friends_only", label: "Friends only" },
+  { value: "no_one", label: "No one" },
+];
+
+const FOLLOW_VISIBILITY_OPTIONS: Array<{ value: FollowVisibility; label: string }> = [
+  { value: "everyone", label: "Everyone" },
+  { value: "followers_only", label: "Followers only" },
+  { value: "no_one", label: "No one" },
+];
+
+function normalizePrivacySettings(row: PrivacySettingsRow | null | undefined): PrivacySettingsState {
+  return {
+    profileVisibility: row?.profile_visibility ?? DEFAULT_PRIVACY_SETTINGS.profileVisibility,
+    collectionVisibility: row?.collection_visibility ?? DEFAULT_PRIVACY_SETTINGS.collectionVisibility,
+    activityVisibility: row?.activity_visibility ?? DEFAULT_PRIVACY_SETTINGS.activityVisibility,
+    messageVisibility: row?.message_visibility ?? DEFAULT_PRIVACY_SETTINGS.messageVisibility,
+    whoCanFollow: row?.who_can_follow ?? DEFAULT_PRIVACY_SETTINGS.whoCanFollow,
+    whoCanFriendRequest: row?.who_can_friend_request ?? DEFAULT_PRIVACY_SETTINGS.whoCanFriendRequest,
+  };
+}
+
+function hasPrivacySettingsChanged(current: PrivacySettingsState, stored: PrivacySettingsRow | null) {
+  const baseline = normalizePrivacySettings(stored);
+  return (
+    current.profileVisibility !== baseline.profileVisibility ||
+    current.collectionVisibility !== baseline.collectionVisibility ||
+    current.activityVisibility !== baseline.activityVisibility ||
+    current.messageVisibility !== baseline.messageVisibility ||
+    current.whoCanFollow !== baseline.whoCanFollow ||
+    current.whoCanFriendRequest !== baseline.whoCanFriendRequest
+  );
+}
+
+function privacySelectClassName() {
+  return "w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none";
+}
+
+function privacyOptionLabel(value: string) {
+  return value === "public" ? "Public" : value === "followers_only" ? "Followers only" : value === "friends_only" ? "Friends only" : value === "private" ? "Private" : value === "everyone" ? "Everyone" : value === "no_one" ? "No one" : value;
+}
 
 type BrandAssetDraft = {
   field: BrandAssetField;
@@ -270,6 +351,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [storeX, setStoreX] = useState("");
   const [storeWebsite, setStoreWebsite] = useState("");
   const [storeSettingsLoaded, setStoreSettingsLoaded] = useState(false);
+  const [privacySettingsLoaded, setPrivacySettingsLoaded] = useState(false);
+  const [privacySettings, setPrivacySettings] = useState<PrivacySettingsState>(DEFAULT_PRIVACY_SETTINGS);
+  const [privacyRecord, setPrivacyRecord] = useState<PrivacySettingsRow | null>(null);
+  const [privacySaveStatus, setPrivacySaveStatus] = useState<string | null>(null);
+  const [privacySaveError, setPrivacySaveError] = useState<string | null>(null);
+  const [privacySavePending, setPrivacySavePending] = useState(false);
   const [brandAssetBusy, setBrandAssetBusy] = useState<BrandAssetField | null>(null);
   const [wallet, setWallet] = useState<SellerWallet | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -291,7 +378,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         return;
       }
 
-      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: storeData }] = await Promise.all([
+      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: storeData }, { data: privacyData }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
         supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
         supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
@@ -299,6 +386,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         supabase.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
         supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
         supabase.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
+        supabase.from("profile_privacy_settings").select("*").eq("user_id", user.id).maybeSingle(),
       ]);
 
       const sellerLiveShowsData = await listLiveShowsBySeller(user.id);
@@ -306,6 +394,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       const profileRow = profileData as Profile | null;
       const storeRow = storeData as StoreRow | null;
       const verificationRow = verificationData as VerificationRow | null;
+      const privacyRow = privacyData as PrivacySettingsRow | null;
 
       setProfile(profileRow);
       setIsAdminAccount(Boolean(user?.app_metadata?.role === "admin" || user?.app_metadata?.role === "super_admin" || user?.user_metadata?.role === "admin" || user?.user_metadata?.role === "super_admin"));
@@ -331,6 +420,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       setStoreX((storeRow?.theme?.social_links?.x as string | null | undefined) ?? "");
       setStoreWebsite((storeRow?.theme?.social_links?.website as string | null | undefined) ?? "");
       setStoreSettingsLoaded(true);
+      setPrivacyRecord(privacyRow);
+      setPrivacySettings(normalizePrivacySettings(privacyRow));
+      setPrivacySettingsLoaded(true);
+      setPrivacySaveStatus(null);
+      setPrivacySaveError(null);
+      setPrivacySavePending(false);
       setBrandSaveStatus(null);
       setBrandSaveError(null);
       setBrandSavePending(false);
@@ -667,6 +762,55 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const handleStoreXInput = (value: string) => handleStoreInput(setStoreX, value);
   const handleStoreWebsiteInput = (value: string) => handleStoreInput(setStoreWebsite, value);
 
+  const handlePrivacyInput = <K extends keyof PrivacySettingsState>(key: K, value: PrivacySettingsState[K]) => {
+    setPrivacySettings((current) => ({ ...current, [key]: value }));
+    setPrivacySaveStatus(null);
+    setPrivacySaveError(null);
+  };
+
+  const savePrivacySettings = async () => {
+    if (!supabase || !profile) return;
+    setPrivacySavePending(true);
+    setPrivacySaveStatus(null);
+    setPrivacySaveError(null);
+
+    try {
+      const response = await fetch("/api/profile-assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: "privacy",
+          profile_visibility: privacySettings.profileVisibility,
+          collection_visibility: privacySettings.collectionVisibility,
+          activity_visibility: privacySettings.activityVisibility,
+          message_visibility: privacySettings.messageVisibility,
+          who_can_follow: privacySettings.whoCanFollow,
+          who_can_friend_request: privacySettings.whoCanFriendRequest,
+        }),
+      });
+      const payload = await response.json().catch(() => ({} as { error?: string }));
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to save privacy settings.");
+      }
+
+      setPrivacyRecord({
+        user_id: profile.id,
+        profile_visibility: privacySettings.profileVisibility,
+        collection_visibility: privacySettings.collectionVisibility,
+        activity_visibility: privacySettings.activityVisibility,
+        message_visibility: privacySettings.messageVisibility,
+        who_can_follow: privacySettings.whoCanFollow,
+        who_can_friend_request: privacySettings.whoCanFriendRequest,
+      });
+      setPrivacySettingsLoaded(true);
+      setPrivacySaveStatus("Privacy settings saved");
+    } catch (error) {
+      setPrivacySaveError(error instanceof Error ? error.message : "Unable to save privacy settings.");
+    } finally {
+      setPrivacySavePending(false);
+    }
+  };
+
   const saveBrandAssets = async () => {
     if (!supabase || !profile) return;
     setBrandSavePending(true);
@@ -674,7 +818,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     setBrandSaveError(null);
 
     const draftFields = toUploadFields().filter((field) => brandAssets[field].file) as BrandAssetField[];
-    const settingsChanged = brandSettingsChanged;
+    const settingsChanged = brandSettingsChanged || privacySettingsDirty;
 
     try {
       const uploadResults: Partial<Record<BrandAssetField, { publicUrl: string; path: string }>> = {};
@@ -716,6 +860,22 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             },
           }),
         }));
+
+        if (privacySettingsDirty) {
+          requests.push(fetch("/api/profile-assets", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              target: "privacy",
+              profile_visibility: privacySettings.profileVisibility,
+              collection_visibility: privacySettings.collectionVisibility,
+              activity_visibility: privacySettings.activityVisibility,
+              message_visibility: privacySettings.messageVisibility,
+              who_can_follow: privacySettings.whoCanFollow,
+              who_can_friend_request: privacySettings.whoCanFriendRequest,
+            }),
+          }));
+        }
       }
 
       const profilePayload: Record<string, string | null> = {};
@@ -870,6 +1030,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       storeX.trim() !== ((storeRecord?.theme?.social_links?.x as string | null | undefined) ?? "") ||
       storeWebsite.trim() !== ((storeRecord?.theme?.social_links?.website as string | null | undefined) ?? "")
     );
+  const privacySettingsDirty = privacySettingsLoaded && hasPrivacySettingsChanged(privacySettings, privacyRecord);
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
@@ -950,11 +1111,68 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               <button
                 type="button"
                 onClick={() => void saveBrandAssets()}
-                disabled={brandSavePending || (!hasPendingBrandChanges(brandAssets) && !brandSettingsChanged)}
+                disabled={brandSavePending || privacySavePending || (!hasPendingBrandChanges(brandAssets) && !brandSettingsChanged && !privacySettingsDirty)}
                 className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition-colors hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {brandSavePending ? "Saving..." : `Save Changes${brandDraftCount > 0 ? ` (${brandDraftCount})` : ""}`}
+                {brandSavePending || privacySavePending ? "Saving..." : `Save Changes${brandDraftCount > 0 ? ` (${brandDraftCount})` : ""}`}
               </button>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">
+              <div className="font-semibold text-white">Privacy settings</div>
+              <p className="mt-2 text-gray-400">Control who can see your profile, collections, activity, follows, and friend requests.</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Profile visibility</label>
+                  <select value={privacySettings.profileVisibility} onChange={(e) => handlePrivacyInput("profileVisibility", e.target.value as PrivacySettingsState["profileVisibility"])} className={privacySelectClassName()}>
+                    {PRIVACY_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Collection visibility</label>
+                  <select value={privacySettings.collectionVisibility} onChange={(e) => handlePrivacyInput("collectionVisibility", e.target.value as PrivacySettingsState["collectionVisibility"])} className={privacySelectClassName()}>
+                    {PRIVACY_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Activity visibility</label>
+                  <select value={privacySettings.activityVisibility} onChange={(e) => handlePrivacyInput("activityVisibility", e.target.value as PrivacySettingsState["activityVisibility"])} className={privacySelectClassName()}>
+                    {PRIVACY_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Message visibility</label>
+                  <select value={privacySettings.messageVisibility} onChange={(e) => handlePrivacyInput("messageVisibility", e.target.value as PrivacySettingsState["messageVisibility"])} className={privacySelectClassName()}>
+                    {MESSAGE_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Who can follow</label>
+                  <select value={privacySettings.whoCanFollow} onChange={(e) => handlePrivacyInput("whoCanFollow", e.target.value as PrivacySettingsState["whoCanFollow"])} className={privacySelectClassName()}>
+                    {FOLLOW_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Friend requests</label>
+                  <select value={privacySettings.whoCanFriendRequest} onChange={(e) => handlePrivacyInput("whoCanFriendRequest", e.target.value as PrivacySettingsState["whoCanFriendRequest"])} className={privacySelectClassName()}>
+                    {FOLLOW_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-400">
+                <span className="rounded-full border border-white/10 px-3 py-1">Profile: {privacySettings.profileVisibility}</span>
+                <span className="rounded-full border border-white/10 px-3 py-1">Collections: {privacySettings.collectionVisibility}</span>
+                <span className="rounded-full border border-white/10 px-3 py-1">Activity: {privacySettings.activityVisibility}</span>
+                <span className="rounded-full border border-white/10 px-3 py-1">Messages: {privacySettings.messageVisibility}</span>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <span className="text-xs text-gray-500">Updates save with your branding changes.</span>
+                <button type="button" onClick={() => void savePrivacySettings()} disabled={privacySavePending} className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50">
+                  {privacySavePending ? "Saving privacy..." : "Save privacy"}
+                </button>
+              </div>
+              {privacySaveStatus && <div className="mt-3 rounded-xl border border-green-400/20 bg-green-400/10 px-4 py-3 text-sm text-green-300">✓ {privacySaveStatus}</div>}
+              {privacySaveError && <div className="mt-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{privacySaveError}</div>}
             </div>
 
             <div className="grid gap-4 md:grid-cols-[0.95fr_1.05fr]">

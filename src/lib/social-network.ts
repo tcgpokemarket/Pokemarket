@@ -28,7 +28,7 @@ export async function getProfileByUsername(username: string) {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, username, full_name, avatar_url, is_seller, seller_rating, total_sales, created_at")
+    .select("id, username, full_name, avatar_url, is_seller, seller_rating, total_sales, created_at, seller_state")
     .eq("username", username)
     .maybeSingle();
 
