@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { addToCart, toCartItem } from "@/lib/cart";
+import { toCartItem } from "@/lib/cart";
+import { addToCart } from "@/components/cart/CartClient";
 import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
 
@@ -87,7 +88,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   };
 
   const handleAddToCart = () => {
-    addToCart(toCartItem(listing, 1));
+    addToCart(toCartItem(activeListing, 1));
     router.push("/cart");
   };
 
@@ -95,7 +96,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
     setSharing(true);
     try {
       if (navigator.share) {
-        await navigator.share({ title: listing.card_name, text: `${listing.card_name} on TcgPoké Market`, url: listingUrl });
+        await navigator.share({ title: activeListing.card_name, text: `${activeListing.card_name} on TcgPoké Market`, url: listingUrl });
         setShared(true);
       } else {
         await navigator.clipboard.writeText(listingUrl);
@@ -131,7 +132,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   };
 
   const handleContactSeller = async () => {
-    if (!listing.profiles?.id) {
+    if (!activeListing.profiles?.id) {
       setContactStatus("Seller contact is unavailable right now.");
       return;
     }
@@ -151,9 +152,9 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: messageText.trim(),
-        recipientId: listing.profiles.id,
+        recipientId: activeListing.profiles.id,
         contextType: "listing",
-        contextId: listing.id,
+        contextId: activeListing.id,
       }),
     });
     const data = await res.json();
@@ -169,7 +170,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   };
 
   const handleMakeOffer = async () => {
-    if (!listing.profiles?.id) {
+    if (!activeListing.profiles?.id) {
       setOfferStatus("Seller contact is unavailable right now.");
       return;
     }
@@ -195,9 +196,9 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: `Offer $${amount.toFixed(2)}${offerNote.trim() ? ` — ${offerNote.trim()}` : ""}`,
-        recipientId: listing.profiles.id,
+        recipientId: activeListing.profiles.id,
         contextType: "listing_offer",
-        contextId: listing.id,
+        contextId: activeListing.id,
       }),
     });
     const data = await res.json();
@@ -231,48 +232,10 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       body: JSON.stringify({
         action: "support",
         category: "listing_issue",
-        issueSummary: `Reported listing ${listing.card_name}`,
+        issueSummary: `Reported listing ${activeListing.card_name}`,
         priority: "normal",
-        listingId: listing.id,
-        sellerId: listing.seller_id,
-        message: reportReason.trim(),
-        details: reportDetails.trim(),
-      }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      setReportStatus("Thanks — support has the report.");
-      setShowReportForm(false);
-      setReportReason("");
-      setReportDetails("");
-      return;
-    }
-    setReportStatus(data.error ?? "Unable to submit report right now.");
-    setReporting(false);
-  };
-
-  const handleReportListing = async () => {
-    if (!reportReason.trim()) {
-      setReportStatus("Choose a reason first.");
-      return;
-    }
-    if (!user) {
-      router.push(`/auth?redirectTo=/listings/${id}`);
-      return;
-    }
-
-    setReporting(true);
-    setReportStatus("Submitting report…");
-    const res = await fetch("/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "support",
-        category: "listing_issue",
-        issueSummary: `Reported listing ${listing.card_name}`,
-        priority: "normal",
-        listingId: listing.id,
-        sellerId: listing.seller_id,
+        listingId: activeListing.id,
+        sellerId: activeListing.seller_id,
         message: reportReason.trim(),
         details: reportDetails.trim(),
       }),
@@ -309,8 +272,9 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
     );
   }
 
-  const conditionColor = CONDITION_COLORS[listing.condition] ?? "text-gray-400";
-  const priceDiff = marketPrice ? ((listing.price - marketPrice) / marketPrice) * 100 : null;
+  const activeListing = listing;
+  const conditionColor = CONDITION_COLORS[activeListing.condition] ?? "text-gray-400";
+  const priceDiff = marketPrice ? ((activeListing.price - marketPrice) / marketPrice) * 100 : null;
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -331,15 +295,15 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start">
           <div className="space-y-3">
             <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-              {listing.images?.length ? (
-                <img src={listing.images[selectedImage]} alt={listing.card_name} className="h-full w-full object-contain p-3 sm:p-4" />
+              {activeListing.images?.length ? (
+                <img src={activeListing.images[selectedImage]} alt={activeListing.card_name} className="h-full w-full object-contain p-3 sm:p-4" />
               ) : (
                 <span className="text-7xl sm:text-8xl">🃏</span>
               )}
             </div>
-            {listing.images && listing.images.length > 1 && (
+            {activeListing.images && activeListing.images.length > 1 && (
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {listing.images.map((img, i) => (
+                {activeListing.images.map((img, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedImage(i)}
@@ -354,28 +318,28 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
 
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em]">
-              <span className={conditionColor}>{listing.condition}</span>
-              {listing.grade_company && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{listing.grade_company} {listing.grade_score}</span>}
+              <span className={conditionColor}>{activeListing.condition}</span>
+              {activeListing.grade_company && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{activeListing.grade_company} {activeListing.grade_score}</span>}
             </div>
             <div>
-              <h1 className="text-2xl font-black leading-tight sm:text-3xl">{listing.card_name}</h1>
-              <p className="mt-1 text-sm text-gray-400">{listing.set_name}{listing.card_number ? ` · #${listing.card_number}` : ""}{listing.rarity ? ` · ${listing.rarity}` : ""}</p>
+              <h1 className="text-2xl font-black leading-tight sm:text-3xl">{activeListing.card_name}</h1>
+              <p className="mt-1 text-sm text-gray-400">{activeListing.set_name}{activeListing.card_number ? ` · #${activeListing.card_number}` : ""}{activeListing.rarity ? ` · ${activeListing.rarity}` : ""}</p>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
               <div className="flex items-end gap-3">
-                <span className="text-3xl font-black sm:text-4xl">${listing.price.toFixed(2)}</span>
+                <span className="text-3xl font-black sm:text-4xl">${activeListing.price.toFixed(2)}</span>
                 {priceDiff !== null && <span className={`pb-1 text-xs font-semibold ${priceDiff > 5 ? "text-red-400" : priceDiff < -5 ? "text-green-400" : "text-gray-400"}`}>{priceDiff > 0 ? "+" : ""}{priceDiff.toFixed(1)}% vs market</span>}
               </div>
-              <div className="mt-2 text-sm text-gray-300">{listing.quantity} available{marketPrice ? ` · Market avg $${marketPrice.toFixed(2)}` : ""}</div>
+              <div className="mt-2 text-sm text-gray-300">{activeListing.quantity} available{marketPrice ? ` · Market avg $${marketPrice.toFixed(2)}` : ""}</div>
             </div>
 
-            {listing.description && <p className="text-sm leading-6 text-gray-400">{listing.description}</p>}
+            {activeListing.description && <p className="text-sm leading-6 text-gray-400">{activeListing.description}</p>}
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button onClick={handleBuy} disabled={buying || listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">{buying ? "Redirecting..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}</button>
-              <button onClick={handleAddToCart} disabled={listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Add to Cart</button>
-              <button onClick={openOffer} disabled={listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Make Offer</button>
+              <button onClick={handleBuy} disabled={buying || activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">{buying ? "Redirecting..." : activeListing.seller_id === user?.id ? "Your listing" : activeListing.status !== "active" ? "Sold" : "Buy Now"}</button>
+              <button onClick={handleAddToCart} disabled={activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Add to Cart</button>
+              <button onClick={openOffer} disabled={activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Make Offer</button>
               <button onClick={handleShare} disabled={sharing} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">{sharing ? "Sharing..." : shared ? "Link Copied" : "Share Listing"}</button>
               <button onClick={openReport} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
             </div>
@@ -439,10 +403,10 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
               <div>
                 <p className="text-sm font-semibold text-white">Seller</p>
-                <p className="text-sm text-gray-400">{listing.profiles?.username ?? "Seller"}</p>
+                <p className="text-sm text-gray-400">{activeListing.profiles?.username ?? "Seller"}</p>
               </div>
               <div className="text-right text-sm text-gray-400">
-                {listing.profiles?.seller_rating ? <div className="text-yellow-400">★ {listing.profiles.seller_rating.toFixed(1)}</div> : null}
+                {activeListing.profiles?.seller_rating ? <div className="text-yellow-400">★ {activeListing.profiles.seller_rating.toFixed(1)}</div> : null}
               </div>
             </div>
           </div>
