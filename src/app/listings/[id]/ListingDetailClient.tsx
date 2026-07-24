@@ -41,10 +41,14 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const [shared, setShared] = useState(false);
   const [contactStatus, setContactStatus] = useState<string | null>(null);
   const [reportStatus, setReportStatus] = useState<string | null>(null);
+  const [offerStatus, setOfferStatus] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
+  const [offerAmount, setOfferAmount] = useState("");
+  const [offerNote, setOfferNote] = useState("");
   const [reportReason, setReportReason] = useState("");
   const [reportDetails, setReportDetails] = useState("");
   const [showContactForm, setShowContactForm] = useState(false);
+  const [showOfferForm, setShowOfferForm] = useState(false);
   const [showReportForm, setShowReportForm] = useState(false);
 
   useEffect(() => {
@@ -110,12 +114,20 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
 
   const openContact = () => {
     setShowContactForm((current) => !current);
+    setShowOfferForm(false);
+    setShowReportForm(false);
+  };
+
+  const openOffer = () => {
+    setShowOfferForm((current) => !current);
+    setShowContactForm(false);
     setShowReportForm(false);
   };
 
   const openReport = () => {
     setShowReportForm((current) => !current);
     setShowContactForm(false);
+    setShowOfferForm(false);
   };
 
   const handleContactSeller = async () => {
@@ -150,6 +162,51 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       return;
     }
     setContactStatus(data.error ?? "Unable to contact seller right now.");
+    setContactingSeller(false);
+  };
+
+  const handleMakeOffer = async () => {
+    if (!listing.profiles?.id) {
+      setOfferStatus("Seller contact is unavailable right now.");
+      return;
+    }
+    if (!offerAmount.trim()) {
+      setOfferStatus("Enter an offer amount.");
+      return;
+    }
+    if (!user) {
+      router.push(`/auth?redirectTo=/listings/${id}`);
+      return;
+    }
+
+    const amount = Number.parseFloat(offerAmount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setOfferStatus("Enter a valid dollar amount.");
+      return;
+    }
+
+    setContactingSeller(true);
+    setOfferStatus("Sending offer…");
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: `Offer $${amount.toFixed(2)}${offerNote.trim() ? ` — ${offerNote.trim()}` : ""}`,
+        recipientId: listing.profiles.id,
+        contextType: "listing_offer",
+        contextId: listing.id,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok && data.conversationId) {
+      setOfferStatus("Offer sent to the seller.");
+      setShowOfferForm(false);
+      setOfferAmount("");
+      setOfferNote("");
+      router.push(`/messages/${data.conversationId}`);
+      return;
+    }
+    setOfferStatus(data.error ?? "Unable to send offer right now.");
     setContactingSeller(false);
   };
 
@@ -277,10 +334,28 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button onClick={handleBuy} disabled={buying || listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">{buying ? "Redirecting..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}</button>
               <button onClick={handleAddToCart} disabled={listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Add to Cart</button>
-              <button onClick={openContact} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Contact Seller</button>
+              <button onClick={openOffer} disabled={listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Make Offer</button>
               <button onClick={handleShare} disabled={sharing} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">{sharing ? "Sharing..." : shared ? "Link Copied" : "Share Listing"}</button>
               <button onClick={openReport} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
             </div>
+
+            {showOfferForm ? (
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#13131f] p-4 sm:p-5">
+                <div>
+                  <p className="text-sm font-semibold text-white">Make an offer</p>
+                  <p className="mt-1 text-sm text-gray-400">Send the seller a direct offer from this listing.</p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <input type="number" step="0.01" min="0" value={offerAmount} onChange={(event) => setOfferAmount(event.target.value)} placeholder="Offer amount" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
+                  <input value={offerNote} onChange={(event) => setOfferNote(event.target.value)} placeholder="Optional note" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button onClick={handleMakeOffer} disabled={contactingSeller} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50">{contactingSeller ? "Sending..." : "Send Offer"}</button>
+                  <button onClick={() => setShowOfferForm(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Cancel</button>
+                </div>
+                {offerStatus ? <p className="text-sm text-gray-400">{offerStatus}</p> : null}
+              </div>
+            ) : null}
 
             {showContactForm ? (
               <div className="space-y-3 rounded-2xl border border-white/10 bg-[#13131f] p-4 sm:p-5">
