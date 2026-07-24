@@ -28,7 +28,6 @@ const PUBLIC_PATHS = [
   "/dmca",
 ] as const;
 
-const PUBLIC_PREFIXES = ["/profile/", "/sellers/"] as const;
 
 const PUBLIC_API_PATHS = [
   "/api/stripe/webhook",
@@ -73,7 +72,7 @@ function getDestination(role: AppRole | null, redirectTo: string | null) {
   return "/dashboard";
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
   const isAuthPage = isPathMatch(pathname, "/auth") || pathname === "/login" || pathname === "/signup";
   const isPublicPage = isPublicPath(pathname);

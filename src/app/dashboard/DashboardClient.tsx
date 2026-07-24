@@ -673,20 +673,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     setBrandSaveError(null);
 
     const draftFields = toUploadFields().filter((field) => brandAssets[field].file) as BrandAssetField[];
-    const settingsChanged = storeSettingsLoaded && (
-      storeName.trim() !== (storeRecord?.name ?? "") ||
-      storeSlug.trim() !== (storeRecord?.slug ?? "") ||
-      storeDescription.trim() !== (storeRecord?.description ?? "") ||
-      storeAccent.trim() !== ((storeRecord?.theme?.accent as string | null | undefined) ?? "#e22400") ||
-      storeSecondary.trim() !== ((storeRecord?.theme?.secondary as string | null | undefined) ?? "#ffab01") ||
-      storeHighlight.trim() !== ((storeRecord?.theme?.highlight as string | null | undefined) ?? "#fefb41") ||
-      storeInstagram.trim() !== ((storeRecord?.theme?.social_links?.instagram as string | null | undefined) ?? "") ||
-      storeFacebook.trim() !== ((storeRecord?.theme?.social_links?.facebook as string | null | undefined) ?? "") ||
-      storeYouTube.trim() !== ((storeRecord?.theme?.social_links?.youtube as string | null | undefined) ?? "") ||
-      storeTikTok.trim() !== ((storeRecord?.theme?.social_links?.tiktok as string | null | undefined) ?? "") ||
-      storeX.trim() !== ((storeRecord?.theme?.social_links?.x as string | null | undefined) ?? "") ||
-      storeWebsite.trim() !== ((storeRecord?.theme?.social_links?.website as string | null | undefined) ?? "")
-    );
+    const settingsChanged = brandSettingsChanged;
 
     try {
       const uploadResults: Partial<Record<BrandAssetField, { publicUrl: string; path: string }>> = {};
@@ -867,6 +854,21 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   };
 
   const brandDraftCount = brandAssetsList.filter((asset) => asset.file).length;
+  const brandSettingsChanged =
+    storeSettingsLoaded && (
+      storeName.trim() !== (storeRecord?.name ?? "") ||
+      storeSlug.trim() !== (storeRecord?.slug ?? "") ||
+      storeDescription.trim() !== (storeRecord?.description ?? "") ||
+      storeAccent.trim() !== ((storeRecord?.theme?.accent as string | null | undefined) ?? "#e22400") ||
+      storeSecondary.trim() !== ((storeRecord?.theme?.secondary as string | null | undefined) ?? "#ffab01") ||
+      storeHighlight.trim() !== ((storeRecord?.theme?.highlight as string | null | undefined) ?? "#fefb41") ||
+      storeInstagram.trim() !== ((storeRecord?.theme?.social_links?.instagram as string | null | undefined) ?? "") ||
+      storeFacebook.trim() !== ((storeRecord?.theme?.social_links?.facebook as string | null | undefined) ?? "") ||
+      storeYouTube.trim() !== ((storeRecord?.theme?.social_links?.youtube as string | null | undefined) ?? "") ||
+      storeTikTok.trim() !== ((storeRecord?.theme?.social_links?.tiktok as string | null | undefined) ?? "") ||
+      storeX.trim() !== ((storeRecord?.theme?.social_links?.x as string | null | undefined) ?? "") ||
+      storeWebsite.trim() !== ((storeRecord?.theme?.social_links?.website as string | null | undefined) ?? "")
+    );
 
   const TABS: { key: Tab; label: string }[] = [
     { key: "overview", label: "Overview" },
@@ -947,7 +949,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               <button
                 type="button"
                 onClick={() => void saveBrandAssets()}
-                disabled={!hasPendingBrandChanges(brandAssets) || brandSavePending}
+                disabled={brandSavePending || (!hasPendingBrandChanges(brandAssets) && !brandSettingsChanged)}
                 className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition-colors hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {brandSavePending ? "Saving..." : `Save Changes${brandDraftCount > 0 ? ` (${brandDraftCount})` : ""}`}
