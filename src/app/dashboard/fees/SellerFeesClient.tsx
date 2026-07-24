@@ -246,11 +246,37 @@ export default function SellerFeesClient() {
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6 md:p-8">
-              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Optional promotion fees</div>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <FeeRow label="Featured listings" value="Optional" description="Boost visibility for selected items." />
-                <FeeRow label="Auction promotion" value="Optional" description="Promote auction listings to reach more active buyers." />
-                <FeeRow label="Homepage / store placement" value="Optional" description="Premium placement options for approved promotional campaigns." />
+              <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Optional seller promotion tools</div>
+              <p className="mt-2 max-w-3xl text-sm text-gray-400">These are paid visibility boosts only. They never reduce organic exposure for sellers who do not buy promotions, and they remain separate from normal marketplace access and the core seller fee.</p>
+              <div className="mt-5 grid gap-4">
+                <FeeRow
+                  label="Featured listing promotion"
+                  value="3% / 5% of sale price"
+                  description="Move a listing higher in search results and category pages. 24-hour boost: 3% of item sale price. 7-day boost: 5% of item sale price. Minimum charge: $0.99. Maximum charge cap: $25 per listing. Example: a $100 card promoted for 7 days pays a $5 promotion fee if sold."
+                />
+                <FeeRow
+                  label="Auction promotion"
+                  value="3% / 5% of final sale price"
+                  description="Increase visibility for live auctions, breaks, and scheduled events. Standard auction boost: 3% of final sale price. Featured auction placement: 5% of final sale price. Minimum fee: $1.99. Maximum fee cap: $50. Includes higher placement in auction discovery, increased marketplace feed visibility, and a featured auction badge."
+                />
+                <FeeRow
+                  label="Homepage / marketplace spotlight"
+                  value="$9.99 / $24.99 / $49.99"
+                  description="Give stores and major releases premium visibility. 24-hour spotlight: $9.99. 3-day spotlight: $24.99. 7-day spotlight: $49.99. Includes homepage placement, featured seller badge, and increased discovery exposure."
+                />
+                <FeeRow
+                  label="Seller store promotion"
+                  value="$14.99 / $39.99"
+                  description="Help sellers grow their brand with a 7-day store promotion for $14.99 or a 30-day store promotion for $39.99. Includes featured seller section placement, store page visibility boost, and community feed promotion."
+                />
+                <FeeRow
+                  label="Break / event promotion"
+                  value="$4.99 / $14.99 / $49.99"
+                  description="For Pokémon breaks, mystery products, and live events. Basic promotion: $4.99. Featured event placement: $14.99. Premium event takeover: $49.99. Includes event visibility boost, featured placement, and increased discovery."
+                />
+              </div>
+              <div className="mt-5 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
+                Promotions stay optional, are labeled clearly, track separately in the wallet and transaction ledger, and cannot override fraud, dispute, or marketplace safety rules.
               </div>
             </div>
           </div>
