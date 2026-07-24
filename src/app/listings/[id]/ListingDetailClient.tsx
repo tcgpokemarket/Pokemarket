@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { addToCart, toCartItem } from "@/lib/cart";
 import { createClient } from "@/lib/supabase/client";
-import MessageSellerButton from "./message-seller-button";
 import type { Listing } from "@/lib/supabase/types";
 
 type ListingWithSeller = Listing & {
@@ -38,6 +37,10 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const [selectedImage, setSelectedImage] = useState(0);
   const [sharing, setSharing] = useState(false);
   const [offering, setOffering] = useState(false);
+  const [contactingSeller, setContactingSeller] = useState(false);
+  const [contactStatus, setContactStatus] = useState<string | null>(null);
+  const [messageText, setMessageText] = useState("");
+  const [showContactForm, setShowContactForm] = useState(false);
   const [reporting, setReporting] = useState(false);
   const [shared, setShared] = useState(false);
   const [offerStatus, setOfferStatus] = useState<string | null>(null);
@@ -110,14 +113,59 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
     }
   };
 
+  const openContact = () => {
+    setShowContactForm((current) => !current);
+    setShowOfferForm(false);
+    setShowReportForm(false);
+  };
+
   const openOffer = () => {
     setShowOfferForm((current) => !current);
+    setShowContactForm(false);
     setShowReportForm(false);
   };
 
   const openReport = () => {
     setShowReportForm((current) => !current);
     setShowOfferForm(false);
+  };
+
+  const handleContactSeller = async () => {
+    if (!listing.profiles?.id) {
+      setContactStatus("Seller contact is unavailable right now.");
+      return;
+    }
+    if (!messageText.trim()) {
+      setContactStatus("Add a message first.");
+      return;
+    }
+    if (!user) {
+      router.push(`/auth?redirectTo=/listings/${id}`);
+      return;
+    }
+
+    setContactingSeller(true);
+    setContactStatus("Sending message…");
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: messageText.trim(),
+        recipientId: listing.profiles.id,
+        contextType: "listing",
+        contextId: listing.id,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok && data.conversationId) {
+      setContactStatus("Message sent to the seller.");
+      setShowContactForm(false);
+      setMessageText("");
+      router.push(`/messages/${data.conversationId}`);
+      return;
+    }
+    setContactStatus(data.error ?? "Unable to contact seller right now.");
+    setContactingSeller(false);
   };
 
   const handleMakeOffer = async () => {
@@ -163,6 +211,44 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
     }
     setOfferStatus(data.error ?? "Unable to send offer right now.");
     setOffering(false);
+  };
+
+  const handleReportListing = async () => {
+    if (!reportReason.trim()) {
+      setReportStatus("Choose a reason first.");
+      return;
+    }
+    if (!user) {
+      router.push(`/auth?redirectTo=/listings/${id}`);
+      return;
+    }
+
+    setReporting(true);
+    setReportStatus("Submitting report…");
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "support",
+        category: "listing_issue",
+        issueSummary: `Reported listing ${listing.card_name}`,
+        priority: "normal",
+        listingId: listing.id,
+        sellerId: listing.seller_id,
+        message: reportReason.trim(),
+        details: reportDetails.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setReportStatus("Thanks — support has the report.");
+      setShowReportForm(false);
+      setReportReason("");
+      setReportDetails("");
+      return;
+    }
+    setReportStatus(data.error ?? "Unable to submit report right now.");
+    setReporting(false);
   };
 
   const handleReportListing = async () => {
@@ -289,7 +375,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button onClick={handleBuy} disabled={buying || listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">{buying ? "Redirecting..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}</button>
               <button onClick={handleAddToCart} disabled={listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Add to Cart</button>
-              <MessageSellerButton sellerId={listing.profiles?.id ?? listing.seller_id} listingId={listing.id} listingTitle={listing.card_name} />
+              <button onClick={openOffer} disabled={listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Make Offer</button>
               <button onClick={handleShare} disabled={sharing} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">{sharing ? "Sharing..." : shared ? "Link Copied" : "Share Listing"}</button>
               <button onClick={openReport} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
             </div>
@@ -305,7 +391,7 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
                   <input value={offerNote} onChange={(event) => setOfferNote(event.target.value)} placeholder="Optional note" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
                 </div>
                 <div className="flex flex-wrap gap-3">
-                  <button onClick={handleMakeOffer} disabled={contactingSeller} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50">{contactingSeller ? "Sending..." : "Send Offer"}</button>
+                  <button onClick={handleMakeOffer} disabled={offering} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50">{offering ? "Sending..." : "Send Offer"}</button>
                   <button onClick={() => setShowOfferForm(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Cancel</button>
                 </div>
                 {offerStatus ? <p className="text-sm text-gray-400">{offerStatus}</p> : null}
