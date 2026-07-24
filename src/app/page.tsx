@@ -68,6 +68,7 @@ function categoryBadge(category: string) {
 function ListingCard({ listing }: { listing: HomepageListing }) {
   const image = listing.images?.[0] ?? null;
   const badge = categoryBadge(listing.category);
+  const promotionBadge = listing.promotion_badge ?? null;
 
   return (
     <Link href={`/listings/${listing.id}`} className="group overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#121826] transition hover:-translate-y-1 hover:border-yellow-400/40">
@@ -78,6 +79,7 @@ function ListingCard({ listing }: { listing: HomepageListing }) {
           <div className="flex h-full items-center justify-center text-5xl">🃏</div>
         )}
         <div className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white">{badge}</div>
+        {promotionBadge && <div className="absolute right-3 top-3 rounded-full bg-yellow-400 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-black">{promotionBadge}</div>}
       </div>
       <div className="p-4">
         <h3 className="text-sm font-bold text-white">{listing.card_name}</h3>

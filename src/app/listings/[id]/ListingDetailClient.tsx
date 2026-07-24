@@ -8,6 +8,9 @@ import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
 
 type ListingWithSeller = Listing & {
+  promotion_badge?: string | null;
+  promotion_tier?: string | null;
+  promoted_until?: string | null;
   profiles?: {
     id: string;
     username: string | null;
@@ -320,7 +323,10 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em]">
               <span className={conditionColor}>{activeListing.condition}</span>
               {activeListing.grade_company && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{activeListing.grade_company} {activeListing.grade_score}</span>}
+              {activeListing.promotion_badge && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{activeListing.promotion_badge}</span>}
             </div>
+            {activeListing.promoted_until && <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400">Promoted until {new Date(activeListing.promoted_until).toLocaleString()}</p>}
+            {activeListing.promotion_tier && <p className="text-xs text-gray-500">Promotion tier: {activeListing.promotion_tier}</p>}
             <div>
               <h1 className="text-2xl font-black leading-tight sm:text-3xl">{activeListing.card_name}</h1>
               <p className="mt-1 text-sm text-gray-400">{activeListing.set_name}{activeListing.card_number ? ` · #${activeListing.card_number}` : ""}{activeListing.rarity ? ` · ${activeListing.rarity}` : ""}</p>

@@ -5,6 +5,7 @@ import { incrementSellerTotals, incrementTotalSales } from "@/lib/supabase/fees"
 import { getDeliveryReleaseAt, shouldReleaseFromEscrow, buildEscrowLedgerKey } from "@/lib/escrow";
 import { queueEmail } from "@/lib/notifications";
 import { issuePurchaseRewards } from "@/lib/rewards";
+import { getPromotionPricing } from "@/lib/promotion-tools";
 
 async function recordWebhookEvent(
   supabase: ReturnType<typeof createAdminClient>,
@@ -75,6 +76,91 @@ export async function POST(req: Request) {
 
   const session = event.data.object as Stripe.Checkout.Session;
   const supabase = createAdminClient();
+  const promotionTier = session.metadata?.promotionTier ?? null;
+  const promotionTargetType = session.metadata?.promotionTargetType ?? null;
+  const promotionTargetId = session.metadata?.promotionTargetId ?? null;
+  const isPromotionCheckout = Boolean(promotionTier && promotionTargetType && promotionTargetId);
+  const pricing = isPromotionCheckout ? getPromotionPricing(promotionTier as Parameters<typeof getPromotionPricing>[0]) : null;
+
+  if (isPromotionCheckout && event.type === "checkout.session.async_payment_failed") {
+    await (supabase as any)
+      .from("promotions")
+      .update({ status: "cancelled", updated_at: new Date().toISOString() })
+      .eq("stripe_checkout_session_id", session.id);
+    return NextResponse.json({ received: true });
+  }
+
+  if (isPromotionCheckout && event.type === "checkout.session.completed") {
+    const now = new Date().toISOString();
+    const { data: promotionRow } = await (supabase as any)
+      .from("promotions")
+      .select("*")
+      .eq("stripe_checkout_session_id", session.id)
+      .maybeSingle();
+
+    if (!promotionRow) {
+      return NextResponse.json({ received: true });
+    }
+
+    await (supabase as any)
+      .from("promotions")
+      .update({
+        status: "active",
+        starts_at: promotionRow.starts_at ?? session.metadata?.promotionStartsAt ?? now,
+        ends_at: promotionRow.ends_at ?? session.metadata?.promotionEndsAt ?? now,
+        stripe_payment_intent_id: session.payment_intent?.toString?.() ?? null,
+        updated_at: now,
+      })
+      .eq("id", promotionRow.id);
+
+    await (supabase as any).from("promotion_events").insert({
+      promotion_id: promotionRow.id,
+      seller_id: promotionRow.seller_id,
+      event_type: "activated",
+      note: `${pricing?.title ?? "Promotion"} activated`,
+      metadata: {
+        promotionTier,
+        targetType: promotionTargetType,
+        targetId: promotionTargetId,
+      },
+    });
+
+    await (supabase as any).from("promotion_ledger").upsert({
+      promotion_id: promotionRow.id,
+      seller_id: promotionRow.seller_id,
+      entry_type: "charge",
+      amount: toNumber(session.metadata?.promotionPrice, promotionRow.price ?? 0),
+      status: "posted",
+      reference_id: buildEscrowLedgerKey(promotionRow.id, "charge"),
+      note: `Promotion charged for ${promotionTier}`,
+    }, { onConflict: "promotion_id,entry_type,reference_id" });
+
+    if (promotionTargetType === "store") {
+      await (supabase as any)
+        .from("seller_stores")
+        .update({
+          promoted_until: session.metadata?.promotionEndsAt ?? promotionRow.ends_at,
+          promotion_tier: promotionTier,
+          promotion_badge: session.metadata?.promotionBadge ?? promotionRow.badge_label ?? pricing?.badgeLabel,
+          promotion_activated_at: now,
+        })
+        .eq("seller_id", promotionRow.seller_id);
+    }
+
+    if (promotionTargetType === "listing") {
+      await (supabase as any)
+        .from("listings")
+        .update({
+          promotion_badge: session.metadata?.promotionBadge ?? promotionRow.badge_label ?? pricing?.badgeLabel,
+          promotion_tier: promotionTier,
+          promoted_until: session.metadata?.promotionEndsAt ?? promotionRow.ends_at,
+        })
+        .eq("id", promotionTargetId);
+    }
+
+    return NextResponse.json({ received: true });
+  }
+
 
   try {
     const recorded = await recordWebhookEvent(supabase, event);

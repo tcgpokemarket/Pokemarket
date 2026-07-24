@@ -6,6 +6,9 @@ import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { calculateFeeBreakdown } from "@/lib/seller-fees";
 import { calculateSalesTax } from "@/lib/sales-tax";
 import { resolveCheckoutLocation } from "@/lib/checkout-location";
+import { calculatePromotionCharge, getPromotionPricing, getPromotionWindow, type PromotionTier } from "@/lib/promotion-tools";
+import { buildEscrowLedgerKey } from "@/lib/escrow";
+import { queueEmail } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -28,14 +31,103 @@ export async function POST(request: Request) {
   });
 
   const body = await request.json().catch(() => ({}));
+  const promotionTier = typeof body.promotionTier === "string" ? (body.promotionTier.trim() as PromotionTier) : null;
   const listingId = String(body.listingId ?? "").trim();
   const quantity = Math.max(1, Number(body.quantity ?? 1));
+  const admin = createAdminClient();
+
+  if (!listingId && !promotionTier) {
+    return NextResponse.json({ error: "Listing or promotion is required." }, { status: 400 });
+  }
+
+  if (promotionTier) {
+    const pricing = getPromotionPricing(promotionTier);
+    const targetId = String(body.targetId ?? "").trim();
+    const targetType = String(body.targetType ?? pricing.targetType).trim();
+    const title = String(body.title ?? pricing.title).trim();
+    const saleAmount = typeof body.saleAmount === "number" ? Number(body.saleAmount) : null;
+    const charge = calculatePromotionCharge({ tier: promotionTier, saleAmount });
+    const startsAt = new Date().toISOString();
+    const window = getPromotionWindow(promotionTier, startsAt);
+
+    if (!targetId) {
+      return NextResponse.json({ error: "Promotion target is required." }, { status: 400 });
+    }
+
+    const stripe = createStripeClient();
+    const checkoutSession = await stripe.checkout.sessions.create({
+      mode: "payment",
+      submit_type: "pay",
+      allow_promotion_codes: false,
+      customer_email: user.email ?? undefined,
+      success_url: `${request.headers.get("origin") ?? ""}/dashboard?tab=fees&success=1`,
+      cancel_url: `${request.headers.get("origin") ?? ""}/dashboard?tab=fees`,
+      line_items: [
+        {
+          quantity: 1,
+          price_data: {
+            currency: "usd",
+            unit_amount: Math.round(charge * 100),
+            product_data: {
+              name: title,
+              description: `${pricing.placementLabel ?? "Promotion"} · ${promotionTier}`,
+            },
+          },
+        },
+      ],
+      metadata: {
+        promotionTier,
+        promotionTargetType: targetType,
+        promotionTargetId: targetId,
+        promotionTitle: title,
+        promotionStartsAt: window.startsAt,
+        promotionEndsAt: window.endsAt,
+        promotionPrice: charge.toFixed(2),
+        promotionBadge: pricing.badgeLabel ?? "Promotion",
+        promotionPlacement: pricing.placementLabel ?? "Promotion",
+      },
+    });
+
+    const { data: promotion, error: promotionError } = await admin.from("promotions").insert({
+      seller_id: user.id,
+      target_type: targetType as "listing" | "auction" | "store" | "event",
+      target_id: targetId,
+      tier: promotionTier,
+      title,
+      status: "pending",
+      starts_at: window.startsAt,
+      ends_at: window.endsAt,
+      price: charge,
+      sale_price_percent: pricing.salePricePercent,
+      minimum_fee: pricing.minimumFee,
+      maximum_fee: pricing.maximumFee,
+      visibility_rank: pricing.visibilityRank,
+      badge_label: pricing.badgeLabel,
+      placement_label: pricing.placementLabel,
+      stripe_checkout_session_id: checkoutSession.id,
+    }).select("id").single<{ id: string }>();
+
+    if (promotionError) {
+      return NextResponse.json({ error: promotionError.message }, { status: 400 });
+    }
+
+    await admin.from("promotion_ledger").insert({
+      promotion_id: promotion.id,
+      seller_id: user.id,
+      entry_type: "hold",
+      amount: charge,
+      status: "pending",
+      reference_id: buildEscrowLedgerKey(promotion.id, "hold"),
+      note: `Promotion purchase hold for ${promotionTier}`,
+    });
+
+    return NextResponse.json({ url: checkoutSession.url, promotionId: promotion.id }, { status: 200 });
+  }
 
   if (!listingId) {
     return NextResponse.json({ error: "Listing is required." }, { status: 400 });
   }
 
-  const admin = createAdminClient();
   const { data: listing, error: listingError } = await admin
     .from("listings")
     .select("id, seller_id, card_name, set_name, price, quantity, images, status, condition, description")

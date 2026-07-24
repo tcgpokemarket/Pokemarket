@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent } from "@/lib/seller-fees";
+import { listPromotionPricing } from "@/lib/promotion-tools";
+import { createClient } from "@/lib/supabase/client";
+import { useRouter } from "next/navigation";
+import type { PromotionTier } from "@/lib/promotion-tools";
+import type { Listing } from "@/lib/supabase/types";
 
 type FeePayload = {
   settings?: {
@@ -57,12 +62,34 @@ function FeeRow({ label, value, description }: { label: string; value: string; d
 }
 
 export default function SellerFeesClient() {
+  const router = useRouter();
+  const supabase = useMemo(() => createClient(), []);
   const [config, setConfig] = useState(defaultConfig);
   const [overrideFee, setOverrideFee] = useState("");
   const [overrideFreeSales, setOverrideFreeSales] = useState("");
   const [exampleSales, setExampleSales] = useState(104);
   const [status, setStatus] = useState<"idle" | "loading" | "saving" | "saved" | "error">("loading");
   const [message, setMessage] = useState("");
+  const [promotionTargetId, setPromotionTargetId] = useState("");
+  const [promotionTier, setPromotionTier] = useState<PromotionTier>("boost_24h");
+  const [promotionSaleAmount, setPromotionSaleAmount] = useState("");
+  const [promotionListings, setPromotionListings] = useState<Listing[]>([]);
+  const [promotionActionStatus, setPromotionActionStatus] = useState<string | null>(null);
+  const [promotionActionLoading, setPromotionActionLoading] = useState(false);
+  const [promotionTargetType, setPromotionTargetType] = useState<"listing" | "store" | "event">("listing");
+  const promotionOptions = useMemo(() => listPromotionPricing(), []);
+
+  useEffect(() => {
+    let active = true;
+    supabase.from("listings").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(24).then(({ data }) => {
+      if (!active) return;
+      setPromotionListings((data ?? []) as Listing[]);
+      setPromotionTargetId((data?.[0] as Listing | undefined)?.id ?? "");
+    });
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let active = true;
@@ -161,6 +188,37 @@ export default function SellerFeesClient() {
     );
   }, [config.powerSeller2000, config.powerSeller500, config.processingFeeFixed, config.processingFeePercent, config.standardMarketplaceFeePercent]);
 
+  const handleStartPromotion = async () => {
+    if (!promotionTargetId) {
+      setPromotionActionStatus("Pick a listing first.");
+      return;
+    }
+
+    setPromotionActionLoading(true);
+    setPromotionActionStatus("Starting checkout…");
+
+    const response = await fetch("/api/stripe/checkout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        promotionTier,
+        targetId: promotionTargetId,
+        targetType: promotionTargetType,
+        saleAmount: promotionSaleAmount ? Number(promotionSaleAmount) : null,
+        title: promotionOptions.find((option) => option.tier === promotionTier)?.title ?? "Promotion",
+      }),
+    });
+
+    const data = (await response.json()) as { url?: string; error?: string };
+    if (!response.ok || !data.url) {
+      setPromotionActionStatus(data.error ?? "Unable to start promotion.");
+      setPromotionActionLoading(false);
+      return;
+    }
+
+    window.location.href = data.url;
+  };
+
   const handleSave = async () => {
     setStatus("saving");
     setMessage("");
@@ -249,6 +307,36 @@ export default function SellerFeesClient() {
               <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Optional seller promotion tools</div>
               <p className="mt-2 max-w-3xl text-sm text-gray-400">These are paid visibility boosts only. They never reduce organic exposure for sellers who do not buy promotions, and they remain separate from normal marketplace access and the core seller fee.</p>
               <div className="mt-5 grid gap-4">
+                <div className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <label className="grid gap-2 text-sm text-gray-300">
+                      Promotion type
+                      <select value={promotionTier} onChange={(event) => setPromotionTier(event.target.value as PromotionTier)} className="rounded-xl border border-white/10 bg-[#0f0f1a] px-3 py-2 text-white">
+                        {promotionOptions.map((option) => <option key={option.tier} value={option.tier}>{option.title} · {option.tier}</option>)}
+                      </select>
+                    </label>
+                    <label className="grid gap-2 text-sm text-gray-300">
+                      Target listing
+                      <select value={promotionTargetId} onChange={(event) => setPromotionTargetId(event.target.value)} className="rounded-xl border border-white/10 bg-[#0f0f1a] px-3 py-2 text-white">
+                        {promotionListings.map((listing) => <option key={listing.id} value={listing.id}>{listing.card_name} · ${listing.price.toFixed(2)}</option>)}
+                      </select>
+                    </label>
+                    <label className="grid gap-2 text-sm text-gray-300">
+                      Sale amount (optional)
+                      <input value={promotionSaleAmount} onChange={(event) => setPromotionSaleAmount(event.target.value)} placeholder="Only for percentage promos" className="rounded-xl border border-white/10 bg-[#0f0f1a] px-3 py-2 text-white placeholder:text-gray-600" />
+                    </label>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <button type="button" onClick={() => void handleStartPromotion()} disabled={promotionActionLoading} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300 disabled:opacity-60">
+                      {promotionActionLoading ? "Starting…" : "Buy promotion"}
+                    </button>
+                    <button type="button" onClick={() => router.push("/dashboard?tab=live")} className="rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white hover:bg-white/5">
+                      Manage store
+                    </button>
+                  </div>
+                  {promotionActionStatus && <p className="mt-3 text-sm text-gray-300">{promotionActionStatus}</p>}
+                </div>
+
                 <FeeRow
                   label="Featured listing promotion"
                   value="3% / 5% of sale price"

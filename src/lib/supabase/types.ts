@@ -99,6 +99,9 @@ export interface Database {
           images: string[]
           description: string | null
           category: 'single' | 'sealed' | 'graded' | 'accessory'
+          promotion_badge: string | null
+          promotion_tier: string | null
+          promoted_until: string | null
           status: 'active' | 'sold' | 'draft' | 'removed'
           shipping_profile_id: string | null
           shipping_paid_by: 'buyer' | 'seller' | null
@@ -125,6 +128,9 @@ export interface Database {
           images?: string[]
           description?: string | null
           category: 'single' | 'sealed' | 'graded' | 'accessory'
+          promotion_badge?: string | null
+          promotion_tier?: string | null
+          promoted_until?: string | null
           shipping_profile_id?: string | null
           shipping_paid_by?: 'buyer' | 'seller' | null
           weight_oz?: number | null
@@ -276,6 +282,10 @@ export interface Database {
           theme: Json
           verified: boolean
           featured: boolean
+          promoted_until: string | null
+          promotion_tier: string | null
+          promotion_badge: string | null
+          promotion_activated_at: string | null
           created_at: string
           updated_at: string
         }
@@ -290,10 +300,128 @@ export interface Database {
           theme?: Json
           verified?: boolean
           featured?: boolean
+          promoted_until?: string | null
+          promotion_tier?: string | null
+          promotion_badge?: string | null
+          promotion_activated_at?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['seller_stores']['Insert']>
+      }
+      promotions: {
+        Row: {
+          id: string
+          seller_id: string
+          target_type: 'listing' | 'auction' | 'store' | 'event'
+          target_id: string
+          tier: 'boost_24h' | 'boost_7d' | 'spotlight_24h' | 'spotlight_3d' | 'spotlight_7d' | 'store_7d' | 'store_30d' | 'event_basic' | 'event_featured' | 'event_premium'
+          title: string
+          status: 'pending' | 'active' | 'scheduled' | 'expired' | 'cancelled' | 'refunded'
+          starts_at: string
+          ends_at: string
+          price: number
+          sale_price_percent: number | null
+          minimum_fee: number | null
+          maximum_fee: number | null
+          visibility_rank: number
+          badge_label: string | null
+          placement_label: string | null
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
+          wallet_entry_id: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          seller_id: string
+          target_type: 'listing' | 'auction' | 'store' | 'event'
+          target_id: string
+          tier: 'boost_24h' | 'boost_7d' | 'spotlight_24h' | 'spotlight_3d' | 'spotlight_7d' | 'store_7d' | 'store_30d' | 'event_basic' | 'event_featured' | 'event_premium'
+          title: string
+          status?: 'pending' | 'active' | 'scheduled' | 'expired' | 'cancelled' | 'refunded'
+          starts_at: string
+          ends_at: string
+          price: number
+          sale_price_percent?: number | null
+          minimum_fee?: number | null
+          maximum_fee?: number | null
+          visibility_rank?: number
+          badge_label?: string | null
+          placement_label?: string | null
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
+          wallet_entry_id?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['promotions']['Insert']>
+      }
+      promotion_events: {
+        Row: {
+          id: string
+          promotion_id: string
+          seller_id: string
+          event_type: 'created' | 'activated' | 'expired' | 'cancelled' | 'refunded' | 'updated'
+          note: string | null
+          metadata: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          promotion_id: string
+          seller_id: string
+          event_type: 'created' | 'activated' | 'expired' | 'cancelled' | 'refunded' | 'updated'
+          note?: string | null
+          metadata?: Json | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['promotion_events']['Insert']>
+      }
+      promotion_ledger: {
+        Row: {
+          id: string
+          promotion_id: string
+          seller_id: string
+          entry_type: 'hold' | 'charge' | 'release' | 'refund' | 'adjustment'
+          amount: number
+          status: 'posted' | 'reversed' | 'pending'
+          reference_id: string | null
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          promotion_id: string
+          seller_id: string
+          entry_type: 'hold' | 'charge' | 'release' | 'refund' | 'adjustment'
+          amount: number
+          status?: 'posted' | 'reversed' | 'pending'
+          reference_id?: string | null
+          note?: string | null
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['promotion_ledger']['Insert']>
+      }
+      seller_promotion_settings: {
+        Row: {
+          seller_id: string
+          allow_featured_listings: boolean
+          allow_auction_promotion: boolean
+          allow_store_spotlight: boolean
+          allow_event_promotion: boolean
+          updated_at: string
+        }
+        Insert: {
+          seller_id: string
+          allow_featured_listings?: boolean
+          allow_auction_promotion?: boolean
+          allow_store_spotlight?: boolean
+          allow_event_promotion?: boolean
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['seller_promotion_settings']['Insert']>
       }
       seller_followers: {
         Row: {

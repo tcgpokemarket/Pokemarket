@@ -26,6 +26,9 @@ type SellerStoreRow = {
   logo_url: string | null;
   verified: boolean;
   featured: boolean;
+  promoted_until: string | null;
+  promotion_tier: string | null;
+  promotion_badge: string | null;
   theme: Record<string, string> | null;
 };
 
@@ -109,7 +112,7 @@ export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
 
 export default async function SellerStorefrontPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const [sellerRow] = await fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme", [["slug", `eq.${slug}`]], 1);
+  const [sellerRow] = await fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, promoted_until, promotion_tier, promotion_badge, theme", [["slug", `eq.${slug}`]], 1);
   if (!sellerRow) {
     notFound();
   }
@@ -152,6 +155,9 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
     logo_url: sellerData.avatar_url,
     verified: sellerData.verified,
     featured: false,
+    promoted_until: null,
+    promotion_tier: null,
+    promotion_badge: null,
     theme: null,
   };
   const shopName = sellerStorefront.name;
@@ -200,7 +206,10 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   <div className="mt-2 flex flex-wrap items-center gap-3">
                     <h1 className="text-3xl font-black sm:text-4xl">{sellerData.display_name}</h1>
                     {sellerData.verified && <span className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-300">Verified seller</span>}
+                    {sellerStorefront.promotion_badge && <span className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-300">{sellerStorefront.promotion_badge}</span>}
                   </div>
+                  {sellerStorefront.promoted_until && <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400">Promoted until {new Date(sellerStorefront.promoted_until).toLocaleString()}</p>}
+                  {sellerStorefront.promotion_tier && <p className="mt-1 text-xs text-gray-400">Promotion tier: {sellerStorefront.promotion_tier}</p>}
                   <p className="mt-1 text-sm text-gray-400">@{sellerData.storefront_slug}{profile?.username ? ` · public profile @${profile.username}` : ""}</p>
                 </div>
               </div>
