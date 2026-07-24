@@ -848,6 +848,7 @@ do $$ begin
     for insert with check (
       bucket_id = 'verification-documents'
       and auth.role() = 'authenticated'
+      and auth.uid()::text = (storage.foldername(name))[2]
     );
 exception when duplicate_object then null; end $$;
 do $$ begin
