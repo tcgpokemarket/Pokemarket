@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { addToCart, toCartItem } from "@/lib/cart";
 import { createClient } from "@/lib/supabase/client";
 import type { Listing } from "@/lib/supabase/types";
 
@@ -34,6 +35,17 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
+  const [contactingSeller, setContactingSeller] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [shared, setShared] = useState(false);
+  const [contactStatus, setContactStatus] = useState<string | null>(null);
+  const [reportStatus, setReportStatus] = useState<string | null>(null);
+  const [messageText, setMessageText] = useState("");
+  const [reportReason, setReportReason] = useState("");
+  const [reportDetails, setReportDetails] = useState("");
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [showReportForm, setShowReportForm] = useState(false);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
@@ -46,6 +58,8 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
 
     // Shipping pricing is handled at checkout.
   }, [id, initialListing]);
+
+  const listingUrl = typeof window !== "undefined" ? window.location.href : `/listings/${id}`;
 
   const handleBuy = async () => {
     if (!user) {
@@ -65,6 +79,116 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       alert(data.error ?? "Checkout failed. Please try again.");
       setBuying(false);
     }
+  };
+
+  const handleAddToCart = () => {
+    addToCart(toCartItem(listing, 1));
+    router.push("/cart");
+  };
+
+  const handleShare = async () => {
+    setSharing(true);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: listing.card_name, text: `${listing.card_name} on TcgPoké Market`, url: listingUrl });
+        setShared(true);
+      } else {
+        await navigator.clipboard.writeText(listingUrl);
+        setShared(true);
+        window.alert("Listing link copied to clipboard.");
+      }
+    } catch {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(listingUrl);
+        setShared(true);
+        window.alert("Listing link copied to clipboard.");
+      }
+    } finally {
+      setSharing(false);
+    }
+  };
+
+  const openContact = () => {
+    setShowContactForm((current) => !current);
+    setShowReportForm(false);
+  };
+
+  const openReport = () => {
+    setShowReportForm((current) => !current);
+    setShowContactForm(false);
+  };
+
+  const handleContactSeller = async () => {
+    if (!listing.profiles?.id) {
+      setContactStatus("Seller contact is unavailable right now.");
+      return;
+    }
+    if (!messageText.trim()) {
+      setContactStatus("Add a message first.");
+      return;
+    }
+    if (!user) {
+      router.push(`/auth?redirectTo=/listings/${id}`);
+      return;
+    }
+
+    setContactingSeller(true);
+    setContactStatus("Sending message…");
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: messageText.trim(),
+        recipientId: listing.profiles.id,
+        contextType: "listing",
+        contextId: listing.id,
+      }),
+    });
+    const data = await res.json();
+    if (data.ok && data.conversationId) {
+      router.push(`/messages/${data.conversationId}`);
+      return;
+    }
+    setContactStatus(data.error ?? "Unable to contact seller right now.");
+    setContactingSeller(false);
+  };
+
+  const handleReportListing = async () => {
+    if (!reportReason.trim()) {
+      setReportStatus("Choose a reason first.");
+      return;
+    }
+    if (!user) {
+      router.push(`/auth?redirectTo=/listings/${id}`);
+      return;
+    }
+
+    setReporting(true);
+    setReportStatus("Submitting report…");
+    const res = await fetch("/api/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "support",
+        category: "listing_issue",
+        issueSummary: `Reported listing ${listing.card_name}`,
+        priority: "normal",
+        listingId: listing.id,
+        sellerId: listing.seller_id,
+        message: reportReason.trim(),
+        details: reportDetails.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      setReportStatus("Thanks — support has the report.");
+      setShowReportForm(false);
+      setReportReason("");
+      setReportDetails("");
+      return;
+    }
+    setReportStatus(data.error ?? "Unable to submit report right now.");
+    setReporting(false);
   };
 
   if (loading) {
@@ -152,11 +276,49 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button onClick={handleBuy} disabled={buying || listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">{buying ? "Redirecting..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy Now"}</button>
-              <button className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Add to Cart</button>
-              <button className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Make Offer</button>
-              <button className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Share Listing</button>
-              <button className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
+              <button onClick={handleAddToCart} disabled={listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Add to Cart</button>
+              <button onClick={openContact} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Contact Seller</button>
+              <button onClick={handleShare} disabled={sharing} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">{sharing ? "Sharing..." : shared ? "Link Copied" : "Share Listing"}</button>
+              <button onClick={openReport} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
             </div>
+
+            {showContactForm ? (
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#13131f] p-4 sm:p-5">
+                <div>
+                  <p className="text-sm font-semibold text-white">Message the seller</p>
+                  <p className="mt-1 text-sm text-gray-400">Ask a question about the card, shipping, or bundle options.</p>
+                </div>
+                <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} rows={4} placeholder="Hi, is this still available?" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
+                <div className="flex flex-wrap gap-3">
+                  <button onClick={handleContactSeller} disabled={contactingSeller} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50">{contactingSeller ? "Sending..." : "Send Message"}</button>
+                  <button onClick={() => setShowContactForm(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Cancel</button>
+                </div>
+                {contactStatus ? <p className="text-sm text-gray-400">{contactStatus}</p> : null}
+              </div>
+            ) : null}
+
+            {showReportForm ? (
+              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#13131f] p-4 sm:p-5">
+                <div>
+                  <p className="text-sm font-semibold text-white">Report this listing</p>
+                  <p className="mt-1 text-sm text-gray-400">Send this to support for review if something looks off.</p>
+                </div>
+                <select value={reportReason} onChange={(event) => setReportReason(event.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none">
+                  <option value="">Select a reason</option>
+                  <option value="Misleading listing">Misleading listing</option>
+                  <option value="Prohibited item">Prohibited item</option>
+                  <option value="Counterfeit concern">Counterfeit concern</option>
+                  <option value="Spam or scam">Spam or scam</option>
+                  <option value="Other issue">Other issue</option>
+                </select>
+                <textarea value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} rows={4} placeholder="Add any extra details for support." className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
+                <div className="flex flex-wrap gap-3">
+                  <button onClick={handleReportListing} disabled={reporting} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50">{reporting ? "Submitting..." : "Submit Report"}</button>
+                  <button onClick={() => setShowReportForm(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Cancel</button>
+                </div>
+                {reportStatus ? <p className="text-sm text-gray-400">{reportStatus}</p> : null}
+              </div>
+            ) : null}
 
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
               <div>
