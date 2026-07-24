@@ -222,17 +222,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     }
   });
 
-  if (!supabase) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-6 text-center text-gray-300">
-        <div className="max-w-md space-y-3 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20">
-          <div className="text-xl font-black text-white">Dashboard unavailable</div>
-          <p className="text-sm text-gray-400">The seller dashboard could not start on this device. Please reload or sign in again.</p>
-          <a href="/auth?redirectTo=/dashboard" className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Sign in again</a>
-        </div>
-      </div>
-    );
-  }
   const router = useRouter();
 
   const [tab, setTab] = useState<Tab>(orderTab === "sales" ? "sales" : "overview");
@@ -263,6 +252,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
 
   useEffect(() => {
     const init = async () => {
+      if (!supabase) return;
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         router.push("/auth?redirectTo=/dashboard");
@@ -515,6 +505,18 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       alive = false;
     };
   }, [profile?.id, supabase]);
+
+  if (!supabase) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-6 text-center text-gray-300">
+        <div className="max-w-md space-y-3 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20">
+          <div className="text-xl font-black text-white">Dashboard unavailable</div>
+          <p className="text-sm text-gray-400">The seller dashboard could not start on this device. Please reload or sign in again.</p>
+          <a href="/auth?redirectTo=/dashboard" className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Sign in again</a>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
