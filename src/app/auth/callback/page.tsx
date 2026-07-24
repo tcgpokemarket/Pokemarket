@@ -27,16 +27,24 @@ export default function AuthCallbackPage() {
 
     const run = async () => {
       const client = createClient();
-      const [{ data: { user } }, { data: { session } }] = await Promise.all([client.auth.getUser(), client.auth.getSession()]);
-      const activeUser = user ?? session?.user ?? null;
-      if (!alive || !activeUser) {
-        router.replace("/auth");
-        return;
+
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const [{ data: { user } }, { data: { session } }] = await Promise.all([client.auth.getUser(), client.auth.getSession()]);
+        const activeUser = user ?? session?.user ?? null;
+
+        if (!alive) return;
+
+        if (activeUser) {
+          const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
+          const role = (activeUser.app_metadata?.role ?? activeUser.user_metadata?.role) as string | null;
+          router.replace(redirectTo === "/dashboard" && role === "seller" ? "/sell" : redirectTo);
+          return;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 250));
       }
 
-      const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
-      const role = (activeUser.app_metadata?.role ?? activeUser.user_metadata?.role) as string | null;
-      router.replace(redirectTo === "/dashboard" && role === "seller" ? "/sell" : redirectTo);
+      if (alive) router.replace("/auth");
     };
 
     run().catch(() => {
