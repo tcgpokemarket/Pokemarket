@@ -108,23 +108,35 @@ export async function getHomepageData(): Promise<HomepageData> {
   try {
     const supabase = await createClient();
     const [listingsResult, sellersResult] = await Promise.all([
-      supabase.from("listings").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(12),      supabase.from("seller_stores").select("seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme").order("created_at", { ascending: false }).limit(8),
+      supabase.from("listings").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(12),
+      supabase.from("seller_stores").select("seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme").order("created_at", { ascending: false }).limit(8),
     ]);
 
+    const sellerRows = await Promise.all(((sellersResult.data ?? []) as Array<{ seller_id: string; name: string; slug: string; logo_url: string | null; verified: boolean }>)
+      .map(async (seller) => {
+        const { count: salesCount } = await supabase
+          .from("listings")
+          .select("id", { count: "exact", head: true })
+          .eq("seller_id", seller.seller_id)
+          .eq("status", "sold");
+
+        return mapSeller({
+          id: seller.seller_id,
+          full_name: seller.name,
+          username: seller.slug,
+          avatar_url: seller.logo_url,
+          seller_rating: seller.verified ? 5 : 0,
+          total_sales: salesCount ?? 0,
+          display_name: seller.name,
+          storefront_slug: seller.slug,
+          verified: seller.verified,
+          rating: seller.verified ? 5 : 0,
+          sales_count: salesCount ?? 0,
+        } as SellerRow);
+      }));
+
     const trendingMarketplace = (listingsResult.data ?? []).map(mapListing);
-    const featuredSellers = ((sellersResult.data ?? []) as Array<{ seller_id: string; name: string; slug: string; logo_url: string | null; verified: boolean; featured: boolean }>).map((seller) => mapSeller({
-      id: seller.seller_id,
-      full_name: seller.name,
-      username: seller.slug,
-      avatar_url: seller.logo_url,
-      seller_rating: seller.verified ? 5 : 0,
-      total_sales: seller.featured ? 1 : 0,
-      display_name: seller.name,
-      storefront_slug: seller.slug,
-      verified: seller.verified,
-      rating: seller.verified ? 5 : 0,
-      sales_count: seller.featured ? 1 : 0,
-    } as SellerRow)).filter(Boolean) as HomepageSeller[];
+    const featuredSellers = sellerRows.filter(Boolean) as HomepageSeller[];
 
     return {
       liveNow: [],

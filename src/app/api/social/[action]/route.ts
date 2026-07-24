@@ -102,7 +102,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ action:
   if (action === "mark-notification-read") {
     const notificationId = normalizeId(body.notificationId);
     if (!notificationId) return NextResponse.json({ error: "Missing notification" }, { status: 400 });
-    const { error } = await admin.from("notifications").update({ read_status: true }).eq("id", notificationId).eq("user_id", user.id);
+    const { error } = await (admin.from("notifications") as any).update({ read_status: true }).eq("id", notificationId).eq("user_id", user.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true });
   }

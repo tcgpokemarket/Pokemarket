@@ -593,7 +593,7 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
                     <label className="mb-1.5 block text-sm font-medium text-gray-300">Card / Product Name *</label>
-                    <input name="card_name" value={form.card_name} onChange={handleChange} required placeholder="e.g. Charizard ex" className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none" />
+                    <input name="card_name" value={form.card_name} onChange={handleChange} required placeholder="Card or product name" className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none" />
                   </div>
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-gray-300">Set *</label>

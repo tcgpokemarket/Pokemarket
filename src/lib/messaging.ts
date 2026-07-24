@@ -57,7 +57,8 @@ async function conversationHasMembers(conversationId: string, memberIds: string[
   const { data, error } = await admin.from("conversation_members").select("user_id").eq("conversation_id", conversationId);
   if (error) throw new Error(error.message);
 
-  const present = uniqueValues((data ?? []).map((row) => row.user_id));
+  const members = (data ?? []) as Array<{ user_id: string }>;
+  const present = uniqueValues(members.map((row) => row.user_id));
   return present.length === memberIds.length && memberIds.every((memberId) => present.includes(memberId));
 }
 
@@ -69,11 +70,16 @@ async function findConversationId(input: { contextType?: string | null; contextI
 
   if (!memberIds.length) return null;
 
-  let query = admin.from("conversations").select("id, context_type, context_id").order("created_at", { ascending: false }).limit(50);
-  if (contextType !== null || contextId !== null) {
-    query = query.eq("context_type", contextType).eq("context_id", contextId);
+  let query = admin.from("conversations").select("id, context_type, context_id").order("created_at", { ascending: false }).limit(50) as any;
+  if (contextType !== null) {
+    query = query.eq("context_type", contextType);
   } else {
-    query = query.is("context_type", null).is("context_id", null);
+    query = query.is("context_type", null);
+  }
+  if (contextId !== null) {
+    query = query.eq("context_id", contextId);
+  } else {
+    query = query.is("context_id", null);
   }
 
   const { data, error } = await query;

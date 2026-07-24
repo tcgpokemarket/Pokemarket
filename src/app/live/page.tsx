@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { listActiveLiveShows, listFeaturedLiveShows, listUpcomingLiveShows } from "@/lib/live-shows-client";
 
 const categories = ["Pokémon", "Sealed", "Singles", "Graded", "Accessories"];
 
@@ -7,18 +7,19 @@ function formatState(state?: string | null) {
   return (state ?? "upcoming").replaceAll("_", " ");
 }
 
-type LiveShowRow = {
-  id: string;
-  title: string;
-  description: string | null;
-  status: string;
-  seller_id: string;
-  viewer_count: number | null;
-  scheduled_start: string | null;
-  auction_settings: Record<string, unknown> | null;
-};
+function formatMoney(value?: number | null) {
+  return `$${Number(value ?? 0).toFixed(2)}`;
+}
 
-export default function LivePage() {
+export default async function LivePage() {
+  const [liveNow, featured, upcoming] = await Promise.all([
+    listActiveLiveShows(),
+    listFeaturedLiveShows(),
+    listUpcomingLiveShows(),
+  ]);
+
+  const liveShows = [...liveNow, ...featured, ...upcoming].slice(0, 12);
+
   return (
     <div className="min-h-screen bg-[#08111f] text-white">
       <section className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -51,8 +52,25 @@ export default function LivePage() {
           ))}
         </div>
 
-        <div className="mt-10 rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-gray-300">
-          Live show listings will load in the dashboard when dynamic rendering is enabled.
+        <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {liveShows.length ? liveShows.map((show) => (
+            <Link key={show.id} href={`/live/${show.id}`} className="rounded-3xl border border-white/10 bg-white/5 p-5 transition hover:border-yellow-400/40 hover:bg-white/10">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs uppercase tracking-[0.3em] text-yellow-400">{formatState(show.status)}</div>
+                <div className="text-xs text-gray-400">{show.viewer_count ?? 0} viewers</div>
+              </div>
+              <div className="mt-3 text-xl font-black text-white">{show.title}</div>
+              <div className="mt-2 text-sm leading-6 text-gray-300">{show.description ?? "No description provided."}</div>
+              <div className="mt-4 flex items-center justify-between text-xs text-gray-400">
+                <span>{show.seller_id.slice(0, 8)}</span>
+                <span>{show.created_at ? new Date(show.created_at).toLocaleString() : "Starting soon"}</span>
+              </div>
+            </Link>
+          )) : (
+            <div className="md:col-span-2 xl:col-span-3 rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-gray-300">
+              No live shows are available right now.
+            </div>
+          )}
         </div>
       </section>
     </div>

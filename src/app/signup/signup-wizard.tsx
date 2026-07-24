@@ -326,7 +326,7 @@ export default function SignupWizard() {
                     type="text"
                     value={form.fullName}
                     onChange={(e) => setValue("fullName", e.target.value)}
-                    placeholder="Ash Ketchum"
+                    placeholder="Your full name"
                     autoComplete="name"
                     disabled={submitting || googleLoading}
                     aria-invalid={Boolean(fieldErrors.fullName)}

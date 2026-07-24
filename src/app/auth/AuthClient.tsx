@@ -186,7 +186,7 @@ export default function AuthClient() {
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
-              placeholder="Ash Ketchum"
+              placeholder="Your full name"
               required
               disabled={loading || googleLoading || resetLoading}
               className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"

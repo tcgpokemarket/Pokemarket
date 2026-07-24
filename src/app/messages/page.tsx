@@ -4,12 +4,19 @@ import { listUserConversations, searchMessages } from "@/lib/messaging";
 
 export default async function MessagesPage({ searchParams }: { searchParams?: { q?: string } }) {
   const query = searchParams?.q?.trim() ?? "";
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  const results = user && query ? await searchMessages(user.id, query) : [];
-  const conversations = user ? await listUserConversations(user.id) : [];
+  let user: { id: string } | null = null;
+  let results: Array<{ id: string; conversation_id: string; message: string }> = [];
+  let conversations: Awaited<ReturnType<typeof listUserConversations>> = [];
+
+  try {
+    const supabase = await createClient();
+    const authResult = await supabase.auth.getUser();
+    user = authResult.data.user;
+    results = user && query ? await searchMessages(user.id, query) : [];
+    conversations = user ? await listUserConversations(user.id) : [];
+  } catch {
+    user = null;
+  }
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-10 text-white">
@@ -45,6 +52,7 @@ export default async function MessagesPage({ searchParams }: { searchParams?: { 
               <div className="space-y-3">
                 {conversations.length ? conversations.map((row) => {
                   const conversation = row.conversations;
+                  const unread = Boolean(conversation?.last_message_at && (!row.last_read_at || new Date(conversation.last_message_at).getTime() > new Date(row.last_read_at).getTime()));
                   return (
                     <Link key={row.conversation_id} href={`/messages/${row.conversation_id}`} className="block rounded-2xl border border-white/10 bg-[#0f0f1a] p-4 text-sm text-gray-300 transition hover:border-yellow-400/40">
                       <div className="flex items-start justify-between gap-3">
@@ -54,7 +62,7 @@ export default async function MessagesPage({ searchParams }: { searchParams?: { 
                         </div>
                         {row.archived ? <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.2em] text-gray-400">Archived</span> : null}
                       </div>
-                      <div className="mt-2 text-xs text-gray-500">{row.unread ? "Unread messages" : row.last_read_at ? `Last read ${new Date(row.last_read_at).toLocaleString()}` : "No messages read yet"}</div>
+                      <div className="mt-2 text-xs text-gray-500">{unread ? "Unread messages" : row.last_read_at ? `Last read ${new Date(row.last_read_at).toLocaleString()}` : "No messages read yet"}</div>
                     </Link>
                   );
                 }) : (

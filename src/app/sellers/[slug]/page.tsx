@@ -286,11 +286,11 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   {DEFAULT_CATEGORIES.map((category) => <span key={category} className="rounded-full border border-white/10 bg-[#13131f] px-3 py-1 text-gray-300">{category}</span>)}
                 </div>
               </div>
-              {!listings.length ? (
+              {!activeListings.length ? (
                 <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-10 text-center text-gray-400">No active listings yet.</div>
               ) : (
                 <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                  {listings.map((listing) => {
+                  {activeListings.map((listing) => {
                     const primaryImage = choosePrimaryImage((listing.images ?? []).map((imageUrl) => evaluateImageMatch(
                       { name: listing.card_name, setName: listing.set_name, cardNumber: listing.card_number },
                       { imageUrl, source: "seller_unverified", setName: listing.set_name, cardNumber: listing.card_number },
