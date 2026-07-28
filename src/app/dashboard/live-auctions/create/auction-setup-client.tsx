@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { Listing, LiveShow } from "@/lib/supabase/types";
 import { getListingPrimaryImage, getProfessionalFallbackImage } from "@/lib/uploads";
+import { getActiveLiveShow } from "@/lib/live-commerce";
 
 type QueueItem = {
   id: string;
@@ -33,6 +34,7 @@ interface AuctionSetupClientProps {
   sellerUsername: string | null;
   listings: Listing[];
   existingShows: LiveShow[];
+  currentUserId: string;
 }
 
 function toLocalInputValue(date = new Date(Date.now() + 1000 * 60 * 45)) {
@@ -56,7 +58,7 @@ function buildQueueItem(listing: Listing): QueueItem {
   };
 }
 
-export default function AuctionSetupClient({ sellerName, sellerUsername, listings, existingShows }: AuctionSetupClientProps) {
+export default function AuctionSetupClient({ sellerName, sellerUsername, listings, existingShows, currentUserId }: AuctionSetupClientProps) {
   const [title, setTitle] = useState(`${sellerName}'s Live Auction`);
   const [description, setDescription] = useState("Collector-first live auction with clear bidding, giveaways, and a premium queue.");
   const [thumbnail, setThumbnail] = useState(getListingPrimaryImage(listings[0]?.images ?? []) ?? "");
@@ -77,7 +79,24 @@ export default function AuctionSetupClient({ sellerName, sellerUsername, listing
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const selectedListingIds = useMemo(() => new Set(queue.map((item) => item.listingId).filter(Boolean)), [queue]);
+  const currentLiveShow = useMemo(
+    () =>
+      getActiveLiveShow(
+        existingShows.map((show) => ({
+          id: show.id,
+          title: show.title,
+          status: show.status === "live" ? "live" : show.status === "ended" ? "ended" : "scheduled",
+          auction_state: show.auction_state === "live" || show.auction_state === "bidding_active" || show.auction_state === "locked" || show.auction_state === "sold" ? show.auction_state : null,
+          scheduled_start: show.scheduled_start ?? null,
+          created_at: show.created_at,
+        })),
+      ),
+    [existingShows],
+  );
+  const canLaunchLive = Boolean(currentUserId);
   const upcomingShows = useMemo(() => existingShows.filter((show) => show.status !== "ended").slice(0, 4), [existingShows]);
+  const launchBlockedMessage = currentLiveShow ? `You already have a live auction running: ${currentLiveShow.title}. End it before starting another.` : null;
+  const launchDisabled = Boolean(currentLiveShow) || !canLaunchLive;
 
   const addListingToQueue = (listing: Listing) => {
     setQueue((current) => {
@@ -139,6 +158,10 @@ export default function AuctionSetupClient({ sellerName, sellerUsername, listing
     setStatusMessage(null);
 
     try {
+      if (launch && launchBlockedMessage) {
+        throw new Error(launchBlockedMessage);
+      }
+
       const createResponse = await fetch("/api/live/shows", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -431,11 +454,20 @@ export default function AuctionSetupClient({ sellerName, sellerUsername, listing
             <div className="rounded-3xl border border-yellow-400/20 bg-yellow-400/10 p-6">
               <h2 className="text-lg font-black text-yellow-400">Ready to go live?</h2>
               <p className="mt-2 text-sm text-gray-200">Save a draft first or launch the room once the queue and giveaways are set.</p>
+              {launchBlockedMessage && (
+                <div className="mt-4 rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-100">
+                  <div className="font-semibold">Live auction already active</div>
+                  <p className="mt-1">{launchBlockedMessage}</p>
+                  <a href={`/live/${currentLiveShow?.id ?? ""}`} className="mt-3 inline-flex rounded-xl border border-red-300/40 px-4 py-2 font-semibold text-red-100 hover:bg-red-400/10">
+                    Open current live auction
+                  </a>
+                </div>
+              )}
               <div className="mt-4 flex flex-col gap-3">
-                <button type="button" onClick={() => void persistSetup(launchNow)} disabled={saving} className="rounded-xl border border-white/15 px-4 py-3 font-semibold text-white hover:bg-white/5 disabled:opacity-50">
+                <button type="button" onClick={() => void persistSetup(launchNow)} disabled={saving || launchDisabled} className="rounded-xl border border-white/15 px-4 py-3 font-semibold text-white hover:bg-white/5 disabled:opacity-50">
                   {saving ? (launchNow ? "Launching..." : "Saving...") : primaryActionLabel}
                 </button>
-                <button type="button" onClick={() => setLaunchNow((current) => !current)} disabled={saving} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black hover:bg-yellow-300 disabled:opacity-50">
+                <button type="button" onClick={() => setLaunchNow((current) => !current)} disabled={saving || launchDisabled} className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black hover:bg-yellow-300 disabled:opacity-50">
                   {saving ? "Updating..." : secondaryActionLabel}
                 </button>
               </div>

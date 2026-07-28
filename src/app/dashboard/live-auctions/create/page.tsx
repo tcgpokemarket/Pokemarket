@@ -69,6 +69,7 @@ export default async function CreateAuctionPage() {
       sellerUsername={profile?.username ?? null}
       listings={(listings ?? []) as Listing[]}
       existingShows={(liveShows ?? []) as LiveShow[]}
+      currentUserId={user.id}
     />
   );
 }
