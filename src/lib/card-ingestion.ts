@@ -289,6 +289,64 @@ export async function analyzeCardImage(params: { imageDataUrl: string; fileName:
   } satisfies CardIngestionAIResult;
 }
 
+export function getPublishabilityIssues(item: {
+  card_name: string | null;
+  set_name: string | null;
+  likely_condition: string | null;
+  category: string | null;
+  estimated_price: number | null;
+  low_price: number | null;
+  high_price: number | null;
+}) {
+  const issues: string[] = [];
+  const cardName = normalizeText(item.card_name);
+  const setName = normalizeText(item.set_name);
+  const condition = normalizeText(item.likely_condition);
+  const category = normalizeText(item.category);
+  const price = Number(item.estimated_price ?? item.low_price ?? item.high_price ?? 0);
+
+  if (!cardName) issues.push("card name is missing");
+  if (!setName) issues.push("set name is missing");
+  if (!condition) issues.push("condition is missing");
+  if (!category) issues.push("category is missing");
+  if (!Number.isFinite(price) || price <= 0) issues.push("pricing is missing");
+
+  return issues;
+}
+
+export function buildListingDraftFromIngestionItem(item: {
+  created_by: string;
+  card_name: string | null;
+  set_name: string | null;
+  card_number: string | null;
+  rarity: string | null;
+  likely_condition: string | null;
+  category: string | null;
+  estimated_price: number | null;
+  low_price: number | null;
+  high_price: number | null;
+  review_notes: string | null;
+  description: string | null;
+  title: string | null;
+  source_image_url: string;
+}) {
+  const price = Number(item.estimated_price ?? item.low_price ?? item.high_price ?? 0);
+  return {
+    seller_id: item.created_by,
+    card_name: String(item.card_name ?? "").trim(),
+    set_name: String(item.set_name ?? "").trim(),
+    card_number: item.card_number ? String(item.card_number).trim() : null,
+    rarity: item.rarity ? String(item.rarity).trim() : null,
+    condition: String(item.likely_condition ?? "Near Mint").trim() as CardCondition,
+    category: String(item.category ?? "single").trim() as "single" | "sealed" | "graded" | "accessory",
+    price,
+    quantity: 1,
+    description: [item.description, item.review_notes].filter(Boolean).join("\n\n").trim() || null,
+    images: [item.source_image_url],
+    status: "active" as const,
+  };
+}
+
 export function buildDraftTitle(result: CardIngestionAIResult) {
   const number = result.card_number ? ` · ${result.card_number}` : "";
   const variant = result.variant ? ` · ${result.variant}` : "";

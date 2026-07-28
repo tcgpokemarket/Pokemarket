@@ -175,7 +175,7 @@ export async function POST(request: Request) {
       .update({
         status: uploadedItems.some((item) => item.duplicates) ? "partial" : "ready",
         processed_count: uploadedItems.length,
-        draft_count: uploadedItems.filter((item) => String(item.status) === "ready_to_publish").length,
+        draft_count: uploadedItems.filter((item) => ["ready_to_publish", "needs_review"].includes(String(item.status))).length,
         duplicate_count: uploadedItems.filter((item) => Number(item.duplicates) > 0).length,
         error_count: 0,
         notes: null,

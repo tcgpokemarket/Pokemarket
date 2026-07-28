@@ -5,6 +5,7 @@ import { isAdminUser } from "@/lib/admin-access";
 import { normalizeListingImageUrls, toListingImageRecord } from "@/lib/uploads";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { recordAuditEvent } from "@/lib/audit-log";
+import { buildListingDraftFromIngestionItem, getPublishabilityIssues } from "@/lib/card-ingestion";
 import type { Database } from "@/lib/supabase/types";
 
 type IngestionItem = Database["public"]["Tables"]["card_ingestion_items"]["Row"];
@@ -69,23 +70,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ bat
         avatarUrl: user.user_metadata?.avatar_url ?? null,
       });
 
-      const aiPayload = item.ai_payload as { title?: string; description?: string } | null;
-      const payload = {
-        seller_id: user.id,
-        card_name: item.card_name ?? aiPayload?.title ?? "Unknown Card",
-        set_name: item.set_name ?? "Unknown Set",
-        card_number: item.card_number ?? null,
-        rarity: item.rarity ?? null,
-        condition: item.likely_condition ?? "Near Mint",
-        category: item.category ?? "single",
-        grade_company: null,
-        grade_score: null,
-        price: Number(item.estimated_price ?? item.low_price ?? 0),
-        quantity: 1,
-        description: [aiPayload?.description, item.review_notes].filter(Boolean).join("\n\n").trim() || null,
-        images: normalizeListingImageUrls([item.source_image_url]),
-        status: "active",
-      };
+      const publishIssues = getPublishabilityIssues(item);
+      if (publishIssues.length) {
+        await (admin.from("card_ingestion_items") as any)
+          .update({ status: "needs_review", error_message: publishIssues.join("; ") })
+          .eq("id", item.id);
+        failedCount += 1;
+        continue;
+      }
+
+      const payload = buildListingDraftFromIngestionItem(item);
 
       const { data: listing, error: listingError } = await (admin.from("listings") as any).insert(payload).select("id").single() as { data: { id: string } | null; error: { message: string } | null };
       if (listingError || !listing) throw listingError ?? new Error("Listing creation failed.");
