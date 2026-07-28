@@ -1885,7 +1885,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                 { title: "Seller verification", href: "/admin/verification", description: "Approve identity checks and storefront setup" },
                 { title: "Listing management", href: "/admin/card-ingestion", description: "Ingestion queues and publish workflows" },
                 { title: "Order management", href: "/admin/unpaid-auctions", description: "Auction orders, payment follow-up, and overrides" },
-                { title: "Support tickets", href: "/support", description: "Customer support and escalations" },
+                { title: "Support tickets", href: "/admin/support", description: "Customer support and escalations" },
                 { title: "Disputes & escrow", href: "/admin/compliance", description: "Moderation, disputes, and access controls" },
                 { title: "Wallet & finance", href: "/dashboard/fees", description: "Earnings, fees, and payout state" },
                 { title: "Referral tools", href: "/admin/referrals", description: "Referral rewards, fraud flags, and settings" },
