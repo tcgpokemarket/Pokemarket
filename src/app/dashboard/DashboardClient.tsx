@@ -1891,7 +1891,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                 { title: "Referral tools", href: "/admin/referrals", description: "Referral rewards, fraud flags, and settings" },
                 { title: "Live auction management", href: "/live", description: "Shows, moderation, and host controls" },
                 { title: "Notifications", href: "/admin/email", description: "Email queue and delivery logs" },
-                { title: "Audit / system health", href: "/admin/giveaways", description: "Audit trails and live operational signals" },
+                { title: "Audit / system health", href: "/admin/reports", description: "Audit trails and live operational signals" }
               ].map((module) => (
                 <a key={module.title} href={module.href} className="rounded-2xl border border-white/10 bg-[#13131f] p-5 transition-colors hover:border-yellow-400/40 hover:bg-[#171724]">
                   <h3 className="font-bold text-white">{module.title}</h3>

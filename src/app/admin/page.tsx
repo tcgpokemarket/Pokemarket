@@ -17,6 +17,7 @@ const modules = [
   { title: "Live shows", description: "Auctions, chat, bids, and stream health", href: "/live" },
   { title: "Fees", description: "Marketplace fee tiers and overrides", href: "/dashboard/fees" },
   { title: "Support tickets", description: "Review live tickets, escalations, and resolutions", href: "/admin/support" },
+  { title: "Reports & health", description: "Track ops signals, queue health, and live risk indicators", href: "/admin/reports" },
   { title: "Referral tools", description: "Search referral sources and correct attribution", href: "/admin/referrals" },
 ] as const;
 
