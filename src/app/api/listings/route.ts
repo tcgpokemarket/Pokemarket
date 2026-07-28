@@ -45,7 +45,6 @@ export async function POST(request: Request) {
     grade_score: body.grade_score === null || body.grade_score === undefined || body.grade_score === "" ? null : Number(body.grade_score),
     images: Array.isArray(body.images) ? normalizeListingImageUrls(body.images as unknown[]) : [],
     shipping_profile_id: body.shipping_profile_id ? String(body.shipping_profile_id).trim() : null,
-    shipping_paid_by: body.shipping_paid_by === "buyer" || body.shipping_paid_by === "seller" ? body.shipping_paid_by : null,
     weight_oz: body.weight_oz === null || body.weight_oz === undefined || body.weight_oz === "" ? null : Number(body.weight_oz),
     status: String(body.status ?? "active"),
   };

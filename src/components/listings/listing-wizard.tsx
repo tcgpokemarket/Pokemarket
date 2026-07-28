@@ -453,7 +453,6 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
         quantity: Math.max(1, Number(form.quantity)),
         description: form.description.trim() || null,
         shipping_profile_id: null,
-        shipping_paid_by: form.shipping_paid_by,
         weight_oz: Number(form.weight_oz) || null,
         status: form.status,
       };
