@@ -1431,6 +1431,139 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['price_history']['Insert']>
       }
+      card_ingestion_batches: {
+        Row: {
+          id: string
+          created_by: string
+          source: string
+          status: 'uploaded' | 'processing' | 'in_review' | 'ready' | 'partial' | 'published' | 'failed'
+          original_file_count: number
+          processed_count: number
+          draft_count: number
+          published_count: number
+          duplicate_count: number
+          error_count: number
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          created_by: string
+          source?: string
+          status?: 'uploaded' | 'processing' | 'in_review' | 'ready' | 'partial' | 'published' | 'failed'
+          original_file_count?: number
+          processed_count?: number
+          draft_count?: number
+          published_count?: number
+          duplicate_count?: number
+          error_count?: number
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['card_ingestion_batches']['Insert']>
+      }
+      card_ingestion_items: {
+        Row: {
+          id: string
+          batch_id: string
+          created_by: string
+          source_image_url: string
+          source_image_bucket: string
+          source_image_path: string
+          source_image_hash: string
+          status: 'uploaded' | 'processing' | 'needs_review' | 'ready_to_publish' | 'published' | 'duplicate' | 'rejected' | 'failed'
+          card_name: string | null
+          set_name: string | null
+          card_number: string | null
+          rarity: string | null
+          language: string | null
+          variant: string | null
+          category: 'single' | 'sealed' | 'graded' | 'accessory'
+          ocr_text: string | null
+          title: string | null
+          description: string | null
+          likely_condition: 'Mint' | 'Near Mint' | 'Lightly Played' | 'Moderately Played' | 'Heavily Played' | 'Damaged' | null
+          condition_confidence: number | null
+          condition_notes: string | null
+          estimated_price: number | null
+          low_price: number | null
+          high_price: number | null
+          pricing_source: string | null
+          confidence_score: number | null
+          duplicate_listing_ids: string[]
+          duplicate_summary: string[]
+          ai_payload: Json
+          review_notes: string | null
+          published_listing_id: string | null
+          error_message: string | null
+          processed_at: string | null
+          published_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          batch_id: string
+          created_by: string
+          source_image_url: string
+          source_image_bucket: string
+          source_image_path: string
+          source_image_hash: string
+          status?: 'uploaded' | 'processing' | 'needs_review' | 'ready_to_publish' | 'published' | 'duplicate' | 'rejected' | 'failed'
+          card_name?: string | null
+          set_name?: string | null
+          card_number?: string | null
+          rarity?: string | null
+          language?: string | null
+          variant?: string | null
+          category?: 'single' | 'sealed' | 'graded' | 'accessory'
+          ocr_text?: string | null
+          title?: string | null
+          description?: string | null
+          likely_condition?: 'Mint' | 'Near Mint' | 'Lightly Played' | 'Moderately Played' | 'Heavily Played' | 'Damaged' | null
+          condition_confidence?: number | null
+          condition_notes?: string | null
+          estimated_price?: number | null
+          low_price?: number | null
+          high_price?: number | null
+          pricing_source?: string | null
+          confidence_score?: number | null
+          duplicate_listing_ids?: string[]
+          duplicate_summary?: string[]
+          ai_payload?: Json
+          review_notes?: string | null
+          published_listing_id?: string | null
+          error_message?: string | null
+          processed_at?: string | null
+          published_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['card_ingestion_items']['Insert']>
+      }
+      card_ingestion_item_images: {
+        Row: {
+          id: string
+          item_id: string
+          bucket: string
+          storage_path: string
+          public_url: string
+          sort_order: number
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          bucket: string
+          storage_path: string
+          public_url: string
+          sort_order?: number
+          created_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['card_ingestion_item_images']['Insert']>
+      }
       card_library_items: {
         Row: {
           id: string

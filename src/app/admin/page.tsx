@@ -10,6 +10,7 @@ export const metadata: Metadata = {
 const modules = [
   { title: "Users", description: "Profiles, seller status, and trust signals", href: "/dashboard" },
   { title: "Seller verification", description: "Approve or reject seller identity checks", href: "/admin/verification" },
+  { title: "Card ingestion", description: "AI upload queue, draft listings, and bulk publishing", href: "/admin/card-ingestion" },
   { title: "Listings", description: "Inventory review, moderation, and featured items", href: "/dashboard" },
   { title: "Orders", description: "Checkout, fulfillment, refunds, and payouts", href: "/dashboard" },
   { title: "Shipping", description: "Rates, labels, shipment groups, and tracking", href: "/dashboard" },
