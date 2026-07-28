@@ -168,17 +168,51 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: imageError.message }, { status: 400 });
       }
 
-      uploadedItems.push({ id: item.id, status: item.status, duplicates: duplicateIds.length, confidence: analysis.confidence });
+      let publishedListingId: string | null = null;
+      let publishError: string | null = null;
+
+      if (status === "ready_to_publish") {
+        const publishResponse = await fetch(new URL(`/api/admin/card-ingestion/batches/${batch.id}/publish`, request.url), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Cookie: request.headers.get("cookie") ?? "",
+          },
+          body: JSON.stringify({ itemIds: [item.id] }),
+        });
+        const publishData = await publishResponse.json().catch(() => ({} as { publishedListings?: Array<{ itemId: string; listingId: string }>; error?: string }));
+        if (!publishResponse.ok) {
+          publishError = publishData.error ?? "Publish failed.";
+        } else {
+          publishedListingId = publishData.publishedListings?.[0]?.listingId ?? null;
+        }
+      }
+
+      if (publishError) {
+        await (admin.from("card_ingestion_items") as any)
+          .update({ status: "needs_review", error_message: publishError })
+          .eq("id", item.id);
+      }
+
+      uploadedItems.push({
+        id: item.id,
+        status: publishError ? "needs_review" : status === "ready_to_publish" ? "published" : item.status,
+        duplicates: duplicateIds.length,
+        confidence: analysis.confidence,
+        publishedListingId,
+        publishError,
+      });
     }
 
     const { data: finalBatch } = await (admin.from("card_ingestion_batches") as any)
       .update({
-        status: uploadedItems.some((item) => item.duplicates) ? "partial" : "ready",
+        status: uploadedItems.some((item) => String(item.status) === "needs_review") || uploadedItems.some((item) => item.duplicates) ? "partial" : "published",
         processed_count: uploadedItems.length,
-        draft_count: uploadedItems.filter((item) => ["ready_to_publish", "needs_review"].includes(String(item.status))).length,
+        draft_count: uploadedItems.filter((item) => String(item.status) === "needs_review").length,
         duplicate_count: uploadedItems.filter((item) => Number(item.duplicates) > 0).length,
-        error_count: 0,
-        notes: null,
+        published_count: uploadedItems.filter((item) => String(item.status) === "published").length,
+        error_count: uploadedItems.filter((item) => String(item.publishError ?? "")).length,
+        notes: uploadedItems.some((item) => String(item.publishError ?? "")) ? "Some items need admin review before publishing." : null,
       })
       .eq("id", batch.id)
       .select("*")
