@@ -4,6 +4,17 @@ import type { Database } from "@/lib/supabase/types";
 export const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024;
 export const MAX_LISTING_IMAGE_COUNT = 12;
 export const MAX_VERIFICATION_DOCUMENT_SIZE_BYTES = 12 * 1024 * 1024;
+const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const ALLOWED_VERIFICATION_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+
+function ensureUploadAllowed(file: File, allowedTypes: Set<string>, maxBytes: number) {
+  if (!allowedTypes.has(file.type)) {
+    throw new Error("Unsupported file type.");
+  }
+  if (file.size > maxBytes) {
+    throw new Error("File is too large.");
+  }
+}
 
 export function parsePublicStorageUrl(url: string) {
   try {
@@ -112,9 +123,10 @@ export async function uploadImageFile({
   file: File;
   prefix?: string;
 }) {
+  ensureUploadAllowed(file, ALLOWED_IMAGE_MIME_TYPES, MAX_IMAGE_SIZE_BYTES);
   const bucket = bucketForTarget(target);
   const path = buildStoragePath(target, ownerId, prefix, file.name);
-  const { error } = await supabase.storage.from(bucket).upload(path, file);
+  const { error } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type || undefined });
   if (error) throw error;
   const { data } = supabase.storage.from(bucket).getPublicUrl(path);
   return {
@@ -135,6 +147,7 @@ export async function uploadVerificationDocumentFile({
   file: File;
   prefix: "id-front" | "id-back" | "selfie" | "address-proof";
 }) {
+  ensureUploadAllowed(file, ALLOWED_VERIFICATION_MIME_TYPES, MAX_VERIFICATION_DOCUMENT_SIZE_BYTES);
   const bucket = bucketForTarget("verification");
   const path = buildStoragePath("verification", ownerId, prefix, file.name);
   const { error } = await supabase.storage.from(bucket).upload(path, file, { upsert: true, contentType: file.type || undefined });
