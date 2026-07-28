@@ -455,7 +455,6 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
         shipping_profile_id: null,
         shipping_paid_by: form.shipping_paid_by,
         weight_oz: Number(form.weight_oz) || null,
-        package_type: form.package_type.trim() || null,
         status: form.status,
       };
 

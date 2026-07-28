@@ -47,7 +47,6 @@ export async function POST(request: Request) {
     shipping_profile_id: body.shipping_profile_id ? String(body.shipping_profile_id).trim() : null,
     shipping_paid_by: body.shipping_paid_by === "buyer" || body.shipping_paid_by === "seller" ? body.shipping_paid_by : null,
     weight_oz: body.weight_oz === null || body.weight_oz === undefined || body.weight_oz === "" ? null : Number(body.weight_oz),
-    package_type: body.package_type ? String(body.package_type).trim() : null,
     status: String(body.status ?? "active"),
   };
 
