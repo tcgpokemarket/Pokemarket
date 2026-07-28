@@ -475,7 +475,7 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
 
       if (data.listing?.id) {
         window.localStorage.removeItem(draftKey(userId, redirectTo));
-        router.push(`/listings/${data.listing.id}?published=1`);
+        router.push(`/listings?seller=${userId}&published=1`);
         router.refresh();
         return;
       }
