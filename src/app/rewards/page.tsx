@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
 
@@ -66,6 +67,7 @@ function formatDate(value: string | null) {
 }
 
 export default function RewardsPage() {
+  const router = useRouter();
   const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<RewardsSnapshot>({ account: null, ledger: [], options: [], redemptions: [] });
@@ -77,7 +79,7 @@ export default function RewardsPage() {
     const load = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        window.location.href = "/auth?redirectTo=/rewards";
+        router.replace("/auth?redirectTo=/rewards");
         return;
       }
 
@@ -98,7 +100,7 @@ export default function RewardsPage() {
     };
 
     void load();
-  }, [supabase]);
+  }, [router, supabase]);
 
   const account = snapshot.account ?? DEFAULT_REWARDS_ACCOUNT;
 

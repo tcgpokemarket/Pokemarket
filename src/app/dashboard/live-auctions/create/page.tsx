@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
 import type { Listing, LiveShow } from "@/lib/supabase/types";
 import AuctionSetupClient from "./auction-setup-client";
@@ -21,9 +21,7 @@ export default async function CreateAuctionPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    notFound();
-  }
+  if (!user) redirect("/auth?redirectTo=/dashboard/live-auctions/create");
 
   const [{ data: profile }, { data: listings }, { data: liveShows }] = await Promise.all([
     supabase

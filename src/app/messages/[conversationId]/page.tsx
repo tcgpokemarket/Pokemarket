@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import ConversationActions from "./conversation-actions";
 import ConversationCompose from "./conversation-compose";
 import { markConversationRead, getConversationMembers } from "@/lib/messaging";
@@ -14,17 +15,7 @@ export default async function ConversationPage({ params }: PageProps) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
-        <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-          <h1 className="text-3xl font-black">Messages</h1>
-          <p className="mt-3 text-gray-400">Sign in to view this conversation.</p>
-          <a href="/auth/signin" className="mt-6 inline-flex rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Sign in</a>
-        </div>
-      </div>
-    );
-  }
+  if (!user) redirect(`/auth?redirectTo=/messages/${conversationId}`);
 
   const [{ data: conversationMembers }, { data: messages }] = await Promise.all([
     supabase.from("conversation_members").select("user_id, archived, muted, last_read_at, conversations(*)").eq("conversation_id", conversationId).order("created_at", { ascending: true }),

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
 import ReferralDashboardClient from "./ReferralDashboardClient";
 import type { ReferralAttributionWithRewards, ReferralDashboardStats } from "@/lib/referral-types";
 
@@ -9,9 +10,7 @@ export default async function ReferralDashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return null;
-  }
+  if (!user) redirect("/auth?redirectTo=/dashboard/referrals");
 
   const adminClient = createAdminClient();
   const { data: profile } = await (adminClient as any).from("profiles").select("username, referral_code").eq("id", user.id).maybeSingle();

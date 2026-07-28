@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -6,17 +7,9 @@ export default async function SocialFeedPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
-        <div className="mx-auto max-w-2xl rounded-3xl border border-white/10 bg-white/5 p-8 text-center">
-          <h1 className="text-3xl font-black">Social feed</h1>
-          <p className="mt-3 text-gray-400">Sign in to see friends, follows, live show alerts, and giveaway updates.</p>
-          <a href="/auth/signin" className="mt-6 inline-flex rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Sign in</a>
-        </div>
-      </div>
-    );
-  }
+  if (!user) redirect("/auth?redirectTo=/social");
+
+
 
   const [{ data: notifications }, { data: follows }, { data: friendships }] = await Promise.all([
     supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
