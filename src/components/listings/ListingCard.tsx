@@ -1,46 +1,8 @@
 import type { Listing } from "@/lib/supabase/types";
-import { VerifiedImage } from "./VerifiedImage";
-import { choosePrimaryImage, evaluateImageMatch, type ImageVerificationResult } from "@/lib/image-verification";
+import { getListingPrimaryImage, getProfessionalFallbackImage } from "@/lib/uploads";
 
-function getVerifiedListingImage(listing: Listing) {
-  const images = listing.images ?? [];
-  const identity = {
-    name: listing.card_name,
-    setName: listing.set_name,
-    cardNumber: listing.card_number,
-    variant: listing.grade_company ? `${listing.grade_company} ${listing.grade_score ?? ""}`.trim() : null,
-  };
-  const scored = images.map((imageUrl) => evaluateImageMatch(identity, { imageUrl, source: "seller_unverified", setName: listing.set_name, cardNumber: listing.card_number, variant: identity.variant }));
-  return choosePrimaryImage(scored);
-}
-
-function normalizeImageVerification(image: ImageVerificationResult | null | undefined): ImageVerificationResult | null {
-  if (!image) return null;
-
-  return {
-    imageUrl: image.imageUrl,
-    source: image.source,
-    confidence: image.confidence,
-    score: image.score,
-    verified: image.verified,
-    reason: image.reason,
-    cardName: image.cardName,
-    setName: image.setName,
-    cardNumber: image.cardNumber ?? null,
-    variant: image.variant ?? null,
-    width: image.width ?? null,
-    height: image.height ?? null,
-  };
-}
-
-function getImageStatus(listing: Listing) {
-  const verification = (listing as Listing & {
-    image_verification?: {
-      primary?: ImageVerificationResult | null;
-    } | null;
-  }).image_verification;
-
-  return normalizeImageVerification(verification?.primary) ?? getVerifiedListingImage(listing);
+function getListingImageUrl(listing: Listing) {
+  return getListingPrimaryImage(listing.images ?? []) ?? getProfessionalFallbackImage();
 }
 
 interface ListingCardProps {
@@ -72,16 +34,14 @@ export default function ListingCard({ listing }: ListingCardProps) {
       className="block bg-[#13131f] border border-white/10 rounded-2xl overflow-hidden hover:border-yellow-400/40 transition-all group"
     >
       <div className="relative h-44 overflow-hidden border-b border-white/5 bg-white/5">
-        <VerifiedImage
-          listing={listing}
-          image={getImageStatus(listing)}
-          className="absolute inset-0"
+        <img
+          src={getListingImageUrl(listing)}
+          alt={listing.card_name}
+          className="h-full w-full object-cover"
+          onError={(event) => {
+            event.currentTarget.src = getProfessionalFallbackImage();
+          }}
         />
-        {!getImageStatus(listing) && (
-          <div className="absolute inset-0 flex items-center justify-center text-6xl">
-            {CATEGORY_ICONS[listing.category] ?? CATEGORY_ICONS.single}
-          </div>
-        )}
         {listing.grade_company && (
           <span className="absolute right-3 top-3 rounded-lg bg-yellow-400 px-2 py-1 text-xs font-black text-black">
             {listing.grade_company} {listing.grade_score}
