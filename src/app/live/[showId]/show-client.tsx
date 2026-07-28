@@ -79,8 +79,7 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       : "🟡 Awaiting Payment";
   const buyerTimer = activeAuctionOrder ? Math.max(0, new Date(activeAuctionOrder.payment_deadline).getTime() - now) : 0;
   const buyerTimerText = activeAuctionOrder ? `${String(Math.floor(buyerTimer / 60000)).padStart(2, "0")}:${String(Math.floor((buyerTimer % 60000) / 1000)).padStart(2, "0")}` : "15:00";
-  const hostPermissions = Array.isArray((show as any).host_permissions) ? (show as any).host_permissions as string[] : [];
-  const isHost = showMode === "host" && (show.seller_id === initialData.show.seller_id || hostPermissions.length > 0);
+  const isHost = showMode === "host" && show.seller_id === initialData.show.seller_id;
   const activeItem = useMemo(() => getActiveItem(products), [products]);
   const connectedViewers = Math.max(show.viewer_count, show.peak_viewers);
   const canShowHostControls = isHost;

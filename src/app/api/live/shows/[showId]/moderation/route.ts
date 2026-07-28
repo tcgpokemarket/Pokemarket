@@ -17,15 +17,14 @@ async function getHostAccess(showId: string, userId: string) {
   const admin = createAdminClient();
   const { data: show, error } = await (admin as any)
     .from("live_shows")
-    .select("id, seller_id, host_permissions")
+    .select("id, seller_id")
     .eq("id", showId)
     .maybeSingle();
 
   if (error) return { show: null, canHost: false, error };
   if (!show) return { show: null, canHost: false, error: new Error("Show not found.") };
 
-  const permissions = Array.isArray(show.host_permissions) ? show.host_permissions : [];
-  const canHost = show.seller_id === userId || permissions.includes("host");
+  const canHost = show.seller_id === userId;
   return { show, canHost, error: null };
 }
 

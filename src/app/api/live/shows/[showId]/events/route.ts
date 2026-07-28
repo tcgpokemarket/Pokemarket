@@ -17,6 +17,25 @@ export async function GET(_: Request, { params }: { params: Promise<{ showId: st
 
   const { showId } = await params;
   const admin = createAdminClient();
+  const { data: show, error: showError } = await (admin as any)
+    .from("live_shows")
+    .select("seller_id, host_permissions")
+    .eq("id", showId)
+    .maybeSingle();
+
+  if (showError) {
+    return NextResponse.json({ error: showError.message }, { status: 500 });
+  }
+  if (!show) {
+    return NextResponse.json({ error: "Show not found" }, { status: 404 });
+  }
+
+  const permissions = Array.isArray(show.host_permissions) ? show.host_permissions : [];
+  const canViewEvents = show.seller_id === user.id || permissions.includes("host");
+  if (!canViewEvents) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  }
+
   const { data, error } = await (admin as any)
     .from("show_events")
     .select("id, show_id, event_type, payload, created_by, created_at")
