@@ -286,7 +286,8 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
 
   const handleImageUpload = async (files: File[]) => {
     if (!userId) {
-      setMessage({ type: "error", text: "Please wait for your account to finish loading." });
+      setUploadErrorLabel("Your account is still loading. Try again in a moment.");
+      setMessage({ type: "error", text: "Your account is still loading. Try again in a moment." });
       return;
     }
 
@@ -683,7 +684,7 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
                   onDrop={handleDrop}
                   className={`rounded-2xl border-2 border-dashed p-5 transition ${dropActive ? "border-yellow-400 bg-yellow-400/10" : "border-white/10 bg-white/5"}`}
                 >
-                  <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleFileInput} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
+                  <input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleFileInput} disabled={!userId || uploading} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-60" />
                   <p className="mt-3 text-xs text-gray-500">Accepted: JPEG, PNG, WebP, GIF. Max {Math.round(MAX_IMAGE_SIZE_BYTES / 1024 / 1024)}MB each.</p>
                   {uploading && (
                     <div className="mt-3 space-y-2">
