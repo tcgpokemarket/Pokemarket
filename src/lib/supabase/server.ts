@@ -1,14 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import type { Database } from "./types";
+import { requireEnv } from "../env";
 
 export async function createClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-  if (!url || !anonKey) {
-    throw new Error("Supabase is not configured");
-  }
+  const url = requireEnv("NEXT_PUBLIC_SUPABASE_URL", "Supabase URL");
+  const anonKey = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "Supabase anon key");
 
   const cookieStore = await cookies();
 

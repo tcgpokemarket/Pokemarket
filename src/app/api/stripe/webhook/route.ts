@@ -6,6 +6,7 @@ import { getDeliveryReleaseAt, shouldReleaseFromEscrow, buildEscrowLedgerKey } f
 import { queueEmail } from "@/lib/notifications";
 import { issuePurchaseRewards } from "@/lib/rewards";
 import { getPromotionPricing } from "@/lib/promotion-tools";
+import { requireEnv } from "@/lib/env";
 
 async function recordWebhookEvent(
   supabase: ReturnType<typeof createAdminClient>,
@@ -50,13 +51,13 @@ async function isProcessed(supabase: ReturnType<typeof createAdminClient>, sessi
 export async function POST(req: Request) {
   const body = await req.text();
   const signature = req.headers.get("stripe-signature");
-  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const webhookSecret = requireEnv("STRIPE_WEBHOOK_SECRET", "Stripe webhook secret");
+  const stripeSecretKey = requireEnv("STRIPE_SECRET_KEY", "Stripe secret key");
 
   if (!signature || !webhookSecret) {
     return NextResponse.json({ error: "Missing webhook secret" }, { status: 400 });
   }
 
-  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
   if (!stripeSecretKey) {
     return NextResponse.json({ error: "Stripe is not configured" }, { status: 500 });
   }

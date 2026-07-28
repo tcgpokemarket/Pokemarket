@@ -144,7 +144,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ sho
     if (activeShow) {
       return NextResponse.json(
         {
-          error: "You already have a live auction running. End the current live auction before starting another.",
+          error: "You already have an active live show. End your current show before starting another.",
           active_show: activeShow,
         },
         { status: 409 },

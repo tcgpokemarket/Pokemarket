@@ -3,6 +3,7 @@ import { AccessToken } from "livekit-server-sdk";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
+import { requireEnv } from "@/lib/env";
 
 const LIVE_ROOM_PREFIX = "tcg-poke-market-";
 
@@ -37,9 +38,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const apiKey = process.env.LIVEKIT_API_KEY;
-  const apiSecret = process.env.LIVEKIT_API_SECRET;
-  const livekitUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+  const apiKey = requireEnv("LIVEKIT_API_KEY", "LiveKit API key");
+  const apiSecret = requireEnv("LIVEKIT_API_SECRET", "LiveKit API secret");
+  const livekitUrl = requireEnv("NEXT_PUBLIC_LIVEKIT_URL", "LiveKit URL");
 
   if (!apiKey || !apiSecret || !livekitUrl) {
     return NextResponse.json({ error: "LiveKit is not configured" }, { status: 500 });

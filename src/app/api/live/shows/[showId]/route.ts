@@ -62,7 +62,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ sh
     );
 
     if (activeShow) {
-      return NextResponse.json({ error: "You already have a live auction running. End the current live auction before starting another.", active_show: activeShow }, { status: 409 });
+      return NextResponse.json({ error: "You already have an active live show. End your current show before starting another.", active_show: activeShow }, { status: 409 });
     }
   }
 

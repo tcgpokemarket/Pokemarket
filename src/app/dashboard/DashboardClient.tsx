@@ -1690,8 +1690,8 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <p className="text-sm uppercase tracking-widest text-yellow-400">Seller live rooms</p>
-                <h2 className="mt-1 text-2xl font-black">Manage multiple live shows</h2>
-                <p className="mt-2 text-sm text-gray-400">Each show is its own room with its own bids, chat, product queue, and viewers.</p>
+                <h2 className="mt-1 text-2xl font-black">Manage your live show</h2>
+                <p className="mt-2 text-sm text-gray-400">Your live show includes its own room, bids, chat, product queue, and viewers.</p>
               </div>
               <a href="/dashboard/live-auctions/create" className="inline-flex rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black hover:bg-yellow-300">
                 Create Auction
