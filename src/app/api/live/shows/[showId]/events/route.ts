@@ -19,7 +19,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ showId: st
   const admin = createAdminClient();
   const { data: show, error: showError } = await (admin as any)
     .from("live_shows")
-    .select("seller_id, host_permissions")
+    .select("seller_id")
     .eq("id", showId)
     .maybeSingle();
 
@@ -30,8 +30,7 @@ export async function GET(_: Request, { params }: { params: Promise<{ showId: st
     return NextResponse.json({ error: "Show not found" }, { status: 404 });
   }
 
-  const permissions = Array.isArray(show.host_permissions) ? show.host_permissions : [];
-  const canViewEvents = show.seller_id === user.id || permissions.includes("host");
+  const canViewEvents = show.seller_id === user.id;
   if (!canViewEvents) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -96,7 +95,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ sho
   const admin = createAdminClient();
   const { data: show, error: showError } = await (admin as any)
     .from("live_shows")
-    .select("id, seller_id, status, auction_state, host_permissions")
+    .select("id, seller_id, status, auction_state")
     .eq("id", showId)
     .maybeSingle();
 
@@ -107,9 +106,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ sho
     return NextResponse.json({ error: "Show not found." }, { status: 404 });
   }
 
-  const permissions = Array.isArray(show.host_permissions) ? show.host_permissions : [];
   const isHostAction = eventType.startsWith("host_");
-  const canHost = show.seller_id === user.id || permissions.includes("host");
+  const canHost = show.seller_id === user.id;
   if (isHostAction && !canHost) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
