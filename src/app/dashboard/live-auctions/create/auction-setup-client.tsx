@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Listing, LiveShow } from "@/lib/supabase/types";
-import { getListingPrimaryImage } from "@/lib/uploads";
+import { getListingPrimaryImage, getProfessionalFallbackImage } from "@/lib/uploads";
 
 type QueueItem = {
   id: string;
@@ -48,7 +48,7 @@ function buildQueueItem(listing: Listing): QueueItem {
     listingId: listing.id,
     title: listing.card_name,
     subtitle: `${listing.set_name}${listing.card_number ? ` · ${listing.card_number}` : ""}`,
-    imageUrl: listing.images?.[0] ?? null,
+    imageUrl: getListingPrimaryImage(listing.images ?? []) ?? null,
     startPrice: Number(listing.price),
     buyNowPrice: Number(listing.price),
     auctionSeconds: listing.category === "sealed" ? 60 : 45,
@@ -59,7 +59,7 @@ function buildQueueItem(listing: Listing): QueueItem {
 export default function AuctionSetupClient({ sellerName, sellerUsername, listings, existingShows }: AuctionSetupClientProps) {
   const [title, setTitle] = useState(`${sellerName}'s Live Auction`);
   const [description, setDescription] = useState("Collector-first live auction with clear bidding, giveaways, and a premium queue.");
-  const [thumbnail, setThumbnail] = useState(listings[0]?.images?.[0] ?? "");
+  const [thumbnail, setThumbnail] = useState(getListingPrimaryImage(listings[0]?.images ?? []) ?? "");
   const [scheduledStart, setScheduledStart] = useState(toLocalInputValue());
   const [queue, setQueue] = useState<QueueItem[]>(listings.slice(0, 3).map((listing, index) => ({ ...buildQueueItem(listing), startPrice: index === 0 ? 1 : Number(listing.price), pinned: index === 0 })));
   const [giveaways, setGiveaways] = useState<GiveawayDraft[]>([]);
@@ -270,7 +270,7 @@ export default function AuctionSetupClient({ sellerName, sellerUsername, listing
                   queue.map((item, index) => (
                     <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
                       <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-white/10 text-xl">
-                        {item.imageUrl ? <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" /> : "🃏"}
+                        {item.imageUrl ? <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" /> : <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full object-cover" />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="truncate font-semibold">{index + 1}. {item.title}</div>
@@ -451,7 +451,7 @@ export default function AuctionSetupClient({ sellerName, sellerUsername, listing
               <div key={listing.id} className="rounded-3xl border border-white/10 bg-white/5 p-5">
                 <div className="flex items-center gap-4">
                   <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-white/10 text-2xl">
-                    {getListingPrimaryImage(listing.images ?? []) ? <img src={getListingPrimaryImage(listing.images ?? []) ?? ""} alt={listing.card_name} className="h-full w-full object-cover" /> : "🃏"}
+                    {getListingPrimaryImage(listing.images ?? []) ? <img src={getListingPrimaryImage(listing.images ?? []) ?? ""} alt={listing.card_name} className="h-full w-full object-cover" /> : <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full object-cover" />}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold">{listing.card_name}</div>

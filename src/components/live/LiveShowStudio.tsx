@@ -12,7 +12,8 @@ import {
   type LiveShowState,
   type LiveShowTemplate,
 } from "@/lib/live-commerce";
-import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
+import { evaluateImageMatch } from "@/lib/image-verification";
+import { getListingPrimaryImage, getProfessionalFallbackImage } from "@/lib/uploads";
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
 
 interface LiveShowStudioProps {
@@ -31,13 +32,13 @@ const SHOW_FORMATS: { value: LiveShowTemplate; label: string }[] = [
 
 function seedFromListings(listings: Listing[]): LiveShowState {
   const items = listings.slice(0, 5).map((listing, index) => {
-    const primaryImage = choosePrimaryImage((listing.images ?? []).map((imageUrl) => evaluateImageMatch({ name: listing.card_name, setName: listing.set_name, cardNumber: listing.card_number }, { imageUrl, source: "seller_unverified", setName: listing.set_name, cardNumber: listing.card_number })));
+    const primaryImage = getListingPrimaryImage(listing.images ?? []);
     return {
       id: `listing-${listing.id}`,
       listingId: listing.id,
       title: listing.card_name,
       subtitle: `${listing.set_name}${listing.card_number ? ` · ${listing.card_number}` : ""}`,
-      imageUrl: primaryImage?.imageUrl ?? "",
+      imageUrl: primaryImage ?? "",
       startPrice: index === 0 ? 1 : listing.price,
       buyNowPrice: listing.price,
       currentBid: index === 0 ? 1 : Math.max(1, Math.floor(listing.price * 0.35)),
@@ -88,7 +89,7 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
     listingId: listing.id,
     title: listing.card_name,
     subtitle: `${listing.set_name}${listing.card_number ? ` · ${listing.card_number}` : ""}`,
-    imageUrl: listing.images?.[0] ?? "",
+    imageUrl: getListingPrimaryImage(listing.images ?? []) ?? "",
     startPrice: index === 0 ? 1 : listing.price,
     buyNowPrice: listing.price,
     currentBid: index === 0 ? 1 : Math.max(1, Math.floor(listing.price * 0.35)),
@@ -205,7 +206,7 @@ export default function LiveShowStudio({ listings }: LiveShowStudioProps) {
           {queuePreview.map((item, index) => (
             <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3">
               <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl bg-white/10 text-2xl">
-                {item.imageUrl ? <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" /> : "🃏"}
+                {item.imageUrl ? <img src={item.imageUrl} alt={item.title} className="h-full w-full object-cover" /> : <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full object-cover" />}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate font-semibold">{index + 1}. {item.title}</div>

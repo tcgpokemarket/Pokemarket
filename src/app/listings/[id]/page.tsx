@@ -155,7 +155,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <ListingDetailClient id={listing.id} initialListing={listing} />
+      <ListingDetailClient key={listing.id} id={listing.id} initialListing={listing} />
     </>
   );
 }

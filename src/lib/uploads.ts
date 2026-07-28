@@ -62,6 +62,32 @@ export function getListingPrimaryImage(images: unknown[]) {
   return getListingImagesInDisplayOrder(images)[0] ?? null;
 }
 
+export function getProfessionalFallbackImage() {
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1500" viewBox="0 0 1200 1500" fill="none">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="1500" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#111827"/>
+          <stop offset="1" stop-color="#1F2937"/>
+        </linearGradient>
+        <linearGradient id="accent" x1="180" y1="180" x2="1020" y2="1320" gradientUnits="userSpaceOnUse">
+          <stop stop-color="#E22400"/>
+          <stop offset="0.52" stop-color="#FFAB01"/>
+          <stop offset="1" stop-color="#FEFB41"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="1500" rx="72" fill="url(#bg)"/>
+      <rect x="72" y="72" width="1056" height="1356" rx="56" stroke="rgba(255,255,255,0.12)" stroke-width="8"/>
+      <rect x="180" y="220" width="840" height="840" rx="56" fill="rgba(255,255,255,0.04)" stroke="url(#accent)" stroke-width="10"/>
+      <path d="M380 606c0-121 98-219 220-219s220 98 220 219-98 219-220 219-220-98-220-219Zm220-138c-76 0-138 62-138 138s62 138 138 138 138-62 138-138-62-138-138-138Z" fill="url(#accent)"/>
+      <circle cx="600" cy="607" r="58" fill="#0F172A" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="12"/>
+      <circle cx="600" cy="607" r="18" fill="#FFFFFF"/>
+      <text x="600" y="1200" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="56" font-weight="700" fill="#E5E7EB">Image unavailable</text>
+      <text x="600" y="1272" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" fill="#9CA3AF">TcgPoké Market</text>
+    </svg>`,
+  )}`;
+}
+
 export function toListingImageRecord(publicUrl: string, sortOrder: number, source: string) {
   const parsed = parsePublicStorageUrl(publicUrl);
   return {

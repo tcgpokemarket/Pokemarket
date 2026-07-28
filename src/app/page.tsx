@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getHomepageData } from "@/lib/homepage-data";
 import { createClient } from "@/lib/supabase/server";
-import { getListingPrimaryImage } from "@/lib/uploads";
+import { getListingPrimaryImage, getProfessionalFallbackImage } from "@/lib/uploads";
 import type { HomepageActivity, HomepageListing, HomepageLiveShow, HomepageSeller } from "@/lib/homepage-data";
 
 const EMPTY_HOMEPAGE = {
@@ -77,7 +77,7 @@ function ListingCard({ listing }: { listing: HomepageListing }) {
         {image ? (
           <img src={image} alt={listing.card_name} className="h-full w-full object-cover" />
         ) : (
-          <div className="flex h-full items-center justify-center text-5xl">🃏</div>
+          <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full object-cover" />
         )}
         <div className="absolute left-3 top-3 rounded-full bg-black/70 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.2em] text-white">{badge}</div>
         {promotionBadge && <div className="absolute right-3 top-3 rounded-full bg-yellow-400 px-3 py-1 text-[11px] font-black uppercase tracking-[0.2em] text-black">{promotionBadge}</div>}

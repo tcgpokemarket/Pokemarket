@@ -14,7 +14,7 @@ import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
 import { listLiveShowsBySeller } from "@/lib/live-shows-client";
 import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
 import { recordDeviceSession } from "@/lib/device-security";
-import { deleteUploadedFile, getListingPrimaryImage, parsePublicStorageUrl, uploadImageFile } from "@/lib/uploads";
+import { deleteUploadedFile, getListingPrimaryImage, getProfessionalFallbackImage, parsePublicStorageUrl, uploadImageFile } from "@/lib/uploads";
 import SupportInlineCard from "@/components/support/support-inline-card";
 
 
@@ -1640,7 +1640,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                             <div key={item.id} className="rounded-xl border border-white/10 bg-[#13131f] p-3">
                               <div className="flex items-center gap-3">
                                 <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-white/10 text-lg">
-                                  {item.listings?.images?.[0] ? <img src={item.listings.images[0]} alt="" className="h-full w-full rounded-lg object-cover" /> : "🃏"}
+                                  {getListingPrimaryImage(item.listings?.images ?? []) ? (
+                                    <img src={getListingPrimaryImage(item.listings?.images ?? []) ?? ""} alt="" className="h-full w-full rounded-lg object-cover" />
+                                  ) : (
+                                    <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full rounded-lg object-cover" />
+                                  )}
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="truncate text-sm font-semibold">{item.listings?.card_name ?? "Card"}</p>

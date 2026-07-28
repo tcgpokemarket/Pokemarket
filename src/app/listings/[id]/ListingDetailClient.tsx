@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toCartItem } from "@/lib/cart";
 import { addToCart } from "@/components/cart/CartClient";
 import { createClient } from "@/lib/supabase/client";
+import { getListingPrimaryImage, getProfessionalFallbackImage } from "@/lib/uploads";
 import type { Listing } from "@/lib/supabase/types";
 
 type ListingWithSeller = Listing & {
@@ -268,7 +269,9 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] text-center">
         <div>
-          <div className="mb-4 text-6xl">🃏</div>
+          <div className="mx-auto mb-4 h-56 w-44 overflow-hidden rounded-2xl border border-white/10">
+            <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full object-cover" />
+          </div>
           <h2 className="mb-2 text-2xl font-bold">Listing not found</h2>
           <a href="/listings" className="text-yellow-400 hover:underline">Back to listings</a>
         </div>
@@ -279,6 +282,8 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const activeListing = listing;
   const conditionColor = CONDITION_COLORS[activeListing.condition] ?? "text-gray-400";
   const priceDiff = marketPrice ? ((activeListing.price - marketPrice) / marketPrice) * 100 : null;
+  const listingImages = activeListing.images ?? [];
+  const selectedImageSrc = listingImages[selectedImage] ?? getListingPrimaryImage(listingImages) ?? getProfessionalFallbackImage();
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -299,15 +304,18 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start">
           <div className="space-y-3">
             <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-              {activeListing.images?.length ? (
-                <img src={activeListing.images[selectedImage]} alt={activeListing.card_name} className="h-full w-full object-contain p-3 sm:p-4" />
-              ) : (
-                <span className="text-7xl sm:text-8xl">🃏</span>
-              )}
+              <img
+                src={selectedImageSrc}
+                alt={activeListing.card_name}
+                className="h-full w-full object-contain p-3 sm:p-4"
+                onError={(event) => {
+                  event.currentTarget.src = getProfessionalFallbackImage();
+                }}
+              />
             </div>
-            {activeListing.images && activeListing.images.length > 1 && (
+            {listingImages.length > 1 && (
               <div className="flex gap-2 overflow-x-auto pb-1">
-                {activeListing.images.map((img, i) => (
+                {listingImages.map((img, i) => (
                   <button
                     key={i}
                     onClick={() => setSelectedImage(i)}
