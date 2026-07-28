@@ -295,7 +295,9 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
           </a>
           <div className="flex items-center gap-4">
             <a href="/listings" className="text-sm text-gray-300 hover:text-white">← Back to listings</a>
-            <a href="/auth" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">Sign In</a>
+            <a href={user ? "/dashboard" : "/auth"} className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">
+              {user ? "Account" : "Sign In"}
+            </a>
           </div>
         </div>
       </nav>
