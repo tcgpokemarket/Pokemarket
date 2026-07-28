@@ -558,9 +558,9 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur">
           <div className="mb-6 flex items-start justify-between gap-4">
             <div>
-              <p className="text-sm uppercase tracking-widest text-yellow-400">Listing form</p>
-              <h2 className="mt-2 text-2xl font-black">Publish your inventory</h2>
-              <p className="mt-2 text-sm text-gray-400">{copy.actionHint}</p>
+              <p className="text-sm uppercase tracking-widest text-yellow-400">Listing</p>
+              <h2 className="mt-2 text-2xl font-black">Create a listing</h2>
+              {copy.actionHint ? <p className="mt-2 text-sm text-gray-400">{copy.actionHint}</p> : null}
             </div>
             <a href={copy.backHref} className="rounded-xl border border-white/20 px-3 py-2 text-sm text-gray-300 hover:bg-white/5">{copy.backLabel}</a>
           </div>
