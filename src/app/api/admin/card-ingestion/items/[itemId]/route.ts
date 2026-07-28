@@ -40,7 +40,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ it
     if (field in body) updates[field] = body[field] === null ? null : String(body[field]).trim();
   }
 
-  if ("status" in body) updates.status = String(body.status ?? "").trim();
+  if ("status" in body) {
+    const nextStatus = String(body.status ?? "").trim();
+    updates.status = nextStatus === "draft" ? "ready_to_publish" : nextStatus;
+  }
   if ("likely_condition" in body) updates.likely_condition = String(body.likely_condition ?? "").trim();
   if ("confidence_score" in body) updates.confidence_score = Number(body.confidence_score);
   if ("condition_confidence" in body) updates.condition_confidence = Number(body.condition_confidence);

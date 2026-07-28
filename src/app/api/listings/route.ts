@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
+import { normalizeListingImageUrls } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -42,7 +43,7 @@ export async function POST(request: Request) {
     description: body.description ? String(body.description).trim() : null,
     grade_company: body.grade_company ? String(body.grade_company).trim() : null,
     grade_score: body.grade_score === null || body.grade_score === undefined || body.grade_score === "" ? null : Number(body.grade_score),
-    images: Array.isArray(body.images) ? (body.images as unknown[]).filter((value): value is string => typeof value === "string") : [],
+    images: Array.isArray(body.images) ? normalizeListingImageUrls(body.images as unknown[]) : [],
     status: String(body.status ?? "active"),
   };
 

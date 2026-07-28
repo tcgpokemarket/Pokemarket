@@ -116,7 +116,7 @@ export async function POST(request: Request) {
       const duplicates = await listPotentialDuplicates({ cardName: analysis.card_name, setName: analysis.set_name, cardNumber: analysis.card_number, variant: analysis.variant });
       const duplicateIds = duplicates.map((listing) => listing.id);
       const duplicateSummary = summarizeDuplicateSignals(duplicates);
-      const status = duplicateIds.length ? "duplicate" : analysis.confidence >= 70 ? "ready_to_publish" : "needs_review";
+      const status = duplicateIds.length ? "duplicate" : analysis.confidence >= 80 ? "ready_to_publish" : "needs_review";
 
       const itemPayload = {
         batch_id: batch.id,
@@ -217,7 +217,7 @@ export async function POST(request: Request) {
     const duplicates = await listPotentialDuplicates({ cardName: analysis.card_name, setName: analysis.set_name, cardNumber: analysis.card_number, variant: analysis.variant });
     const duplicateIds = duplicates.map((listing) => listing.id);
     const duplicateSummary = summarizeDuplicateSignals(duplicates);
-    const status = duplicateIds.length ? "duplicate" : analysis.confidence >= 70 ? "ready_to_publish" : "needs_review";
+    const status = duplicateIds.length ? "duplicate" : analysis.confidence >= 80 ? "ready_to_publish" : "needs_review";
 
     const { data: updated, error: updateError } = await (admin.from("card_ingestion_items") as any)
       .update({

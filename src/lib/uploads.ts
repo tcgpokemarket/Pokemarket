@@ -38,7 +38,24 @@ function bucketForTarget(target: string) {
 function buildStoragePath(target: string, ownerId: string, prefix: string, fileName: string) {
   const ext = fileName.split(".").pop() ?? "jpg";
   const safePrefix = prefix.replace(/[^a-z0-9_-]/gi, "-").toLowerCase();
-  return `${target}/${ownerId}/${safePrefix}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
+  return `${target}/${ownerId}/${safePrefix}-${crypto.randomUUID().slice(0, 12)}.${ext}`;
+}
+
+export function normalizeListingImageUrls(images: unknown[]) {
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const value of images) {
+    if (typeof value !== "string") continue;
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+  return normalized;
+}
+
+export function getListingPrimaryImage(images: unknown[]) {
+  return normalizeListingImageUrls(images)[0] ?? null;
 }
 
 export async function uploadImageFile({

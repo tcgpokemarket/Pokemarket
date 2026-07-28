@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
-import { buildDraftDescription } from "@/lib/card-ingestion";
+import { normalizeListingImageUrls } from "@/lib/uploads";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { recordAuditEvent } from "@/lib/audit-log";
 import type { Database } from "@/lib/supabase/types";
@@ -83,8 +83,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ bat
         price: Number(item.estimated_price ?? item.low_price ?? 0),
         quantity: 1,
         description: [aiPayload?.description, item.review_notes].filter(Boolean).join("\n\n").trim() || null,
-        images: [item.source_image_url],
-        status: "draft",
+        images: normalizeListingImageUrls([item.source_image_url]),
+        status: "active",
       };
 
       const { data: listing, error: listingError } = await (admin.from("listings") as any).insert(payload).select("id").single() as { data: { id: string } | null; error: { message: string } | null };

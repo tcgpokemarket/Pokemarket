@@ -67,8 +67,13 @@ function sourceRank(source: ImageSourceType) {
   }
 }
 
+function similarText(left: string, right: string) {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  return left.includes(right) || right.includes(left);
+}
+
 export function evaluateImageMatch(identity: CardIdentity, candidate: { imageUrl: string; source: ImageSourceType; setName?: string; cardNumber?: string | null; variant?: string | null; width?: number | null; height?: number | null }): ImageVerificationResult {
-  const name = normalize(identity.name);
   const setName = normalize(identity.setName);
   const cardNumber = normalize(identity.cardNumber);
   const variant = normalize(identity.variant);
@@ -87,9 +92,10 @@ export function evaluateImageMatch(identity: CardIdentity, candidate: { imageUrl
   const exactSetMatch = Boolean(setName && candidateSet && setName === candidateSet);
   const exactNumberMatch = Boolean(cardNumber && candidateNumber && cardNumber === candidateNumber);
   const exactVariantMatch = Boolean(variant && candidateVariant && variant === candidateVariant);
-  const partialNameMatch = containsMatch(normalize(identity.name), normalize(identity.name));
+  const partialSetMatch = similarText(candidateSet, setName);
 
   if (exactSetMatch) score += 20;
+  else if (partialSetMatch) score += 8;
   if (exactNumberMatch) score += 20;
   if (exactVariantMatch) score += 10;
   if (candidate.source === "seller_verified") score += 10;
@@ -130,9 +136,9 @@ export function evaluateImageMatch(identity: CardIdentity, candidate: { imageUrl
     ? "verified"
     : score >= 95 && verified
       ? "high"
-      : score >= 70
+      : score >= 80 && verified
         ? "medium"
-        : score >= 40
+        : score >= 50
           ? "low"
           : "blocked";
 

@@ -67,6 +67,39 @@ function normalizeText(value: string | null | undefined) {
   return value?.trim().toLowerCase().replace(/\s+/g, " ") ?? "";
 }
 
+function escapeIlike(value: string) {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function hasMeaningfulLabel(value: string | null | undefined) {
+  const normalized = normalizeText(value);
+  if (!normalized) return false;
+  return !["unknown", "unidentified", "tbd", "card", "pokémon card", "pokemon card", "card back", "back"].includes(normalized);
+}
+
+function hasUncertaintyLanguage(value: string | null | undefined) {
+  const normalized = normalizeText(value);
+  return /\b(approx|assumed|assume|believe|maybe|might|possibly|probably|unclear|uncertain|unsure|not sure|unable to confirm|appears to be)\b/.test(normalized);
+}
+
+function adjustRecognitionConfidence(result: CardIngestionAIResult) {
+  let confidence = clampConfidence(result.confidence);
+
+  if (!hasMeaningfulLabel(result.card_name)) confidence -= 25;
+  if (!hasMeaningfulLabel(result.set_name)) confidence -= 15;
+  if (!result.card_number?.trim()) confidence -= 5;
+  if (hasUncertaintyLanguage(result.notes) || hasUncertaintyLanguage(result.description)) confidence -= 10;
+  if (result.ocr_text && /\b(unknown|unclear|not sure|maybe|possibly|appears to be)\b/i.test(result.ocr_text)) confidence -= 10;
+  if (hasMeaningfulLabel(result.card_name) && hasMeaningfulLabel(result.set_name) && result.card_number?.trim()) confidence += 8;
+
+  return clampConfidence(confidence);
+}
+
+function hasValidPrice(result: CardIngestionAIResult) {
+  const price = result.pricing.estimated_price ?? result.pricing.low_price ?? result.pricing.high_price;
+  return typeof price === "number" && Number.isFinite(price) && price > 0;
+}
+
 export function createImageHash(buffer: ArrayBuffer) {
   return crypto.createHash("sha256").update(Buffer.from(buffer)).digest("hex");
 }
@@ -242,9 +275,11 @@ async function openAiAnalyzeImage(imageDataUrl: string, fileName: string) {
 
 export async function analyzeCardImage(params: { imageDataUrl: string; fileName: string }) {
   const ai = await openAiAnalyzeImage(params.imageDataUrl, params.fileName);
-  const price = ai.pricing.estimated_price === null ? await fetchCardPrice(ai.card_name, ai.set_name).catch(() => null) : null;
+  const price = hasValidPrice(ai) ? null : await fetchCardPrice(ai.card_name, ai.set_name).catch(() => null);
+  const confidence = adjustRecognitionConfidence(ai);
   return {
     ...ai,
+    confidence,
     pricing: {
       estimated_price: ai.pricing.estimated_price ?? price?.marketPrice ?? null,
       low_price: ai.pricing.low_price ?? price?.lowPrice ?? null,
@@ -279,13 +314,13 @@ export async function listPotentialDuplicates(params: { cardName: string; setNam
   let query = admin
     .from("listings")
     .select("id, card_name, set_name, card_number, rarity, condition, category, status, price, images, created_at")
-    .neq("status", "removed")
+    .eq("status", "active")
     .limit(limit);
 
-  if (name) query = query.ilike("card_name", `%${name}%`);
-  if (setName) query = query.ilike("set_name", `%${setName}%`);
-  if (number) query = query.or(`card_number.ilike.%${number}%,card_number.eq.${params.cardNumber}`);
-  if (variant) query = query.or(`rarity.ilike.%${variant}%`);
+  if (name) query = query.ilike("card_name", `%${escapeIlike(name)}%`);
+  if (setName) query = query.ilike("set_name", `%${escapeIlike(setName)}%`);
+  if (number) query = query.or(`card_number.ilike.%${escapeIlike(number)}%,card_number.eq.${params.cardNumber}`);
+  if (variant) query = query.ilike("rarity", `%${escapeIlike(variant)}%`);
 
   const { data, error } = await query.order("created_at", { ascending: false });
   if (error) throw error;
