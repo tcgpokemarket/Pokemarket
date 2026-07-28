@@ -8,8 +8,9 @@ const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
 export const dynamic = "force-dynamic";
+export const dynamicParams = true;
 
-function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
+function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
   url.searchParams.set("select", select);
   url.searchParams.set("limit", String(limit));
@@ -33,11 +34,8 @@ async function fetchPublicRows<T>(table: string, select: string, filters: Array<
   return (await response.json()) as T[];
 }
 
-export const dynamicParams = false;
-
 export async function generateStaticParams(): Promise<Array<{ showId: string }>> {
-  const shows = await fetchPublicRows<Pick<LiveShowDirectoryItem, "id">>("live_shows", "id", [["order", "created_at.desc"]], 2000);
-  return shows.map((show) => ({ showId: show.id }));
+  return [];
 }
 
 

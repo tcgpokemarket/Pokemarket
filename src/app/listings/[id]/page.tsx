@@ -13,8 +13,9 @@ type ListingWithSeller = Listing & {
 };
 
 export const dynamic = "force-dynamic";
+export const dynamicParams = true;
 
-function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
+function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
   url.searchParams.set("select", select);
   url.searchParams.set("limit", String(limit));
@@ -43,11 +44,8 @@ async function fetchListingIds() {
   return rows.map((row) => ({ id: row.id }));
 }
 
-export const dynamicParams = false;
-
 export async function generateStaticParams(): Promise<Array<{ id: string }>> {
-  const rows = await fetchListingIds();
-  return rows;
+  return [];
 }
 
 function formatListingTitle(listing: ListingWithSeller) {

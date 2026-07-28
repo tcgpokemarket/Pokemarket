@@ -21,14 +21,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ sh
   if (!show) return NextResponse.json({ error: "Show not found." }, { status: 404 });
   if (show.seller_id !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
-  const { data: liveShow, error: liveShowError } = await supabase
-    .from("live_shows")
-    .select("id, seller_id")
-    .eq("id", showId)
-    .maybeSingle<{ id: string; seller_id: string }>();
-
-  if (liveShowError) return NextResponse.json({ error: liveShowError.message }, { status: 400 });
-  if (!liveShow || liveShow.seller_id !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+  if (show.seller_id !== user.id) return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 
   const body = await request.json().catch(() => ({}));
   const updates: Record<string, unknown> = {};

@@ -89,6 +89,7 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   useEffect(() => {
     let mounted = true;
     const loadAuctionOrders = async () => {
+      if (showMode !== "host") return;
       const response = await fetch(`/api/live/shows/${show.id}/auction-orders`);
       const data = await response.json().catch(() => ({}));
       if (mounted && response.ok) {
@@ -96,12 +97,12 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       }
     };
     void loadAuctionOrders();
-    const interval = setInterval(() => void loadAuctionOrders(), 5000);
+    const interval = showMode === "host" ? setInterval(() => void loadAuctionOrders(), 10000) : null;
     return () => {
       mounted = false;
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     };
-  }, [show.id]);
+  }, [show.id, showMode]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -113,6 +114,7 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   useEffect(() => {
     let mounted = true;
     const loadModeratorState = async () => {
+      if (showMode !== "host") return;
       const [eventsResponse, moderationResponse] = await Promise.all([
         fetch(`/api/live/shows/${show.id}/events`),
         fetch(`/api/live/shows/${show.id}/moderation`),
@@ -128,14 +130,16 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       }
     };
     void loadModeratorState();
-    const interval = setInterval(() => void loadModeratorState(), 8000);
+    const interval = showMode === "host" ? setInterval(() => void loadModeratorState(), 15000) : null;
     return () => {
       mounted = false;
-      clearInterval(interval);
+      if (interval) clearInterval(interval);
     };
-  }, [show.id]);
+  }, [show.id, showMode]);
 
   useEffect(() => {
+    if (showMode !== "host") return;
+
     const moderationChannel = supabase
       .channel(`live-moderation:${show.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "live_show_moderation_actions", filter: `show_id=eq.${show.id}` }, () => {
@@ -152,7 +156,37 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
     return () => {
       supabase.removeChannel(moderationChannel);
     };
-  }, [show.id, supabase]);
+  }, [show.id, showMode, supabase]);
+
+  useEffect(() => {
+    if (showMode !== "host") return;
+
+    const bidsChannel = supabase
+      .channel(`live-bids:${show.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "live_bids", filter: `show_id=eq.${show.id}` }, (payload) => {
+        setBids((current) => [payload.new as LiveShowBid, ...current].slice(0, 100));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(bidsChannel);
+    };
+  }, [show.id, showMode, supabase]);
+
+  useEffect(() => {
+    if (showMode !== "host") return;
+
+    const chatChannel = supabase
+      .channel(`live-chat:${show.id}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "live_chat", filter: `show_id=eq.${show.id}` }, (payload) => {
+        setChat((current) => [...current, payload.new as LiveShowMessage]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(chatChannel);
+    };
+  }, [show.id, showMode, supabase]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -178,7 +212,7 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const swipeLockUntil = useRef(0);
   const swipeResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeTrackRef = useRef<HTMLDivElement | null>(null);
-  const activeGiveaway = useMemo(() => getActiveGiveaway(giveaways), [giveaways]);
+  const activeGiveaway = getActiveGiveaway(giveaways);
   const roomName = `tcg-poke-market-${show.id}`;
   const returnTo = `/live/${show.id}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
   const canPublishLiveVideo = showMode === "host" && isHost;
@@ -204,7 +238,6 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
     streamHealth.cpu !== "stable" ? "CPU warning" : null,
     streamHealth.network !== "stable" ? "Network warning" : null,
   ].filter(Boolean) as string[], [streamHealth]);
-
   useEffect(() => {
     const showChannel = supabase
       .channel(`live-show:${show.id}`)
@@ -231,6 +264,16 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       })
       .subscribe();
 
+    return () => {
+      supabase.removeChannel(showChannel);
+      supabase.removeChannel(bidsChannel);
+      supabase.removeChannel(chatChannel);
+    };
+  }, [show.id, showMode, supabase]);
+
+  useEffect(() => {
+    if (showMode !== "host") return;
+
     const giveawayChannel = supabase
       .channel(`live-giveaways:${show.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "giveaway_entries", filter: `show_id=eq.${show.id}` }, (payload) => {
@@ -249,12 +292,9 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       .subscribe();
 
     return () => {
-      supabase.removeChannel(showChannel);
-      supabase.removeChannel(bidsChannel);
-      supabase.removeChannel(chatChannel);
       supabase.removeChannel(giveawayChannel);
     };
-  }, [activeGiveaway?.follow_required, show.id, supabase]);
+  }, [activeGiveaway?.follow_required, show.id, showMode, supabase]);
 
   useEffect(() => {
     queueMicrotask(() => {

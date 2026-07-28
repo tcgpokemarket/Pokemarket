@@ -35,7 +35,8 @@ async function fetchRoomsForSeller(sellerId: string) {
     .from("live_shows")
     .select("id, seller_id, title, description, thumbnail, status, viewer_count, updated_at, created_at, auction_settings")
     .eq("seller_id", sellerId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(24);
 
   return (data ?? []).map((row) => normalizeRoom(row as Record<string, any>));
 }

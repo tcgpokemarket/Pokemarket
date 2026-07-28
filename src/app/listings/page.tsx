@@ -27,7 +27,7 @@ export default function ListingsPage() {
       request = request.eq("seller_id", sellerFilter);
     }
 
-    request.then(({ data }) => {
+    request.limit(48).then(({ data }) => {
       setListings((data ?? []) as Listing[]);
       setLoading(false);
     });
