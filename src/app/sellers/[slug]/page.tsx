@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
@@ -58,7 +59,8 @@ type SellerStorefront = {
   total_live_shows: number;
 };
 
-export const dynamic = "force-dynamic";
+const BASE_URL = "https://tcg-poke-market.sintra.site";
+
 
 type ProfileRow = {
   username: string | null;
@@ -107,6 +109,40 @@ export const dynamicParams = false;
 export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
   const rows = await fetchPublicRows<SellerStoreListRow>("seller_stores", "seller_id, name, slug", [["slug", "not.is.null"]], 2000);
   return rows.filter((row) => Boolean(row.slug)).map((row) => ({ slug: row.slug as string }));
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const [sellerRow] = await fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, promoted_until, promotion_tier, promotion_badge, theme", [["slug", `eq.${slug}`]], 1);
+
+  if (!sellerRow) {
+    return {
+      title: "Seller storefront not found",
+      description: "This storefront is no longer available.",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  const title = `${sellerRow.name} | Seller Storefront`;
+  const description = sellerRow.description ?? `${sellerRow.name} on TcgPoké Market.`;
+  const canonical = `${BASE_URL}/sellers/${sellerRow.slug}`;
+
+  return {
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      title,
+      description,
+      url: canonical,
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+  };
 }
 
 

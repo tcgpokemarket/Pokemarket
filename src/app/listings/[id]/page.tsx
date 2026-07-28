@@ -12,8 +12,7 @@ type ListingWithSeller = Listing & {
   profiles?: Pick<Profile, "id" | "username" | "seller_rating" | "total_sales" | "avatar_url"> | null;
 };
 
-export const dynamic = "force-dynamic";
-export const dynamicParams = true;
+export const dynamicParams = false;
 
 function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
@@ -45,7 +44,7 @@ async function fetchListingIds() {
 }
 
 export async function generateStaticParams(): Promise<Array<{ id: string }>> {
-  return [];
+  return fetchListingIds();
 }
 
 function formatListingTitle(listing: ListingWithSeller) {

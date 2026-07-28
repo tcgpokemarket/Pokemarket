@@ -7,8 +7,7 @@ import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-export const dynamic = "force-dynamic";
-export const dynamicParams = true;
+export const dynamicParams = false;
 
 function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
@@ -35,7 +34,8 @@ async function fetchPublicRows<T>(table: string, select: string, filters: Array<
 }
 
 export async function generateStaticParams(): Promise<Array<{ showId: string }>> {
-  return [];
+  const rows = await fetchPublicRows<LiveShowDirectoryItem>("live_shows", "id", [["status", "neq.ended"]], 2000);
+  return rows.map((row) => ({ showId: row.id }));
 }
 
 
@@ -52,6 +52,7 @@ export async function generateMetadata({ params }: { params: Promise<{ showId: s
     return {
       title: "Live Auction",
       description: "Live auction show on TcgPoké Market.",
+      robots: { index: false, follow: false },
     };
   }
 }
