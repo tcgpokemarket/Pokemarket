@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ListingDetailClient from "./ListingDetailClient";
 import type { Listing, Profile } from "@/lib/supabase/types";
+import { getListingPrimaryImage, normalizeListingImageUrls } from "@/lib/uploads";
 
 const BASE_URL = "https://tcg-poke-market.sintra.site";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -88,7 +89,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const title = formatListingTitle(listing);
   const description = buildDescription(listing);
   const canonical = `${BASE_URL}/listings/${listing.id}`;
-  const image = listing.images?.[0] ?? `${BASE_URL}/og/listing-default.png`;
+  const image = getListingPrimaryImage(listing.images ?? []) ?? `${BASE_URL}/og/listing-default.png`;
 
   return {
     title,
@@ -123,14 +124,14 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const title = formatListingTitle(listing);
   const description = buildDescription(listing);
   const canonical = `${BASE_URL}/listings/${listing.id}`;
-  const image = listing.images?.[0] ?? `${BASE_URL}/og/listing-default.png`;
+  const image = getListingPrimaryImage(listing.images ?? []) ?? `${BASE_URL}/og/listing-default.png`;
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: title,
     description,
-    image: listing.images?.length ? listing.images : [image],
+    image: normalizeListingImageUrls(listing.images ?? []).length ? normalizeListingImageUrls(listing.images ?? []) : [image],
     sku: listing.card_number ?? listing.id,
     brand: {
       "@type": "Brand",

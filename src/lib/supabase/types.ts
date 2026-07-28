@@ -142,6 +142,31 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['listings']['Insert']>
       }
+      listing_images: {
+        Row: {
+          id: string
+          listing_id: string
+          bucket: string
+          storage_path: string
+          public_url: string
+          sort_order: number
+          source: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          listing_id: string
+          bucket?: string
+          storage_path: string
+          public_url: string
+          sort_order?: number
+          source?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['listing_images']['Insert']>
+      }
       orders: {
         Row: {
           id: string

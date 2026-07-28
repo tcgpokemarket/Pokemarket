@@ -90,6 +90,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ bat
       const { data: listing, error: listingError } = await (admin.from("listings") as any).insert(payload).select("id").single() as { data: { id: string } | null; error: { message: string } | null };
       if (listingError || !listing) throw listingError ?? new Error("Listing creation failed.");
 
+      const imageRows = normalizeListingImageUrls([item.source_image_url]).map((publicUrl, sortOrder) => ({
+        listing_id: listing.id,
+        bucket: item.source_image_bucket ?? "listing-images",
+        storage_path: item.source_image_path ?? publicUrl,
+        public_url: publicUrl,
+        sort_order: sortOrder,
+        source: "card_ingestion",
+      }));
+
+      if (imageRows.length) {
+        const { error: imageInsertError } = await (admin.from("listing_images") as any).upsert(imageRows, { onConflict: "listing_id,storage_path" });
+        if (imageInsertError) throw imageInsertError;
+      }
+
       await (admin.from("card_ingestion_items") as any)
         .update({ status: "published", published_listing_id: listing.id, published_at: new Date().toISOString() })
         .eq("id", item.id);
