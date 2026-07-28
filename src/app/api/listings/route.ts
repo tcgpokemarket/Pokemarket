@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
-import { normalizeListingImageUrls, toListingImageRecord } from "@/lib/uploads";
+import { normalizeListingImageUrls } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -121,18 +121,6 @@ export async function POST(request: Request) {
       payload,
     });
     return NextResponse.json({ error: error.message ?? "We couldn’t publish this listing right now. Please try again.", details: error.details ?? null, hint: error.hint ?? null, code: error.code ?? null }, { status: 400 });
-  }
-
-  if (listing?.id && payload.images.length) {
-    const imageRows = payload.images.map((publicUrl, sortOrder) => ({
-      listing_id: listing.id,
-      ...toListingImageRecord(publicUrl, sortOrder, "manual_listing"),
-    }));
-    const { error: imageInsertError } = await (clientForInsert.from("listing_images") as any).upsert(imageRows, { onConflict: "listing_id,storage_path" });
-    if (imageInsertError) {
-      console.error("[listings.publish] image insert failed", { authUserId: user.id, listingId: listing.id, error: imageInsertError.message });
-      return NextResponse.json({ error: imageInsertError.message ?? "Listing created, but image links could not be saved." }, { status: 400 });
-    }
   }
 
   return NextResponse.json({ listing }, { status: 201 });
