@@ -89,13 +89,32 @@ create trigger listing_images_sync
 insert into public.listing_images (listing_id, bucket, storage_path, public_url, sort_order, source)
 select
   l.id,
-  'listing-images',
-  regexp_replace(l.images[1], '^.*/storage/v1/object/public/listing-images/', ''),
+  coalesce(split_part(split_part(l.images[1], '/storage/v1/object/public/', 2), '/', 1), 'listing-images'),
+  coalesce(nullif(split_part(split_part(l.images[1], '/storage/v1/object/public/', 2), '/', 2), ''), l.images[1]),
   l.images[1],
   0,
   'backfill'
 from public.listings l
 where array_length(l.images, 1) = 1
+  and position('/storage/v1/object/public/' in l.images[1]) > 0
+  and not exists (
+    select 1
+    from public.listing_images li
+    where li.listing_id = l.id
+  )
+on conflict do nothing;
+
+insert into public.listing_images (listing_id, bucket, storage_path, public_url, sort_order, source)
+select
+  l.id,
+  'listing-images',
+  l.images[1],
+  l.images[1],
+  0,
+  'backfill'
+from public.listings l
+where array_length(l.images, 1) = 1
+  and position('/storage/v1/object/public/' in l.images[1]) = 0
   and not exists (
     select 1
     from public.listing_images li

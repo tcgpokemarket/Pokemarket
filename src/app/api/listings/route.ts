@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient as createServerSupabaseClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
-import { normalizeListingImageUrls } from "@/lib/uploads";
+import { normalizeListingImageUrls, toListingImageRecord } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -131,11 +131,7 @@ export async function POST(request: Request) {
   if (listing?.id && payload.images.length) {
     const imageRows = payload.images.map((publicUrl, sortOrder) => ({
       listing_id: listing.id,
-      bucket: "listing-images",
-      storage_path: publicUrl,
-      public_url: publicUrl,
-      sort_order: sortOrder,
-      source: "manual_listing",
+      ...toListingImageRecord(publicUrl, sortOrder, "manual_listing"),
     }));
     const { error: imageInsertError } = await (clientForInsert.from("listing_images") as any).upsert(imageRows, { onConflict: "listing_id,storage_path" });
     if (imageInsertError) {

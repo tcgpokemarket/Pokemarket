@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
-import { normalizeListingImageUrls } from "@/lib/uploads";
+import { normalizeListingImageUrls, toListingImageRecord } from "@/lib/uploads";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { recordAuditEvent } from "@/lib/audit-log";
 import type { Database } from "@/lib/supabase/types";
@@ -92,11 +92,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ bat
 
       const imageRows = normalizeListingImageUrls([item.source_image_url]).map((publicUrl, sortOrder) => ({
         listing_id: listing.id,
-        bucket: item.source_image_bucket ?? "listing-images",
-        storage_path: item.source_image_path ?? publicUrl,
-        public_url: publicUrl,
-        sort_order: sortOrder,
-        source: "card_ingestion",
+        ...toListingImageRecord(publicUrl, sortOrder, "card_ingestion"),
       }));
 
       if (imageRows.length) {

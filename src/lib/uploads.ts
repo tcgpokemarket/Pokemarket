@@ -58,6 +58,17 @@ export function getListingPrimaryImage(images: unknown[]) {
   return normalizeListingImageUrls(images)[0] ?? null;
 }
 
+export function toListingImageRecord(publicUrl: string, sortOrder: number, source: string) {
+  const parsed = parsePublicStorageUrl(publicUrl);
+  return {
+    bucket: parsed?.bucket ?? "listing-images",
+    storage_path: parsed?.path ?? publicUrl,
+    public_url: publicUrl,
+    sort_order: sortOrder,
+    source,
+  };
+}
+
 export async function uploadImageFile({
   supabase,
   target,
