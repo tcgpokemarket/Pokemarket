@@ -5,6 +5,7 @@ import { VerifiedImage } from "@/components/listings/VerifiedImage";
 import type { Listing } from "@/lib/supabase/types";
 import { getSocialCounts } from "@/lib/social-network";
 import { createClient } from "@/lib/supabase/server";
+import { getListingPrimaryImage } from "@/lib/uploads";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -300,10 +301,12 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               ) : (
                 <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
                   {activeListings.map((listing) => {
-                    const primaryImage = choosePrimaryImage((listing.images ?? []).map((imageUrl) => evaluateImageMatch(
-                      { name: listing.card_name, setName: listing.set_name, cardNumber: listing.card_number },
-                      { imageUrl, source: "seller_unverified", setName: listing.set_name, cardNumber: listing.card_number },
-                    )));
+                    const primaryImage = getListingPrimaryImage(listing.images ?? [])
+                      ? choosePrimaryImage((listing.images ?? []).map((imageUrl) => evaluateImageMatch(
+                          { name: listing.card_name, setName: listing.set_name, cardNumber: listing.card_number },
+                          { imageUrl, source: "seller_unverified", setName: listing.set_name, cardNumber: listing.card_number },
+                        )))
+                      : null;
 
                     return (
                       <a key={listing.id} href={`/listings/${listing.id}`} className="block overflow-hidden rounded-2xl border border-white/10 bg-[#13131f] transition-all hover:border-yellow-400/40">

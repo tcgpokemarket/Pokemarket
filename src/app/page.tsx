@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getHomepageData } from "@/lib/homepage-data";
 import { createClient } from "@/lib/supabase/server";
+import { getListingPrimaryImage } from "@/lib/uploads";
 import type { HomepageActivity, HomepageListing, HomepageLiveShow, HomepageSeller } from "@/lib/homepage-data";
 
 const EMPTY_HOMEPAGE = {
@@ -66,7 +67,7 @@ function categoryBadge(category: string) {
 }
 
 function ListingCard({ listing }: { listing: HomepageListing }) {
-  const image = listing.images?.[0] ?? null;
+  const image = getListingPrimaryImage(listing.images ?? []);
   const badge = categoryBadge(listing.category);
   const promotionBadge = listing.promotion_badge ?? null;
 

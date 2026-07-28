@@ -14,7 +14,7 @@ import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
 import { listLiveShowsBySeller } from "@/lib/live-shows-client";
 import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
 import { recordDeviceSession } from "@/lib/device-security";
-import { deleteUploadedFile, parsePublicStorageUrl, uploadImageFile } from "@/lib/uploads";
+import { deleteUploadedFile, getListingPrimaryImage, parsePublicStorageUrl, uploadImageFile } from "@/lib/uploads";
 import SupportInlineCard from "@/components/support/support-inline-card";
 
 
@@ -1513,7 +1513,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
                 {listings.map((l) => (
                   <div key={l.id} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
                     <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 text-2xl">
-                      {l.images?.[0] ? <img src={l.images[0]} alt="" className="h-full w-full rounded-xl object-cover" /> : "🃏"}
+                      {getListingPrimaryImage(l.images ?? []) ? <img src={getListingPrimaryImage(l.images ?? []) ?? ""} alt="" className="h-full w-full rounded-xl object-cover" /> : "🃏"}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{l.card_name}</p>

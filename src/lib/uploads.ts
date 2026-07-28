@@ -54,8 +54,12 @@ export function normalizeListingImageUrls(images: unknown[]) {
   return normalized;
 }
 
+export function getListingImagesInDisplayOrder(images: unknown[]) {
+  return normalizeListingImageUrls(images);
+}
+
 export function getListingPrimaryImage(images: unknown[]) {
-  return normalizeListingImageUrls(images)[0] ?? null;
+  return getListingImagesInDisplayOrder(images)[0] ?? null;
 }
 
 export function toListingImageRecord(publicUrl: string, sortOrder: number, source: string) {

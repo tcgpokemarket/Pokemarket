@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Listing, LiveShow } from "@/lib/supabase/types";
+import { getListingPrimaryImage } from "@/lib/uploads";
 
 type QueueItem = {
   id: string;
@@ -450,7 +451,7 @@ export default function AuctionSetupClient({ sellerName, sellerUsername, listing
               <div key={listing.id} className="rounded-3xl border border-white/10 bg-white/5 p-5">
                 <div className="flex items-center gap-4">
                   <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-white/10 text-2xl">
-                    {listing.images?.[0] ? <img src={listing.images[0]} alt={listing.card_name} className="h-full w-full object-cover" /> : "🃏"}
+                    {getListingPrimaryImage(listing.images ?? []) ? <img src={getListingPrimaryImage(listing.images ?? []) ?? ""} alt={listing.card_name} className="h-full w-full object-cover" /> : "🃏"}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="truncate font-semibold">{listing.card_name}</div>

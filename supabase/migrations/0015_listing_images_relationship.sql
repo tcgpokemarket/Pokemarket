@@ -86,42 +86,38 @@ create trigger listing_images_sync
   after insert or update or delete on public.listing_images
   for each row execute procedure public.sync_listing_images();
 
-insert into public.listing_images (listing_id, bucket, storage_path, public_url, sort_order, source)
-select
-  l.id,
-  coalesce(split_part(split_part(l.images[1], '/storage/v1/object/public/', 2), '/', 1), 'listing-images'),
-  coalesce(nullif(split_part(split_part(l.images[1], '/storage/v1/object/public/', 2), '/', 2), ''), l.images[1]),
-  l.images[1],
-  0,
-  'backfill'
-from public.listings l
-where array_length(l.images, 1) = 1
-  and position('/storage/v1/object/public/' in l.images[1]) > 0
-  and not exists (
-    select 1
-    from public.listing_images li
-    where li.listing_id = l.id
-  )
-on conflict do nothing;
-
-insert into public.listing_images (listing_id, bucket, storage_path, public_url, sort_order, source)
-select
-  l.id,
-  'listing-images',
-  l.images[1],
-  l.images[1],
-  0,
-  'backfill'
-from public.listings l
-where array_length(l.images, 1) = 1
-  and position('/storage/v1/object/public/' in l.images[1]) = 0
-  and not exists (
-    select 1
-    from public.listing_images li
-    where li.listing_id = l.id
-  )
-on conflict do nothing;
-
+with backfill_source as (
+  select distinct on (l.id, img.value)
+    l.id as listing_id,
+    img.value as public_url,
+    img.ordinality - 1 as sort_order,
+    case
+      when position('/storage/v1/object/public/' in img.value) > 0 then
+        split_part(split_part(img.value, '/storage/v1/object/public/', 2), '/', 1)
+      else 'listing-images'
+    end as bucket,
+    case
+      when position('/storage/v1/object/public/' in img.value) > 0 then
+        split_part(split_part(img.value, '/storage/v1/object/public/', 2), '/', 2)
+      else img.value
+    end as storage_path
+  from public.listings l
+  cross join lateral unnest(coalesce(l.images, '{}'::text[])) with ordinality as img(value, ordinality)
+  where img.value is not null and btrim(img.value) <> ''
+),
+inserted_listing_images as (
+  insert into public.listing_images (listing_id, bucket, storage_path, public_url, sort_order, source)
+  select
+    listing_id,
+    bucket,
+    storage_path,
+    public_url,
+    sort_order,
+    'backfill'
+  from backfill_source
+  on conflict do nothing
+  returning listing_id
+)
 update public.listings
 set images = coalesce((
   select array_agg(li.public_url order by li.sort_order, li.created_at)
