@@ -71,18 +71,19 @@ export default function ListingCard({ listing }: ListingCardProps) {
       href={`/listings/${listing.id}`}
       className="block bg-[#13131f] border border-white/10 rounded-2xl overflow-hidden hover:border-yellow-400/40 transition-all group"
     >
-      <div className="relative bg-white/5 h-44 flex items-center justify-center border-b border-white/5 overflow-hidden">
-        {getImageStatus(listing) ? (
-          <VerifiedImage
-            listing={listing}
-            image={getImageStatus(listing)}
-            className="absolute inset-0"
-          />
-        ) : (
-          <span className="text-6xl">{CATEGORY_ICONS[listing.category] ?? "🃏"}</span>
+      <div className="relative h-44 overflow-hidden border-b border-white/5 bg-white/5">
+        <VerifiedImage
+          listing={listing}
+          image={getImageStatus(listing)}
+          className="absolute inset-0"
+        />
+        {!getImageStatus(listing) && (
+          <div className="absolute inset-0 flex items-center justify-center text-6xl">
+            {CATEGORY_ICONS[listing.category] ?? CATEGORY_ICONS.single}
+          </div>
         )}
         {listing.grade_company && (
-          <span className="absolute top-3 right-3 bg-yellow-400 text-black text-xs font-black px-2 py-1 rounded-lg">
+          <span className="absolute right-3 top-3 rounded-lg bg-yellow-400 px-2 py-1 text-xs font-black text-black">
             {listing.grade_company} {listing.grade_score}
           </span>
         )}
