@@ -270,7 +270,7 @@ const SUPPORT_CARD = (
   <SupportInlineCard title="Need seller support?" description="Get help with listings, fees, payouts, live shows, or seller tools." href="/support" />
 );
 
-type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live";
+type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live" | "admin";
 
 type DashboardOrder = Order & {
   listings?: { card_name?: string; images?: string[] } | null;
@@ -1072,7 +1072,9 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     { key: "sales", label: `Sales (${sales.length})` },
     { key: "fees", label: "Seller Fees" },
     { key: "live", label: "Live Studio" },
+    ...(isAdminAccount ? ([{ key: "admin", label: "Admin" }] as const) : []),
   ];
+
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -1085,6 +1087,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
           <div className="flex items-center gap-4">
             <a href="/listings" className="text-sm text-gray-300 hover:text-white">Browse</a>
             <a href="/dashboard/fees" className="text-sm text-gray-300 hover:text-white">Fees</a>
+            {isAdminAccount && <a href="/admin" className="text-sm font-semibold text-yellow-400 hover:text-yellow-300">Admin</a>}
             <a href="/listings/create" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">+ New Listing</a>
             <button onClick={handleSignOut} className="text-sm text-gray-400 hover:text-white">Sign out</button>
           </div>
@@ -1859,6 +1862,43 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             </div>
 
             {liveShowRoomMessage && <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">{liveShowRoomMessage}</div>}
+          </div>
+        )}
+
+        {tab === "admin" && isAdminAccount && (
+          <div className="space-y-6 rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/10 via-white/5 to-red-500/10 p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-sm uppercase tracking-widest text-yellow-400">Admin console</p>
+                <h2 className="mt-1 text-2xl font-black">Marketplace operations</h2>
+                <p className="mt-2 max-w-2xl text-sm text-gray-300">Fast access to the protected admin modules that already run on live data, without exposing anything to buyers or sellers.</p>
+              </div>
+              <a href="/admin" className="inline-flex rounded-xl border border-yellow-400/40 bg-yellow-400/10 px-4 py-3 text-sm font-bold text-yellow-300 hover:bg-yellow-400/20">
+                Open full admin area
+              </a>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {[
+                { title: "Platform overview", href: "/admin", description: "Operations, trust, and marketplace health" },
+                { title: "User management", href: "/admin", description: "Profiles, seller status, and access review" },
+                { title: "Seller verification", href: "/admin/verification", description: "Approve identity checks and storefront setup" },
+                { title: "Listing management", href: "/admin/card-ingestion", description: "Ingestion queues and publish workflows" },
+                { title: "Order management", href: "/admin/unpaid-auctions", description: "Auction orders, payment follow-up, and overrides" },
+                { title: "Support tickets", href: "/support", description: "Customer support and escalations" },
+                { title: "Disputes & escrow", href: "/admin/compliance", description: "Moderation, disputes, and access controls" },
+                { title: "Wallet & finance", href: "/dashboard/fees", description: "Earnings, fees, and payout state" },
+                { title: "Referral tools", href: "/admin/referrals", description: "Referral rewards, fraud flags, and settings" },
+                { title: "Live auction management", href: "/live", description: "Shows, moderation, and host controls" },
+                { title: "Notifications", href: "/admin/email", description: "Email queue and delivery logs" },
+                { title: "Audit / system health", href: "/admin/giveaways", description: "Audit trails and live operational signals" },
+              ].map((module) => (
+                <a key={module.title} href={module.href} className="rounded-2xl border border-white/10 bg-[#13131f] p-5 transition-colors hover:border-yellow-400/40 hover:bg-[#171724]">
+                  <h3 className="font-bold text-white">{module.title}</h3>
+                  <p className="mt-2 text-sm text-gray-400">{module.description}</p>
+                </a>
+              ))}
+            </div>
           </div>
         )}
       </div>
