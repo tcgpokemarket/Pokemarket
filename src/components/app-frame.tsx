@@ -12,7 +12,6 @@ const PUBLIC_EXACT_PATHS = new Set([
   "/",
   "/about",
   "/cards",
-  "/collection",
   "/help",
   "/support",
   "/live",
@@ -25,7 +24,6 @@ const PUBLIC_EXACT_PATHS = new Set([
   "/seller-agreement",
   "/marketplace-rules",
   "/dmca",
-  "/cart",
 ]);
 
 function isPathMatch(pathname: string, route: string) {

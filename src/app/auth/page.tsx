@@ -34,6 +34,21 @@ const featureCards = [
   },
 ];
 
+const accessTiers = [
+  {
+    title: "Buyers",
+    text: "Browse public listings, follow sellers, and checkout securely from one account.",
+  },
+  {
+    title: "Sellers",
+    text: "List inventory, run live shows, and manage payouts from protected seller tools.",
+  },
+  {
+    title: "Admins",
+    text: "Review verification, card ingestion, and platform operations from restricted controls.",
+  },
+];
+
 export default function AuthPage() {
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(226,36,0,0.18),_transparent_28%),radial-gradient(circle_at_80%_20%,_rgba(255,171,1,0.16),_transparent_22%),linear-gradient(180deg,#080a12_0%,#111625_48%,#080a12_100%)] px-4 py-8 text-white sm:px-6 sm:py-10 lg:px-8">
@@ -48,7 +63,7 @@ export default function AuthPage() {
           </Link>
           <div className="flex flex-wrap items-center gap-3 text-sm text-gray-300">
             <span className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-4 py-2 font-semibold uppercase tracking-[0.3em] text-yellow-400">
-              Secure collector access
+              Premium access gate
             </span>
             <Link href="/help" className="rounded-full border border-white/10 px-4 py-2 transition hover:bg-white/5">
               Help
@@ -97,6 +112,15 @@ export default function AuthPage() {
                 <div key={card.title} className="rounded-[1.75rem] border border-white/10 bg-white/5 p-5 backdrop-blur-xl">
                   <h2 className="text-lg font-bold text-white">{card.title}</h2>
                   <p className="mt-3 text-sm leading-6 text-gray-300">{card.text}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              {accessTiers.map((tier) => (
+                <div key={tier.title} className="rounded-[1.75rem] border border-white/10 bg-[#0f1627]/90 p-5 shadow-lg shadow-black/10">
+                  <h2 className="text-base font-bold text-white">{tier.title}</h2>
+                  <p className="mt-2 text-sm leading-6 text-gray-300">{tier.text}</p>
                 </div>
               ))}
             </div>

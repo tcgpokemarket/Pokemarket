@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getSavedCards, removeSavedCard, type SavedCardRecord } from "@/lib/card-storage";
 
@@ -13,25 +14,59 @@ const LABELS: Record<ViewKey, { title: string; hint: string }> = {
 };
 
 export default function CollectionPage() {
+  const router = useRouter();
   const [view, setView] = useState<ViewKey>("collection");
   const [cards, setCards] = useState<SavedCardRecord[]>([]);
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [ready, setReady] = useState(false);
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setIsSignedIn(Boolean(user)));
+    let alive = true;
+
+    const init = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!alive) return;
+
+      if (!user) {
+        router.replace("/auth?redirectTo=/collection");
+        return;
+      }
+
+      setIsSignedIn(true);
+      setReady(true);
+    };
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => setIsSignedIn(Boolean(session?.user)));
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        setIsSignedIn(false);
+        setReady(false);
+        router.replace("/auth?redirectTo=/collection");
+        return;
+      }
 
-    return () => subscription.unsubscribe();
-  }, [supabase]);
+      setIsSignedIn(true);
+      setReady(true);
+    });
+
+    void init();
+
+    return () => {
+      alive = false;
+      subscription.unsubscribe();
+    };
+  }, [router, supabase]);
 
   useEffect(() => {
     if (!isSignedIn) return;
     getSavedCards(view).then(setCards);
   }, [view, isSignedIn]);
+
+  if (!ready) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] text-gray-400">Loading collection…</div>;
+  }
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -59,13 +94,7 @@ export default function CollectionPage() {
 
         <div className="mt-4 text-sm text-gray-400">{LABELS[view].hint}</div>
 
-        {!isSignedIn ? (
-          <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-10 text-center">
-            <div className="text-lg font-bold text-white">Sign in to see your saved cards</div>
-            <p className="mt-2 text-sm text-gray-400">Your collection, wishlist, and deck are tied to your account so they follow you across devices.</p>
-            <a href="/auth" className="mt-4 inline-flex rounded-xl bg-yellow-400 px-4 py-3 text-sm font-semibold text-black hover:bg-yellow-300">Sign in now</a>
-          </div>
-        ) : cards.length ? (
+        {cards.length ? (
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {cards.map((card) => (
               <div key={card.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">

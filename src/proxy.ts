@@ -14,7 +14,6 @@ const PUBLIC_PATHS = [
   "/signup",
   "/about",
   "/cards",
-  "/collection",
   "/help",
   "/support",
   "/live",
