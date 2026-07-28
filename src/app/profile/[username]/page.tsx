@@ -2,6 +2,7 @@ import type { Listing, Profile } from "@/lib/supabase/types";
 import { notFound } from "next/navigation";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
+import { getProfessionalFallbackImage } from "@/lib/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import ProfileActions from "./profile-actions";
@@ -314,7 +315,7 @@ export default async function PublicProfilePage({ params }: { params: Promise<{ 
                         className="h-full w-full"
                       />
                     ) : (
-                      <span className="text-4xl">🃏</span>
+                      <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full object-cover" />
                     )}
                   </div>
                   <div className="p-4">

@@ -5,7 +5,7 @@ import { VerifiedImage } from "@/components/listings/VerifiedImage";
 import type { Listing } from "@/lib/supabase/types";
 import { getSocialCounts } from "@/lib/social-network";
 import { createClient } from "@/lib/supabase/server";
-import { getListingPrimaryImage } from "@/lib/uploads";
+import { getListingPrimaryImage, getProfessionalFallbackImage } from "@/lib/uploads";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -314,7 +314,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                           {primaryImage ? (
                             <VerifiedImage listing={listing} image={primaryImage} className="h-full w-full" />
                           ) : (
-                            <span className="text-4xl">🃏</span>
+                            <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full object-cover" />
                           )}
                         </div>
                         <div className="p-4">

@@ -1515,8 +1515,8 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               <div className="space-y-3">
                 {listings.map((l) => (
                   <div key={l.id} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-xl bg-white/10 text-2xl">
-                      {getListingPrimaryImage(l.images ?? []) ? <img src={getListingPrimaryImage(l.images ?? []) ?? ""} alt="" className="h-full w-full rounded-xl object-cover" /> : "🃏"}
+                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/10 text-2xl">
+                      {getListingPrimaryImage(l.images ?? []) ? <img src={getListingPrimaryImage(l.images ?? []) ?? ""} alt="" className="h-full w-full rounded-xl object-cover" /> : <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full rounded-xl object-cover" />}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold">{l.card_name}</p>
