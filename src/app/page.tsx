@@ -347,13 +347,13 @@ export default async function Home() {
             <div className="mb-4 flex items-end justify-between gap-4">
               <div>
                 <h2 className="text-2xl font-black tracking-tight sm:text-3xl">Live now</h2>
-                <p className="mt-2 max-w-2xl text-sm text-gray-400">The most active rooms right now, styled like a live shopping feed.</p>
+                <p className="mt-2 max-w-2xl text-sm text-gray-400">The most active live shows right now, styled like a live shopping feed.</p>
               </div>
               <Link href="/live" className="text-sm font-semibold text-yellow-400 hover:underline">View all →</Link>
             </div>
             <div className="flex gap-4 overflow-x-auto pb-2 snap-x snap-mandatory">
               {liveNow.map((show: HomepageLiveShow) => <LiveCard key={show.id} show={show} />)}
-              {!liveNow.length && <div className="rounded-[1.75rem] border border-white/10 bg-[#121826] p-6 text-sm text-gray-400">No live rooms right now.</div>}
+              {!liveNow.length && <div className="rounded-[1.75rem] border border-white/10 bg-[#121826] p-6 text-sm text-gray-400">No live shows right now.</div>}
             </div>
           </div>
         </section>

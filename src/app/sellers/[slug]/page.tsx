@@ -265,7 +265,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-black">Live auctions</h2>
-                  <p className="text-sm text-gray-400">Upcoming and active live rooms tied to this sellerData.</p>
+                  <p className="text-sm text-gray-400">Upcoming and active live shows tied to this seller.</p>
                 </div>
                 <Link href="/live" className="rounded-full border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">View all live auctions</Link>
               </div>
