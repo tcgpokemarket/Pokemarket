@@ -1,4 +1,4 @@
-create table public.card_ingestion_batches (
+create table if not exists public.card_ingestion_batches (
   id uuid default gen_random_uuid() primary key,
   created_by uuid references public.profiles(id) on delete cascade not null,
   source text not null default 'admin_upload',
@@ -14,7 +14,7 @@ create table public.card_ingestion_batches (
   updated_at timestamptz not null default now()
 );
 
-create table public.card_ingestion_items (
+create table if not exists public.card_ingestion_items (
   id uuid default gen_random_uuid() primary key,
   batch_id uuid references public.card_ingestion_batches(id) on delete cascade not null,
   created_by uuid references public.profiles(id) on delete cascade not null,
@@ -53,7 +53,7 @@ create table public.card_ingestion_items (
   updated_at timestamptz not null default now()
 );
 
-create table public.card_ingestion_item_images (
+create table if not exists public.card_ingestion_item_images (
   id uuid default gen_random_uuid() primary key,
   item_id uuid references public.card_ingestion_items(id) on delete cascade not null,
   bucket text not null,
@@ -63,14 +63,14 @@ create table public.card_ingestion_item_images (
   created_at timestamptz not null default now()
 );
 
-create index card_ingestion_batches_created_by_idx on public.card_ingestion_batches(created_by, created_at desc);
-create index card_ingestion_items_batch_idx on public.card_ingestion_items(batch_id, created_at desc);
-create index card_ingestion_items_status_idx on public.card_ingestion_items(status, created_at desc);
-create index card_ingestion_item_images_item_idx on public.card_ingestion_item_images(item_id, sort_order);
+create index if not exists card_ingestion_batches_created_by_idx on public.card_ingestion_batches(created_by, created_at desc);
+create index if not exists card_ingestion_items_batch_idx on public.card_ingestion_items(batch_id, created_at desc);
+create index if not exists card_ingestion_items_status_idx on public.card_ingestion_items(status, created_at desc);
+create index if not exists card_ingestion_item_images_item_idx on public.card_ingestion_item_images(item_id, sort_order);
 
-alter table public.card_ingestion_batches enable row level security;
-alter table public.card_ingestion_items enable row level security;
-alter table public.card_ingestion_item_images enable row level security;
+alter table if exists public.card_ingestion_batches enable row level security;
+alter table if exists public.card_ingestion_items enable row level security;
+alter table if exists public.card_ingestion_item_images enable row level security;
 
 create policy "card_ingestion_batches_select_admin" on public.card_ingestion_batches
   for select using (exists (select 1 from public.profiles p where p.id = auth.uid() and coalesce(p.is_seller, false) = true));
@@ -104,8 +104,7 @@ on conflict (id) do nothing;
 do $$
 begin
   if not exists (
-    select 1
-    from pg_policies
+    select 1 from pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'
       and policyname = 'card_ingestion_images_select_admin'
@@ -122,8 +121,7 @@ $$;
 do $$
 begin
   if not exists (
-    select 1
-    from pg_policies
+    select 1 from pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'
       and policyname = 'card_ingestion_images_insert_admin'
@@ -141,8 +139,7 @@ $$;
 do $$
 begin
   if not exists (
-    select 1
-    from pg_policies
+    select 1 from pg_policies
     where schemaname = 'storage'
       and tablename = 'objects'
       and policyname = 'card_ingestion_images_delete_admin'
@@ -156,8 +153,10 @@ begin
 end
 $$;
 
+drop trigger if exists card_ingestion_batches_updated_at on public.card_ingestion_batches;
 create trigger card_ingestion_batches_updated_at before update on public.card_ingestion_batches
   for each row execute procedure public.handle_updated_at();
 
+drop trigger if exists card_ingestion_items_updated_at on public.card_ingestion_items;
 create trigger card_ingestion_items_updated_at before update on public.card_ingestion_items
   for each row execute procedure public.handle_updated_at();
