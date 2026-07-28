@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
 import { getAppRole } from "@/lib/security";
 import { getEffectiveSellerVerificationStatus, type SellerVerificationStatus } from "@/lib/seller-verification";
-import { MAX_IMAGE_SIZE_BYTES, MAX_LISTING_IMAGE_COUNT, uploadImageFile } from "@/lib/uploads";
+import { MAX_IMAGE_SIZE_BYTES, MAX_LISTING_IMAGE_COUNT } from "@/lib/uploads";
 
 const CONDITIONS = ["Mint", "Near Mint", "Lightly Played", "Moderately Played", "Heavily Played", "Damaged"] as const;
 const CATEGORIES = [
@@ -337,13 +337,23 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
         }
 
         const optimized = await compressListingImage(file);
-        const uploaded = await uploadImageFile({
-          supabase,
-          target: "listing",
-          ownerId: userId,
-          file: optimized,
-          prefix: "listing-image",
+        const formData = new FormData();
+        formData.append("prefix", "listing-image");
+        formData.append("files", optimized);
+
+        const uploadResponse = await fetch("/api/listings/upload", {
+          method: "POST",
+          body: formData,
         });
+        const uploadData = await uploadResponse.json().catch(() => ({} as { files?: Array<{ publicUrl: string }> ; error?: string }));
+        if (!uploadResponse.ok) {
+          throw new Error(uploadData.error ?? `Failed to upload ${file.name}.`);
+        }
+
+        const uploaded = uploadData.files?.[0];
+        if (!uploaded?.publicUrl) {
+          throw new Error(`Failed to upload ${file.name}.`);
+        }
 
         uploadedUrls.push(uploaded.publicUrl);
         completed += 1;
