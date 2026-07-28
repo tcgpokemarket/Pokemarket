@@ -53,9 +53,6 @@ type FormState = {
   price: string;
   quantity: string;
   description: string;
-  shipping_paid_by: "seller" | "buyer";
-  weight_oz: string;
-  package_type: string;
   status: "active" | "draft";
 };
 
@@ -88,9 +85,6 @@ const initialForm = (): FormState => ({
   price: "",
   quantity: "1",
   description: "",
-  shipping_paid_by: "seller",
-  weight_oz: "1",
-  package_type: "card envelope",
   status: "active",
 });
 
@@ -453,7 +447,6 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
         quantity: Math.max(1, Number(form.quantity)),
         description: form.description.trim() || null,
         shipping_profile_id: null,
-        weight_oz: Number(form.weight_oz) || null,
         status: form.status,
       };
 
@@ -551,7 +544,6 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
                 <div className="flex flex-wrap gap-2 text-xs text-gray-400">
                   <span className="rounded-full border border-white/10 px-3 py-1">{preview.category}</span>
                   <span className="rounded-full border border-white/10 px-3 py-1">{preview.condition}</span>
-                  <span className="rounded-full border border-white/10 px-3 py-1">{form.shipping_paid_by === "seller" ? "Seller pays shipping" : "Buyer pays shipping"}</span>
                 </div>
               </div>
             </div>
@@ -652,21 +644,6 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
                     <label className="mb-1.5 block text-sm font-medium text-gray-300">Quantity *</label>
                     <input name="quantity" type="number" min="1" value={form.quantity} onChange={handleChange} required className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white focus:border-yellow-400 focus:outline-none" />
                   </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-300">Shipping Paid By</label>
-                    <select name="shipping_paid_by" value={form.shipping_paid_by} onChange={handleChange} className="w-full rounded-xl border border-white/20 bg-[#0f0f1a] px-4 py-3 text-sm text-white focus:border-yellow-400 focus:outline-none">
-                      <option value="seller">Seller</option>
-                      <option value="buyer">Buyer</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-300">Weight (oz)</label>
-                    <input name="weight_oz" type="number" min="0" step="0.1" value={form.weight_oz} onChange={handleChange} className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white focus:border-yellow-400 focus:outline-none" />
-                  </div>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-300">Package Type</label>
-                  <input name="package_type" value={form.package_type} onChange={handleChange} placeholder="card envelope" className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none" />
                 </div>
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-300">Description</label>
