@@ -428,8 +428,8 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
     setMessage(null);
 
     try {
-      const readyImages = imageSlots.filter((slot) => slot.status === "ready").map((slot) => slot.url).filter(Boolean);
       const payload = {
+        images: imageUrls,
         card_name: form.card_name.trim(),
         set_name: form.set_name.trim(),
         card_number: form.card_number.trim() || null,
@@ -445,7 +445,6 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
         shipping_paid_by: form.shipping_paid_by,
         weight_oz: Number(form.weight_oz) || null,
         package_type: form.package_type.trim() || null,
-        images: readyImages,
         status: form.status,
       };
 
