@@ -94,49 +94,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ orderI
   }
 
   if (body.action === "mark_paid") {
-    if (order.payment_status === "paid") {
-      return NextResponse.json({ order });
-    }
-
-    if (!isBuyerActionAllowed) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const { error: updateError } = await (admin as any)
-      .from("auction_orders")
-      .update({
-        payment_status: "paid",
-        stripe_payment_intent_id: body.stripePaymentIntentId ?? order.stripe_payment_intent_id,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", orderId);
-
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
-
-    await recordPaymentEvent(admin, {
-      orderId,
-      stripeEventId: body.stripeEventId ?? `manual-${orderId}`,
-      status: "paid",
-    });
-
-    await (admin as any).from("notifications").insert([
-      {
-        user_id: order.seller_id,
-        type: "auction_payment_received",
-        related_user: order.buyer_id,
-        related_content: { orderId, status: "paid" },
-      },
-      {
-        user_id: order.buyer_id,
-        type: "auction_payment_successful",
-        related_user: order.seller_id,
-        related_content: { orderId, status: "paid" },
-      },
-    ]);
-
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ error: "Payments are confirmed through Stripe webhooks." }, { status: 400 });
   }
 
   if (body.action === "mark_expired") {

@@ -70,13 +70,7 @@ export async function POST(request: Request) {
 
   console.info("[listings.publish]", {
     authUserId: user.id,
-    sellerId: user.id,
     imageCount: payload.images.length,
-    images: payload.images,
-    listingPayload: {
-      ...payload,
-      images: `[${payload.images.length} images]`,
-    },
   });
 
   const admin = createAdminClient();
