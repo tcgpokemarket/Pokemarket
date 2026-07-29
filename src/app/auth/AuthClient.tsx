@@ -170,6 +170,8 @@ export default function AuthClient() {
               id="full-name"
               ref={fullNameRef}
               type="text"
+              onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+              onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Your full name"
@@ -186,6 +188,8 @@ export default function AuthClient() {
             id="email"
             ref={emailRef}
             type="email"
+            onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+            onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
             inputMode="email"
             autoCapitalize="none"
             autoCorrect="off"
@@ -211,6 +215,8 @@ export default function AuthClient() {
             id="password"
             ref={passwordRef}
             type="password"
+            onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+            onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
             autoComplete="current-password"
             enterKeyHint="go"
             value={password}

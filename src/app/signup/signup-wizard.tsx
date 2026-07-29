@@ -306,6 +306,8 @@ export default function SignupWizard() {
                   <input
                     ref={fullNameRef}
                     type="text"
+                    onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+                    onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                     value={form.fullName}
                     onChange={(e) => setValue("fullName", e.target.value)}
                     placeholder="Your full name"
@@ -322,6 +324,8 @@ export default function SignupWizard() {
                   <input
                     ref={emailRef}
                     type="email"
+                    onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+                    onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                     inputMode="email"
                     autoCapitalize="none"
                     autoCorrect="off"
@@ -342,6 +346,8 @@ export default function SignupWizard() {
                     <input
                       ref={passwordRef}
                       type={showPassword ? "text" : "password"}
+                      onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+                      onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                       value={form.password}
                       onChange={(e) => setValue("password", e.target.value)}
                       placeholder="Create a strong password"
@@ -400,6 +406,8 @@ export default function SignupWizard() {
                   <input
                     ref={usernameRef}
                     type="text"
+                    onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+                    onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                     value={form.username}
                     onChange={(e) => setValue("username", normalizeUsername(e.target.value))}
                     placeholder="ash-ketchum"
@@ -416,6 +424,8 @@ export default function SignupWizard() {
                   Referral code
                   <input
                     type="text"
+                    onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+                    onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                     value={form.referralCode}
                     onChange={(e) => setValue("referralCode", e.target.value.toUpperCase())}
                     placeholder="Optional"
@@ -431,6 +441,8 @@ export default function SignupWizard() {
                     <input
                       ref={sellerStateRef}
                       type="text"
+                      onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
+                      onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                       value={form.sellerState}
                       onChange={(e) => setValue("sellerState", e.target.value.toUpperCase().slice(0, 2))}
                       placeholder="CA"
