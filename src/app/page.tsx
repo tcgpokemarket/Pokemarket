@@ -227,9 +227,6 @@ export default async function Home() {
                 <Link href="/auth" className="hidden rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300 sm:inline-flex">
                   Sign Up
                 </Link>
-                <Link href="/auth" className="hidden rounded-xl bg-white px-4 py-2 text-sm font-bold text-black transition hover:bg-gray-100 sm:inline-flex">
-                  Continue with Google
-                </Link>
               </>
             ) : (
               <>
@@ -264,9 +261,6 @@ export default async function Home() {
               <>
                 <Link href="/auth" className="rounded-xl border border-white/15 px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Sign In</Link>
                 <Link href="/auth" className="rounded-xl bg-yellow-400 px-3 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">Sign Up</Link>
-                <Link href="/auth" className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-black transition hover:bg-gray-100">
-                  Continue with Google
-                </Link>
               </>
             ) : (
               <>
@@ -315,9 +309,6 @@ export default async function Home() {
                   {!isLoggedIn ? (
                     <>
                       <Link href="/auth" className="rounded-xl border border-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/5">Sign In</Link>
-                      <Link href="/auth" className="rounded-xl bg-white px-4 py-3 text-sm font-bold text-black transition hover:bg-gray-100">
-                        Continue with Google
-                      </Link>
                     </>
                   ) : null}
                 </div>

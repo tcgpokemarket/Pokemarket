@@ -81,7 +81,6 @@ export default function SignupWizard() {
   const [step, setStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [progress, setProgress] = useState("Ready to create your account");
   const [form, setForm] = useState<FormState>(() => ({
@@ -150,28 +149,6 @@ export default function SignupWizard() {
   };
 
   const previousStep = () => setStep((current) => Math.max(current - 1, 0));
-
-  const handleGoogleSignIn = async () => {
-    setFieldErrors({});
-    setGoogleLoading(true);
-    setProgress("Connecting Google account...");
-
-    try {
-      const client = createClient();
-      const { error } = await client.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
-          queryParams: { prompt: "select_account" },
-        },
-      });
-      if (error) throw error;
-    } catch (error) {
-      setFieldErrors({ auth: error instanceof Error ? error.message : "Google sign-in failed. Please try again." });
-      setGoogleLoading(false);
-      setProgress("Ready to create your account");
-    }
-  };
 
   const completeSignup = async () => {
     if (!validateStep(0) || !validateStep(1) || !validateStep(2) || !validateStep(3)) return;
@@ -301,19 +278,9 @@ export default function SignupWizard() {
             ))}
           </div>
 
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={submitting || googleLoading}
-            className="mb-5 flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 font-bold text-black transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {googleLoading ? <Spinner /> : <GoogleIcon />}
-            Continue with Google
-          </button>
-
           <div className="mb-5 flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-gray-500">
             <span className="h-px flex-1 bg-white/10" />
-            <span>or email</span>
+            <span>Email signup</span>
             <span className="h-px flex-1 bg-white/10" />
           </div>
 
@@ -331,7 +298,7 @@ export default function SignupWizard() {
                     onChange={(e) => setValue("fullName", e.target.value)}
                     placeholder="Your full name"
                     autoComplete="name"
-                    disabled={submitting || googleLoading}
+                    disabled={submitting}
                     aria-invalid={Boolean(fieldErrors.fullName)}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                   />
@@ -346,7 +313,7 @@ export default function SignupWizard() {
                     onChange={(e) => setValue("email", e.target.value)}
                     placeholder="you@example.com"
                     autoComplete="email"
-                    disabled={submitting || googleLoading}
+                    disabled={submitting}
                     aria-invalid={Boolean(fieldErrors.email)}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                   />
@@ -362,7 +329,7 @@ export default function SignupWizard() {
                       onChange={(e) => setValue("password", e.target.value)}
                       placeholder="Create a strong password"
                       autoComplete="new-password"
-                      disabled={submitting || googleLoading}
+                      disabled={submitting}
                       aria-invalid={Boolean(fieldErrors.password)}
                       className="w-full rounded-2xl bg-transparent px-4 py-3 text-white outline-none placeholder:text-gray-500"
                     />
@@ -418,7 +385,7 @@ export default function SignupWizard() {
                     onChange={(e) => setValue("username", normalizeUsername(e.target.value))}
                     placeholder="ash-ketchum"
                     autoComplete="username"
-                    disabled={submitting || googleLoading}
+                    disabled={submitting}
                     aria-invalid={Boolean(fieldErrors.username)}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                   />
@@ -432,7 +399,7 @@ export default function SignupWizard() {
                     value={form.referralCode}
                     onChange={(e) => setValue("referralCode", e.target.value.toUpperCase())}
                     placeholder="Optional"
-                    disabled={submitting || googleLoading}
+                    disabled={submitting}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                   />
                 </label>
@@ -447,7 +414,7 @@ export default function SignupWizard() {
                       placeholder="CA"
                       maxLength={2}
                       autoComplete="address-level1"
-                      disabled={submitting || googleLoading}
+                      disabled={submitting}
                       aria-invalid={Boolean(fieldErrors.sellerState)}
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                     />
@@ -486,7 +453,7 @@ export default function SignupWizard() {
 
             <div className="flex items-center gap-3 pt-2">
               {step > 0 ? (
-                <button type="button" onClick={previousStep} disabled={submitting || googleLoading} className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/5 disabled:opacity-50">
+                <button type="button" onClick={previousStep} disabled={submitting} className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/5 disabled:opacity-50">
                   Back
                 </button>
               ) : (
@@ -495,7 +462,7 @@ export default function SignupWizard() {
 
               <button
                 type="submit"
-                disabled={submitting || googleLoading || !canContinue}
+                disabled={submitting || !canContinue}
                 className="flex-1 rounded-2xl bg-gradient-to-r from-[#e22400] to-[#ffab01] px-4 py-3 font-bold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? <SpinnerButton label="Creating account..." /> : step === STEP_TITLES.length - 1 ? "Create account" : "Continue"}
