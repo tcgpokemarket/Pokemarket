@@ -3,8 +3,8 @@ import { redirect } from "next/navigation";
 type SearchParams = Record<string, string | string[] | undefined>;
 
 function safeRedirect(value: string | undefined) {
-  if (!value || !value.startsWith("/")) return "/dashboard";
-  if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/dashboard";
+  if (!value || !value.startsWith("/")) return "/";
+  if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/";
   return value;
 }
 

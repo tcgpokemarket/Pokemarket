@@ -54,7 +54,7 @@ function isPublicApiPath(pathname: string) {
 }
 
 function getSafeRedirect(value: string | null) {
-  if (!value || !value.startsWith("/")) return "/dashboard";
+  if (!value || !value.startsWith("/")) return "/";
   if (
     value.startsWith("/auth") ||
     value.startsWith("/api") ||
@@ -62,7 +62,7 @@ function getSafeRedirect(value: string | null) {
     value === "/login" ||
     value === "/signup"
   ) {
-    return "/dashboard";
+    return "/";
   }
   return value;
 }
@@ -71,7 +71,7 @@ function getDestination(role: AppRole | null, redirectTo: string | null) {
   if (redirectTo) return redirectTo;
   if (role === "admin" || role === "super_admin") return "/admin";
   if (role === "seller") return "/sell";
-  return "/dashboard";
+  return "/";
 }
 
 export async function proxy(request: NextRequest) {

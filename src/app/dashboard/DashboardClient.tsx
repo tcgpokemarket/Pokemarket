@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Listing, Order, Profile, SellerWallet } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
@@ -310,6 +310,13 @@ const SUPPORT_CARD = (
 
 type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live" | "admin";
 
+function parseDashboardTab(value: string | null): Tab {
+  if (value === "listings" || value === "purchases" || value === "sales" || value === "fees" || value === "live" || value === "admin") {
+    return value;
+  }
+  return "overview";
+}
+
 type DashboardOrder = Order & {
   listings?: { card_name?: string; images?: string[] } | null;
   profiles?: { username?: string | null } | null;
@@ -361,8 +368,16 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   });
 
   const router = useRouter();
+  const pathname = usePathname() ?? "/dashboard";
+  const currentPath = useMemo(() => {
+    const query = searchParams.toString();
+    return `${pathname}${query ? `?${query}` : ""}`;
+  }, [pathname, searchParams]);
+  const [tab, setTab] = useState<Tab>(() => parseDashboardTab(orderTab));
 
-  const [tab, setTab] = useState<Tab>(orderTab === "sales" ? "sales" : "overview");
+  useEffect(() => {
+    setTab(parseDashboardTab(orderTab));
+  }, [orderTab]);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
   const [verificationDetails, setVerificationDetails] = useState<VerificationRow | null>(null);
@@ -444,7 +459,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         if (!session || !user) {
           setLoading(false);
           setLoadingError("No active session was found. Please sign in again.");
-          router.replace("/auth?reason=session_expired&redirectTo=/dashboard");
+          router.replace(`/auth?reason=session_expired&redirectTo=${encodeURIComponent(currentPath)}`);
           return;
         }
 
@@ -562,7 +577,12 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     init();
 
     if (orderSuccess) {
-      setTimeout(() => router.replace("/dashboard?tab=overview"), 100);
+      setTimeout(() => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.delete("success");
+        const nextUrl = params.toString() ? `/dashboard?${params.toString()}` : "/dashboard";
+        router.replace(nextUrl);
+      }, 100);
     }
 
     return () => {
@@ -813,7 +833,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         <div className="max-w-md space-y-3 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20">
           <div className="text-xl font-black text-white">Dashboard unavailable</div>
           <p className="text-sm text-gray-400">The seller dashboard could not start on this device. Please reload or sign in again.</p>
-          <a href="/auth?redirectTo=/dashboard" className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Sign in again</a>
+          <a href={`/auth?redirectTo=${encodeURIComponent(currentPath)}`} className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Sign in again</a>
         </div>
       </div>
     );
@@ -828,7 +848,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
           <p className="text-xs uppercase tracking-[0.25em] text-gray-500">{authStep}</p>
           <div className="flex flex-wrap justify-center gap-3 pt-2">
             <button type="button" onClick={() => router.refresh()} className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Try again</button>
-            <a href="/auth?redirectTo=/dashboard" className="inline-flex rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Sign in again</a>
+            <a href={`/auth?redirectTo=${encodeURIComponent(currentPath)}`} className="inline-flex rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Sign in again</a>
           </div>
         </div>
       </div>
@@ -1253,6 +1273,15 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     ...(isAdminAccount ? ([{ key: "admin", label: "Admin" }] as const) : []),
   ];
 
+  const selectTab = (nextTab: Tab) => {
+    setTab(nextTab);
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextTab === "overview") params.delete("tab");
+    else params.set("tab", nextTab);
+    const query = params.toString();
+    router.replace(query ? `/dashboard?${query}` : "/dashboard", { scroll: false });
+  };
+
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -1502,7 +1531,8 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
           {TABS.map((t) => (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              type="button"
+              onClick={() => selectTab(t.key)}
               className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-all ${tab === t.key ? "bg-yellow-400 text-black" : "text-gray-400 hover:text-white"}`}
             >
               {t.label}

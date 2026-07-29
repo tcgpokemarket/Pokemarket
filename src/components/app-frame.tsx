@@ -57,7 +57,7 @@ function getDestination(userRole: ReturnType<typeof getAppRole>, redirectTo: str
   if (redirectTo) return redirectTo;
   if (userRole === "admin" || userRole === "super_admin") return "/admin";
   if (userRole === "seller") return "/sell";
-  return "/dashboard";
+  return "/";
 }
 
 function FullPageLoader({ label }: { label: string }) {
