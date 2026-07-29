@@ -160,7 +160,7 @@ export default function AuthClient() {
   };
 
   return (
-    <div className="rounded-[1.75rem] border border-white/10 bg-[#0f1627]/90 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-7">
+    <div className="rounded-[1.75rem] border border-white/10 bg-[#0f1627]/90 p-4 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-7">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-yellow-400">Account access</p>
@@ -268,13 +268,22 @@ export default function AuthClient() {
         </button>
       </form>
 
-      <div className="mt-5 grid gap-3 text-center text-sm text-gray-400 sm:grid-cols-2">
-        <button type="button" onClick={() => setMode("signin")} className="rounded-2xl border border-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/5">
-          Sign in
-        </button>
-        <button type="button" onClick={() => setMode("signup")} className="rounded-2xl border border-white/10 px-4 py-3 font-semibold text-white transition hover:bg-white/5">
-          Create account
-        </button>
+      <div className="mt-5 text-center text-sm text-gray-400">
+        {mode === "signin" ? (
+          <>
+            Need an account?{" "}
+            <button type="button" onClick={() => setMode("signup")} className="font-semibold text-yellow-400 hover:text-yellow-300">
+              Create account
+            </button>
+          </>
+        ) : (
+          <>
+            Already have an account?{" "}
+            <button type="button" onClick={() => setMode("signin")} className="font-semibold text-yellow-400 hover:text-yellow-300">
+              Sign in
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
