@@ -18,6 +18,10 @@ const metrics = [
 
 const featureCards = [
   {
+    title: "Balanced spacing",
+    text: "Cleaner card padding, button sizing, and mobile-friendly layout rhythm across the main marketplace shells.",
+  },
+  {
     title: "Built for collectors",
     text: "Browse, bid, and manage your collection from a single account with a cleaner, faster experience.",
   },

@@ -165,11 +165,15 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
 
   const handleSignOut = async () => {
     const client = createClient();
-    await client.auth.signOut();
+    await client.auth.signOut({ scope: "global" });
     setSignedIn(false);
+    setAvatarUrl(null);
+    setName(null);
+    setNotifications(0);
+    setMessages(0);
     setAccountOpen(false);
     setOpen(false);
-    router.push("/");
+    router.replace("/auth?message=logged_out");
   };
 
   return (

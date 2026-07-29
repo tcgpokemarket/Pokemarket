@@ -523,8 +523,8 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         active: false,
       });
     }
-    await supabase.auth.signOut();
-    router.push("/");
+    await supabase.auth.signOut({ scope: "global" });
+    router.replace("/auth?message=logged_out");
   };
 
   const handleDeleteListing = async (id: string, cardName: string) => {

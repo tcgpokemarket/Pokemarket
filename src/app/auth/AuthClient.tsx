@@ -62,7 +62,13 @@ export default function AuthClient() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
-  const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(searchParams.get("reason") === "session_expired" ? { type: "error", text: "Your session has expired. Please log in again." } : null);
+  const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(
+    searchParams.get("reason") === "session_expired"
+      ? { type: "error", text: "Your session has expired. Please log in again." }
+      : searchParams.get("message") === "logged_out"
+        ? { type: "success", text: "You have been logged out successfully." }
+        : null
+  );
   const bootstrapHandled = useRef(false);
 
   useEffect(() => {
