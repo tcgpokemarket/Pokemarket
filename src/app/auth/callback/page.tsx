@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
 function getSafeRedirect(value: string | null) {
-  if (!value || !value.startsWith("/")) return "/dashboard";
+  if (!value || !value.startsWith("/")) return "/";
   if (
     value.startsWith("/auth") ||
     value.startsWith("/api") ||
@@ -13,7 +13,7 @@ function getSafeRedirect(value: string | null) {
     value === "/login" ||
     value === "/signup"
   ) {
-    return "/dashboard";
+    return "/";
   }
   return value;
 }
@@ -47,7 +47,8 @@ export default function AuthCallbackPage() {
           const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
           const reason = searchParams.get("reason") === "session_expired" ? "session_expired" : null;
           const role = (activeUser.app_metadata?.role ?? activeUser.user_metadata?.role) as string | null;
-          const destination = redirectTo === "/dashboard" && role === "seller" ? "/sell" : redirectTo;
+          const defaultDestination = role === "admin" || role === "super_admin" ? "/admin" : role === "seller" ? "/sell" : "/";
+          const destination = redirectTo ?? defaultDestination;
           router.replace(reason ? `${destination}?reason=${encodeURIComponent(reason)}` : destination);
           return;
         }

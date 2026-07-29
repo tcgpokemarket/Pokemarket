@@ -154,6 +154,7 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
   }, [pathname, searchParams]);
 
   const breadcrumbs = useMemo(() => getBreadcrumbs(pathname), [pathname]);
+  const authRedirect = useMemo(() => `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`, [pathname, searchParams]);
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -241,8 +242,8 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Link href="/auth/signin" className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Login</Link>
-                  <Link href="/auth" className="rounded-full bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">Sign Up</Link>
+                  <Link href={`/auth/signin?redirectTo=${encodeURIComponent(authRedirect)}`} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Login</Link>
+                  <Link href={`/auth?redirectTo=${encodeURIComponent(authRedirect)}`} className="rounded-full bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">Sign Up</Link>
                 </div>
               )}
               <button

@@ -9,13 +9,15 @@ function Spinner() {
 }
 
 function safeRedirect(value: string | null) {
-  if (!value || !value.startsWith("/")) return "/dashboard";
-  if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/dashboard";
+  if (!value || !value.startsWith("/")) return "/";
+  if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/";
   return value;
 }
 
 function defaultDestination(role: string | null) {
-  return role === "admin" || role === "super_admin" ? "/admin" : "/dashboard";
+  if (role === "admin" || role === "super_admin") return "/admin";
+  if (role === "seller") return "/sell";
+  return "/";
 }
 
 function accountDestination(role: string | null) {

@@ -221,10 +221,10 @@ export default async function Home() {
           <div className="flex items-center gap-2 sm:gap-3">
             {!isLoggedIn ? (
               <>
-                <Link href="/auth" className="hidden rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 sm:inline-flex">
+                <Link href="/auth?redirectTo=%2F" className="hidden rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 sm:inline-flex">
                   Sign In
                 </Link>
-                <Link href="/auth" className="hidden rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300 sm:inline-flex">
+                <Link href="/auth?redirectTo=%2F" className="hidden rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300 sm:inline-flex">
                   Sign Up
                 </Link>
               </>
