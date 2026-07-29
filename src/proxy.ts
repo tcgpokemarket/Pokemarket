@@ -25,6 +25,7 @@ const PUBLIC_PATHS = [
   "/shipping-policy",
   "/seller-agreement",
   "/marketplace-rules",
+  "/giveaway-rules",
   "/dmca",
 ] as const;
 

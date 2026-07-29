@@ -83,9 +83,12 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ listingId: id, quantity: 1 }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (data.url) window.location.href = data.url;
     else {
+      if (data.action === "update_shipping_address") {
+        router.push("/dashboard#shipping-address");
+      }
       alert(data.error ?? "Checkout failed. Please try again.");
       setBuying(false);
     }

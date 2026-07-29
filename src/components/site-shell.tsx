@@ -169,7 +169,7 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
     setSignedIn(false);
     setAccountOpen(false);
     setOpen(false);
-    router.push("/auth");
+    router.push("/");
   };
 
   return (

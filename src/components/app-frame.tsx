@@ -23,6 +23,7 @@ const PUBLIC_EXACT_PATHS = new Set([
   "/shipping-policy",
   "/seller-agreement",
   "/marketplace-rules",
+  "/giveaway-rules",
   "/dmca",
 ]);
 

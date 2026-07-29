@@ -175,10 +175,18 @@ export async function POST(request: Request) {
   const { data: buyerProfile } = await admin.from("profiles").select("shipping_address").eq("id", user.id).maybeSingle<{ shipping_address: unknown }>();
   const sellerState = sellerProfile?.seller_state ?? null;
   const buyerAddress = body.shippingAddress ?? buyerProfile?.shipping_address ?? null;
+
+  if (!buyerAddress || typeof buyerAddress !== "object") {
+    return NextResponse.json({ error: "Add a complete shipping address in your dashboard before checkout.", action: "update_shipping_address" }, { status: 400 });
+  }
+
   const checkoutLocation = resolveCheckoutLocation({
     shippingAddress: buyerAddress,
     geo: body.geo ?? null,
   });
+  if (!checkoutLocation.state || !checkoutLocation.country) {
+    return NextResponse.json({ error: "Add a complete shipping address in your dashboard before checkout.", action: "update_shipping_address" }, { status: 400 });
+  }
   const { tax: salesTax } = calculateSalesTax(itemSubtotal + shipping, {
     sellerState,
     buyerState: checkoutLocation.state,

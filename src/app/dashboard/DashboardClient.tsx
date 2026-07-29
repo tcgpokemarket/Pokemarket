@@ -524,7 +524,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       });
     }
     await supabase.auth.signOut();
-    router.push("/auth");
+    router.push("/");
   };
 
   const handleDeleteListing = async (id: string, cardName: string) => {
@@ -1243,7 +1243,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               </button>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">
+            <div id="shipping-address" className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">
               <div className="font-semibold text-white">Shipping address</div>
               <p className="mt-2 text-gray-400">Save your buyer shipping address once so checkout and labels can reuse it automatically.</p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
