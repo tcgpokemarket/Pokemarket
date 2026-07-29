@@ -173,7 +173,7 @@ export default function SignupWizard() {
       if (authResult.error) throw authResult.error;
 
       setProgress(`Account created successfully. Redirecting to your ${form.accountType === "seller" ? "seller" : "buyer"} dashboard...`);
-      router.replace(form.accountType === "seller" ? "/sell" : "/dashboard");
+      router.replace(form.accountType === "seller" ? "/sell" : "/");
     } catch (error) {
       setFieldErrors({ submit: error instanceof Error ? error.message : "We could not create your account right now." });
       setSubmitting(false);

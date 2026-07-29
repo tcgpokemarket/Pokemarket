@@ -562,7 +562,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     init();
 
     if (orderSuccess) {
-      setTimeout(() => router.replace("/dashboard"), 100);
+      setTimeout(() => router.replace("/dashboard?tab=overview"), 100);
     }
 
     return () => {
