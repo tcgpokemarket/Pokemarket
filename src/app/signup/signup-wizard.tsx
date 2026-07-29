@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -20,17 +20,6 @@ type FormState = {
 };
 
 type FieldErrors = Partial<Record<keyof FormState, string>> & { auth?: string; submit?: string };
-
-function GoogleIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5">
-      <path fill="#EA4335" d="M12 9.5v5h6.9c-.3 1.8-2 5.3-6.9 5.3A7.8 7.8 0 1 1 12 4.2c2.2 0 3.7.9 4.6 1.8l3.1-3A11.8 11.8 0 0 0 12 0C5.4 0 .1 5.4.1 12S5.4 24 12 24c6.8 0 11.3-4.7 11.3-11.3 0-.8-.1-1.4-.2-2H12Z" />
-      <path fill="#4285F4" d="M23.3 12.7c0-.7-.1-1.3-.2-2H12v4.1h6.3c-.3 1.5-1.1 2.9-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.7Z" />
-      <path fill="#FBBC05" d="m5.6 14.3-.8.6-3 2.4A12 12 0 0 0 12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4Z" />
-      <path fill="#34A853" d="M12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4l-3.3 2.5C2.7 20.7 7 24 12 24Z" />
-    </svg>
-  );
-}
 
 function Spinner() {
   return <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />;
@@ -93,6 +82,28 @@ export default function SignupWizard() {
     referralCode,
     agreeToTerms: false,
   }));
+  const fullNameRef = useRef<HTMLInputElement | null>(null);
+  const emailRef = useRef<HTMLInputElement | null>(null);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
+  const usernameRef = useRef<HTMLInputElement | null>(null);
+  const sellerStateRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const target =
+      step === 0 ? fullNameRef.current ?? emailRef.current ?? passwordRef.current :
+      step === 2 ? usernameRef.current ?? sellerStateRef.current :
+      null;
+
+    if (!target) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      target.focus({ preventScroll: true });
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [step]);
+
 
   const referralSource = useMemo(() => referralCode, [referralCode]);
 
@@ -235,7 +246,7 @@ export default function SignupWizard() {
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            {["Email or Google signup", "Buyer and seller paths", "Referral codes preserved", "Accessible and responsive"].map((item) => (
+            {["Email signup", "Buyer and seller paths", "Referral codes preserved", "Accessible and responsive"].map((item) => (
               <div key={item} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-gray-300 backdrop-blur">
                 {item}
               </div>
@@ -293,6 +304,7 @@ export default function SignupWizard() {
                 <label className="block text-sm font-medium text-gray-200">
                   Full name
                   <input
+                    ref={fullNameRef}
                     type="text"
                     value={form.fullName}
                     onChange={(e) => setValue("fullName", e.target.value)}
@@ -308,7 +320,11 @@ export default function SignupWizard() {
                 <label className="block text-sm font-medium text-gray-200">
                   Email
                   <input
+                    ref={emailRef}
                     type="email"
+                    inputMode="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
                     value={form.email}
                     onChange={(e) => setValue("email", e.target.value)}
                     placeholder="you@example.com"
@@ -324,11 +340,13 @@ export default function SignupWizard() {
                   Password
                   <div className="mt-2 flex items-stretch gap-2 rounded-2xl border border-white/10 bg-[#111827] pr-2 focus-within:border-yellow-400/60">
                     <input
+                      ref={passwordRef}
                       type={showPassword ? "text" : "password"}
                       value={form.password}
                       onChange={(e) => setValue("password", e.target.value)}
                       placeholder="Create a strong password"
                       autoComplete="new-password"
+                      enterKeyHint="next"
                       disabled={submitting}
                       aria-invalid={Boolean(fieldErrors.password)}
                       className="w-full rounded-2xl bg-transparent px-4 py-3 text-white outline-none placeholder:text-gray-500"
@@ -380,11 +398,13 @@ export default function SignupWizard() {
                 <label className="block text-sm font-medium text-gray-200">
                   Username
                   <input
+                    ref={usernameRef}
                     type="text"
                     value={form.username}
                     onChange={(e) => setValue("username", normalizeUsername(e.target.value))}
                     placeholder="ash-ketchum"
                     autoComplete="username"
+                    enterKeyHint="next"
                     disabled={submitting}
                     aria-invalid={Boolean(fieldErrors.username)}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
@@ -399,6 +419,7 @@ export default function SignupWizard() {
                     value={form.referralCode}
                     onChange={(e) => setValue("referralCode", e.target.value.toUpperCase())}
                     placeholder="Optional"
+                    enterKeyHint="next"
                     disabled={submitting}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                   />
@@ -408,12 +429,14 @@ export default function SignupWizard() {
                   <label className="block text-sm font-medium text-gray-200">
                     Seller state
                     <input
+                      ref={sellerStateRef}
                       type="text"
                       value={form.sellerState}
                       onChange={(e) => setValue("sellerState", e.target.value.toUpperCase().slice(0, 2))}
                       placeholder="CA"
                       maxLength={2}
                       autoComplete="address-level1"
+                      enterKeyHint="done"
                       disabled={submitting}
                       aria-invalid={Boolean(fieldErrors.sellerState)}
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"

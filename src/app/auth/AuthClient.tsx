@@ -58,6 +58,21 @@ export default function AuthClient() {
         : null
   );
   const bootstrapHandled = useRef(false);
+  const fullNameRef = useRef<HTMLInputElement | null>(null);
+  const emailRef = useRef<HTMLInputElement | null>(null);
+  const passwordRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const field = mode === "signup" ? fullNameRef.current ?? emailRef.current : emailRef.current;
+    if (!field) return;
+
+    const frame = window.requestAnimationFrame(() => {
+      field.focus({ preventScroll: true });
+      field.scrollIntoView({ block: "center", behavior: "smooth" });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [mode]);
 
   useEffect(() => {
     if (bootstrapHandled.current) return;
@@ -153,6 +168,7 @@ export default function AuthClient() {
             <label htmlFor="full-name" className="mb-2 block text-sm font-medium text-gray-200">Full name</label>
             <input
               id="full-name"
+              ref={fullNameRef}
               type="text"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
@@ -168,7 +184,13 @@ export default function AuthClient() {
           <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-200">Email</label>
           <input
             id="email"
+            ref={emailRef}
             type="email"
+            inputMode="email"
+            autoCapitalize="none"
+            autoCorrect="off"
+            autoComplete="email"
+            enterKeyHint="next"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
@@ -187,7 +209,10 @@ export default function AuthClient() {
           </div>
           <input
             id="password"
+            ref={passwordRef}
             type="password"
+            autoComplete="current-password"
+            enterKeyHint="go"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
