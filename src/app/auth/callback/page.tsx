@@ -27,6 +27,15 @@ export default function AuthCallbackPage() {
 
     const run = async () => {
       const client = createClient();
+      const code = searchParams.get("code");
+
+      if (code) {
+        const { error } = await client.auth.exchangeCodeForSession(code);
+        if (error && alive) {
+          router.replace("/auth?message=google_sign_in_failed");
+          return;
+        }
+      }
 
       for (let attempt = 0; attempt < 4; attempt += 1) {
         const [{ data: { user } }, { data: { session } }] = await Promise.all([client.auth.getUser(), client.auth.getSession()]);
