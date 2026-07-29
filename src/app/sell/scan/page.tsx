@@ -6,6 +6,19 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { MAX_IMAGE_SIZE_BYTES } from "@/lib/uploads";
 
+type ScanMatch = {
+  id: string;
+  name: string;
+  setName?: string;
+  number?: string;
+  rarity?: string;
+  image?: string;
+  imageLarge?: string;
+  confidence?: number;
+  source: string;
+  reasons?: string[];
+};
+
 type ScanResult = {
   card_name: string;
   set_name: string;
@@ -35,6 +48,18 @@ type ScanResult = {
     images: string[];
     status: "active";
   };
+  top_matches?: ScanMatch[];
+};
+
+type ScanResponseError = {
+  error?: string;
+  stage?: string;
+};
+
+type SearchMatchResponse = {
+  matches?: ScanMatch[];
+  error?: string;
+  stage?: string;
 };
 
 const CAMERA_SETTINGS = {
@@ -45,11 +70,6 @@ const CAMERA_SETTINGS = {
 
 const MAX_CAPTURE_EDGE = 1600;
 const JPEG_QUALITY = 0.86;
-
-type ScanResponseError = {
-  error?: string;
-  stage?: string;
-};
 
 function formatPrice(value: number | null) {
   return typeof value === "number" && Number.isFinite(value) ? `$${value.toFixed(2)}` : "Unavailable";
@@ -95,6 +115,23 @@ async function captureFrame(video: HTMLVideoElement, fileName: string) {
   return fileFromCanvas(canvas, fileName);
 }
 
+function matchLabel(match: ScanMatch) {
+  return [match.name, match.setName, match.number ? `#${match.number}` : null].filter(Boolean).join(" · ");
+}
+
+function applySelectedMatch(result: ScanResult, match: ScanMatch): ScanResult {
+  return {
+    ...result,
+    card_name: match.name,
+    set_name: match.setName ?? result.set_name,
+    card_number: match.number ?? result.card_number,
+    rarity: match.rarity ?? result.rarity,
+    title: [match.name, match.setName, match.number ? `#${match.number}` : null].filter(Boolean).join(" · "),
+    source: match.source,
+    confidence: Math.max(result.confidence, match.confidence ?? 0),
+  };
+}
+
 export default function ScanCardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -108,6 +145,11 @@ export default function ScanCardPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [manualMatches, setManualMatches] = useState<ScanMatch[]>([]);
+  const [manualQuery, setManualQuery] = useState("");
+  const [manualSearchError, setManualSearchError] = useState<string | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -175,6 +217,9 @@ export default function ScanCardPage() {
     setError(null);
     setMessage(null);
     setResult(null);
+    setManualMatches([]);
+    setManualSearchError(null);
+    setSelectedMatchId(null);
     setFileName(file.name);
 
     try {
@@ -185,7 +230,7 @@ export default function ScanCardPage() {
         method: "POST",
         body: payload,
       });
-      const data = await response.json().catch(() => ({} as ScanResponseError & { result?: ScanResult }));
+      const data = (await response.json().catch(() => ({}))) as ScanResponseError & { result?: ScanResult };
 
       if (!response.ok) {
         const stagePrefix = data.stage ? `${data.stage}: ` : "";
@@ -194,11 +239,12 @@ export default function ScanCardPage() {
 
       const nextResult = data.result ?? null;
       setResult(nextResult);
+      setManualMatches(nextResult?.top_matches ?? []);
+      setManualQuery([nextResult?.card_name, nextResult?.set_name].filter(Boolean).join(" "));
+      setManualSearchError(null);
       setMessage(nextResult?.confidence && nextResult.confidence < 50 ? "Fallback scan complete. Please review the details before publishing." : "Scan complete. Review the draft and publish when ready.");
       if (nextResult?.source?.toLowerCase().includes("fallback") || nextResult?.source?.toLowerCase().includes("manual")) {
         setMessage("Fallback scan complete. Please review the details before publishing.");
-      } else {
-        setMessage("Scan complete. Review the draft and publish when ready.");
       }
     } finally {
       setLoading(false);
@@ -238,6 +284,44 @@ export default function ScanCardPage() {
     }
   };
 
+  const searchMatches = async () => {
+    const query = manualQuery.trim() || result?.card_name || fileName || "";
+    if (!query) {
+      setManualSearchError("Add a card name to search.");
+      return;
+    }
+
+    setSearching(true);
+    setManualSearchError(null);
+    try {
+      const params = new URLSearchParams({ query });
+      if (result?.set_name) params.set("set", result.set_name);
+      if (result?.card_number) params.set("number", result.card_number);
+      if (result?.rarity) params.set("rarity", result.rarity);
+      if (result?.language) params.set("language", result.language);
+
+      const response = await fetch(`/api/sell/scan?${params.toString()}`);
+      const data = (await response.json().catch(() => ({}))) as SearchMatchResponse;
+      if (!response.ok) {
+        throw new Error(data.error ?? "Search failed.");
+      }
+
+      setManualMatches(data.matches ?? []);
+      setManualSearchError((data.matches ?? []).length ? null : "No close matches found. Try a more specific name or set.");
+    } catch (searchError) {
+      setManualSearchError(searchError instanceof Error ? searchError.message : "Search failed.");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectMatch = (match: ScanMatch) => {
+    if (!result) return;
+    setSelectedMatchId(match.id);
+    setResult(applySelectedMatch(result, match));
+    setMessage(`Matched ${match.name}${match.setName ? ` from ${match.setName}` : ""}. Review the draft before publishing.`);
+  };
+
   const saveDraftToListingBuilder = () => {
     if (!result) return;
     if (typeof window === "undefined") return;
@@ -271,6 +355,8 @@ export default function ScanCardPage() {
     );
     router.push("/listings/create");
   };
+
+  const previewMatch = selectedMatchId ? manualMatches.find((match) => match.id === selectedMatchId) ?? null : null;
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -328,6 +414,30 @@ export default function ScanCardPage() {
               </button>
             </form>
 
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                void searchMatches();
+              }}
+              className="space-y-3 rounded-3xl border border-white/10 bg-white/5 p-5"
+            >
+              <div>
+                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Manual search</div>
+                <p className="mt-2 text-sm text-gray-400">Refine the match with a direct database search if the first pass is uncertain.</p>
+              </div>
+              <input value={manualQuery} onChange={(event) => setManualQuery(event.target.value)} placeholder="Card name or OCR text" className="w-full rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none" />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input value={result?.set_name ?? ""} onChange={(event) => setResult((current) => current ? { ...current, set_name: event.target.value } : current)} placeholder="Set" className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none" />
+                <input value={result?.card_number ?? ""} onChange={(event) => setResult((current) => current ? { ...current, card_number: event.target.value || null } : current)} placeholder="Card number" className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none" />
+                <input value={result?.rarity ?? ""} onChange={(event) => setResult((current) => current ? { ...current, rarity: event.target.value || null } : current)} placeholder="Rarity" className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none" />
+                <input value={result?.language ?? ""} onChange={(event) => setResult((current) => current ? { ...current, language: event.target.value || null } : current)} placeholder="Language" className="rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm text-white placeholder-gray-500 focus:border-yellow-400 focus:outline-none" />
+              </div>
+              <button type="submit" disabled={searching} className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-bold text-yellow-300 hover:bg-yellow-400/20 disabled:opacity-50">
+                {searching ? "Searching..." : "Search Pokémon cards"}
+              </button>
+              {manualSearchError ? <div className="rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-200">{manualSearchError}</div> : null}
+            </form>
+
             {message && <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-200">{message}</div>}
             {error && <div className="rounded-xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-200">{error}</div>}
             {fileName && <p className="text-xs text-gray-500">Last file processed: {fileName}</p>}
@@ -380,6 +490,47 @@ export default function ScanCardPage() {
                     <span className="font-semibold text-white">{formatPrice(result.low_price)} · {formatPrice(result.high_price)}</span>
                   </div>
                 </div>
+
+                {manualMatches.length ? (
+                  <div className="space-y-3 rounded-2xl border border-white/10 bg-[#13131f] p-5">
+                    <div>
+                      <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Top matches</div>
+                      <p className="mt-2 text-sm text-gray-400">Pick the closest card if the first scan missed the exact set or print.</p>
+                    </div>
+                    <div className="grid gap-3">
+                      {manualMatches.map((match) => (
+                        <button
+                          key={match.id}
+                          type="button"
+                          onClick={() => selectMatch(match)}
+                          className={`flex items-center gap-3 rounded-2xl border p-3 text-left transition ${selectedMatchId === match.id ? "border-yellow-400/40 bg-yellow-400/10" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
+                        >
+                          <div className="h-16 w-16 flex-none overflow-hidden rounded-xl border border-white/10 bg-black/20">
+                            {match.imageLarge || match.image ? <img src={match.imageLarge ?? match.image} alt={matchLabel(match)} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs text-gray-500">No image</div>}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <div className="font-semibold text-white">{matchLabel(match)}</div>
+                              <span className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] uppercase tracking-[0.2em] text-gray-400">{match.confidence ?? 0}%</span>
+                            </div>
+                            <div className="mt-1 text-xs text-gray-400">{match.source}</div>
+                            {match.reasons?.length ? <div className="mt-1 text-xs text-gray-500">{match.reasons.join(" · ")}</div> : null}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {previewMatch ? (
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">
+                    <div className="font-semibold">Selected match</div>
+                    <div className="mt-1">{matchLabel(previewMatch)}</div>
+                    {previewMatch.reasons?.length ? <div className="mt-1 text-xs text-emerald-100/80">{previewMatch.reasons.join(" · ")}</div> : null}
+                  </div>
+                ) : null}
+
+                {previewMatch ? <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4 text-sm text-emerald-100">{selectedMatchId ? `Selected match: ${matchLabel(previewMatch)}` : `Top match: ${matchLabel(previewMatch)}`}</div> : null}
 
                 <div className="flex flex-wrap gap-3">
                   <button type="button" onClick={saveDraftToListingBuilder} className="rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black hover:bg-yellow-300">Send to listing draft</button>

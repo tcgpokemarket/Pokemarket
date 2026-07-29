@@ -1,13 +1,67 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { analyzeCardImage, buildListingDraftFromIngestionItem, buildDraftDescription, buildDraftTitle } from "@/lib/card-ingestion";
+import { analyzeCardImage, buildListingDraftFromIngestionItem, buildDraftDescription, buildDraftTitle, findManualCardMatches } from "@/lib/card-ingestion";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { recordSecurityEvent } from "@/lib/audit-log";
 import { MAX_IMAGE_SIZE_BYTES, uploadImageFile } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+async function requireSellScanAccess() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { user: null, response: NextResponse.json({ error: "Unauthorized", stage: "auth" }, { status: 401 }) };
+  }
+
+  const limit = checkRateLimit(`sell-scan:${user.id}`, 20, 60_000);
+  if (!limit.allowed) {
+    recordSecurityEvent({
+      event_type: "api.rate_limited",
+      severity: "medium",
+      actor_id: user.id,
+      details: { route: "/api/sell/scan", resetAt: limit.resetAt },
+    });
+    return { user: null, response: NextResponse.json({ error: "Too many scans. Please wait a moment and try again.", stage: "rate_limit" }, { status: 429 }) };
+  }
+
+  return { user, response: null };
+}
+
+export async function GET(request: Request) {
+  const { user, response } = await requireSellScanAccess();
+  if (!user) return response;
+
+  const url = new URL(request.url);
+  const query = url.searchParams.get("query") ?? "";
+  const cardNumber = url.searchParams.get("number") ?? null;
+  const setName = url.searchParams.get("set") ?? null;
+  const rarity = url.searchParams.get("rarity") ?? null;
+  const language = url.searchParams.get("language") ?? null;
+
+  if (!query.trim()) {
+    return NextResponse.json({ matches: [] });
+  }
+
+  const matches = await findManualCardMatches({
+    cardName: query,
+    cardNumber,
+    setName,
+    rarity,
+    language,
+    limit: 6,
+  }).catch(() => []);
+
+  return NextResponse.json({ matches });
+}
+
 export async function POST(request: Request) {
+  const { user, response } = await requireSellScanAccess();
+  if (!user) return response;
+
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -31,6 +85,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: `Please keep the file under ${Math.round(MAX_IMAGE_SIZE_BYTES / 1024 / 1024)}MB.`, stage: "capture" }, { status: 400 });
     }
 
+    const limit = checkRateLimit(`sell-scan:${user.id}`, 20, 60_000);
+    if (!limit.allowed) {
+      recordSecurityEvent({
+        event_type: "api.rate_limited",
+        severity: "medium",
+        actor_id: user.id,
+        details: { route: "/api/sell/scan", resetAt: limit.resetAt },
+      });
+      return NextResponse.json({ error: "Too many scans. Please wait a moment and try again.", stage: "rate_limit" }, { status: 429 });
+    }
+
     const admin = createAdminClient();
     const uploaded = await uploadImageFile({
       supabase: admin,
@@ -49,6 +114,17 @@ export async function POST(request: Request) {
     } catch (error) {
       return NextResponse.json({ error: error instanceof Error ? error.message : "Recognition failed.", stage: "recognition" }, { status: 502 });
     }
+
+    const topMatches = analysis.confidence < 90
+      ? await findManualCardMatches({
+          cardName: analysis.card_name || analysis.ocr_text || file.name,
+          setName: analysis.set_name,
+          cardNumber: analysis.card_number,
+          rarity: analysis.rarity,
+          language: analysis.language,
+          limit: 5,
+        }).catch(() => [])
+      : [];
 
     const sourceImageUrl = uploaded.publicUrl;
     const draft = buildListingDraftFromIngestionItem({
@@ -73,6 +149,7 @@ export async function POST(request: Request) {
         ...analysis,
         source_image_url: sourceImageUrl,
         draft,
+        top_matches: topMatches,
       },
     });
   } catch (error) {

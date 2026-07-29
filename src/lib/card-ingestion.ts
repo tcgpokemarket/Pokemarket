@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchCardPrice } from "@/lib/prices";
-import { searchPokemonCards } from "@/lib/api-integrations";
+import { searchPokemonCardMatches, searchPokemonCards } from "@/lib/pokemon";
 import type { Database } from "@/lib/supabase/types";
 
 export type CardIngestionStatus =
@@ -61,6 +61,15 @@ export type ManualCardMatch = {
   image?: string;
   rarity?: string;
   source: string;
+  confidence?: number;
+  setId?: string | null;
+  cardType?: string | null;
+  hp?: string | null;
+  illustrator?: string | null;
+  releaseDate?: string | null;
+  imageLarge?: string | null;
+  attacks?: string[];
+  reasons?: string[];
 };
 
 export type CardIngestionBatchRow = Database["public"]["Tables"]["card_ingestion_batches"]["Row"];
@@ -124,7 +133,7 @@ function mergeRecognitionFallback(result: CardIngestionAIResult, matches: Manual
     card_number: enrichedCardNumber,
     rarity: enrichedRarity,
     variant: enrichedVariant,
-    confidence: clampConfidence(Math.max(result.confidence, 55)),
+    confidence: clampConfidence(Math.max(result.confidence, primary.confidence ?? 55)),
     duplicate_signals: duplicateSignals,
     notes: [result.notes, `Fallback matched ${primary.name}${primary.setName ? ` (${primary.setName})` : ""}.`].filter(Boolean).join(" "),
   };
@@ -312,7 +321,7 @@ export async function analyzeCardImage(params: { imageDataUrl: string; fileName:
   const ai = await openAiAnalyzeImage(params.imageDataUrl, params.fileName);
   const confidence = adjustRecognitionConfidence(ai);
   const shouldFallback = confidence < 70 || !hasMeaningfulLabel(ai.card_name) || !hasMeaningfulLabel(ai.set_name) || !ai.card_number?.trim();
-  const fallbackMatches = shouldFallback ? await findManualCardMatches({ cardName: ai.card_name || ai.ocr_text || params.fileName, setName: ai.set_name, limit: 1 }).catch(() => []) : [];
+  const fallbackMatches = shouldFallback ? await findManualCardMatches({ cardName: ai.card_name || ai.ocr_text || params.fileName, setName: ai.set_name, cardNumber: ai.card_number, rarity: ai.rarity, language: ai.language, limit: 5 }).catch(() => []) : [];
   const enriched = mergeRecognitionFallback(ai, fallbackMatches);
   const price = hasValidPrice(enriched) ? null : await fetchCardPrice(enriched.card_name, enriched.set_name).catch(() => null);
   return {
@@ -327,12 +336,34 @@ export async function analyzeCardImage(params: { imageDataUrl: string; fileName:
   } satisfies CardIngestionAIResult;
 }
 
-export async function findManualCardMatches(params: { cardName: string; setName?: string | null; limit?: number }) {
-  const query = [params.cardName.trim(), params.setName?.trim()].filter(Boolean).join(" ").trim();
-  if (!query) return [];
+export async function findManualCardMatches(params: { cardName: string; setName?: string | null; cardNumber?: string | null; rarity?: string | null; language?: string | null; limit?: number }) {
+  const matches = await searchPokemonCardMatches({
+    cardName: params.cardName,
+    setName: params.setName || undefined,
+    cardNumber: params.cardNumber,
+    rarity: params.rarity,
+    language: params.language,
+    limit: params.limit ?? 6,
+  }).catch(() => []);
 
-  const matches = await searchPokemonCards(query);
-  return matches.slice(0, params.limit ?? 6) as ManualCardMatch[];
+  return matches.map((match) => ({
+    id: match.id,
+    name: match.name,
+    setName: match.setName,
+    number: match.number || undefined,
+    image: match.image ?? match.imageLarge ?? undefined,
+    rarity: match.rarity ?? undefined,
+    source: `${match.source} · ${match.confidence}%`,
+    confidence: match.confidence,
+    setId: match.setId,
+    cardType: match.cardType,
+    hp: match.hp,
+    illustrator: match.illustrator,
+    releaseDate: match.releaseDate,
+    imageLarge: match.imageLarge,
+    attacks: match.attacks,
+    reasons: match.reasons,
+  })) satisfies ManualCardMatch[];
 }
 
 function cleanFallbackQuery(fileName: string) {
@@ -345,7 +376,7 @@ function cleanFallbackQuery(fileName: string) {
 
 async function buildFallbackRecognitionResult(params: { imageDataUrl: string; fileName: string }): Promise<CardIngestionAIResult> {
   const query = cleanFallbackQuery(params.fileName);
-  const matches = query ? await findManualCardMatches({ cardName: query, limit: 1 }).catch(() => []) : [];
+  const matches = query ? await findManualCardMatches({ cardName: query, limit: 3 }).catch(() => []) : [];
   const primary = matches[0] ?? null;
   const cardName = primary?.name ?? (query || "Pokémon Card");
   const setName = primary?.setName ?? "Unknown Set";
@@ -382,7 +413,7 @@ async function buildFallbackRecognitionResult(params: { imageDataUrl: string; fi
       high_price: price?.highPrice ?? null,
       source: primary ? `Fallback + ${price?.source ?? "manual lookup"}` : "manual review",
     },
-    confidence: primary ? 45 : 15,
+    confidence: primary ? primary.confidence ?? 45 : 15,
     duplicate_signals: primary ? [`fallback:${primary.source}`] : ["fallback:manual-review"],
     notes: primary
       ? `Fallback lookup from filename because automated recognition was unavailable.`
