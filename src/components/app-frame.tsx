@@ -7,22 +7,6 @@ import { createClient } from "@/lib/supabase/client";
 import { getAppRole } from "@/lib/security";
 
 const AUTH_PATHS = ["/auth", "/auth/signin", "/auth/callback", "/auth/reset-password", "/login", "/signup"] as const;
-const SESSION_CHECK_TIMEOUT_MS = 4000;
-
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number) {
-  return new Promise<T>((resolve, reject) => {
-    const timeout = window.setTimeout(() => reject(new Error("Session check timed out.")), timeoutMs);
-    promise
-      .then((value) => {
-        window.clearTimeout(timeout);
-        resolve(value);
-      })
-      .catch((error) => {
-        window.clearTimeout(timeout);
-        reject(error);
-      });
-  });
-}
 
 const PUBLIC_EXACT_PATHS = new Set([
   "/",
@@ -118,12 +102,13 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
       } else {
         setAuthState("ready");
       }
-    }, SESSION_CHECK_TIMEOUT_MS + 1000);
+    }, 1200);
 
     const syncSession = async () => {
-      const { data: { user } } = await withTimeout(client.auth.getUser(), SESSION_CHECK_TIMEOUT_MS);
+      const { data: { session } } = await client.auth.getSession();
       if (!alive) return;
 
+      const user = session?.user ?? null;
       const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
 
       if (isAuthPage) {
