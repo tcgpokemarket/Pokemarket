@@ -360,38 +360,50 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
 
   const hostAction = async (action: string, payload: Record<string, unknown> = {}) => {
     if (!canShowHostControls) return;
-    await fetchLiveEvent(`host_${action}`, payload);
-    setStatusText(`${action.replaceAll("_", " ")} saved`);
+    try {
+      await fetchLiveEvent(`host_${action}`, payload);
+      setStatusText(`${action.replaceAll("_", " ")} saved`);
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : `${action.replaceAll("_", " ")} failed`);
+    }
   };
 
   const moderateUser = async (actionType: "remove_bidder" | "mute_user" | "ban_user", targetUserId: string, targetUsername: string | null) => {
     if (!canShowHostControls) return;
-    const response = await fetch(`/api/live/shows/${show.id}/moderation`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actionType, targetUserId, targetUsername }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setStatusText(data.error ?? "Moderation update failed");
-      return;
+    try {
+      const response = await fetch(`/api/live/shows/${show.id}/moderation`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionType, targetUserId, targetUsername }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatusText(data.error ?? "Moderation update failed");
+        return;
+      }
+      setStatusText(data.message ?? "Moderation saved");
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : "Moderation update failed");
     }
-    setStatusText(data.message ?? "Moderation saved");
   };
 
   const restoreModeration = async (actionId: string) => {
     if (!canShowHostControls) return;
-    const response = await fetch(`/api/live/shows/${show.id}/moderation`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ actionId }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setStatusText(data.error ?? "Restore failed");
-      return;
+    try {
+      const response = await fetch(`/api/live/shows/${show.id}/moderation`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ actionId }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStatusText(data.error ?? "Restore failed");
+        return;
+      }
+      setStatusText(data.message ?? "Restored");
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : "Restore failed");
     }
-    setStatusText(data.message ?? "Restored");
   };
 
   const removeBidder = async (bidderId: string, bidderUsername: string | null) => {
@@ -425,23 +437,28 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
     swipeLockUntil.current = Date.now() + SWIPE_LOCK_MS;
     if (canVibrate()) navigator.vibrate(HAPTIC_PATTERN);
 
-    const response = await fetch(`/api/live/shows/${show.id}/bids`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        productId: activeItem.id,
-        nonce: crypto.randomUUID(),
-        maxBid: maxBidEnabled ? Number(maxBidAmount || 0) : null,
-      }),
-    });
+    try {
+      const response = await fetch(`/api/live/shows/${show.id}/bids`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          productId: activeItem.id,
+          nonce: crypto.randomUUID(),
+          maxBid: maxBidEnabled ? Number(maxBidAmount || 0) : null,
+        }),
+      });
 
-    if (response.ok) {
-      setStatusText(`Bid placed on ${activeItem.title}`);
-      setSwipeState("success");
-      if (canVibrate()) navigator.vibrate([40, 30, 40]);
-    } else {
-      const data = await response.json().catch(() => ({}));
-      setStatusText(data.error ?? "Bid failed");
+      if (response.ok) {
+        setStatusText(`Bid placed on ${activeItem.title}`);
+        setSwipeState("success");
+        if (canVibrate()) navigator.vibrate([40, 30, 40]);
+      } else {
+        const data = await response.json().catch(() => ({}));
+        setStatusText(data.error ?? "Bid failed");
+        setSwipeState("idle");
+      }
+    } catch (error) {
+      setStatusText(error instanceof Error ? error.message : "Bid failed");
       setSwipeState("idle");
     }
 
@@ -500,27 +517,32 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
     setGiveawayBusy(true);
     setActiveGiveawayId(giveawayId);
     setGiveawayStatus(null);
-    const response = await fetch(`/api/giveaways/${giveawayId}/entry`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ followSeller }),
-    });
+    try {
+      const response = await fetch(`/api/giveaways/${giveawayId}/entry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ followSeller }),
+      });
 
-    const data = await response.json().catch(() => ({}));
-    if (response.ok) {
-      setEntryStatuses((current) => ({
-        ...current,
-        [giveawayId]: { entered: true, following: Boolean(followSeller), requiresFollow: Boolean(activeGiveaway?.follow_required) },
-      }));
-      setGiveawayStatus("You’re entered.");
-      setShowFollowPrompt(false);
-    } else if (response.status === 403 && data.requiresFollow) {
-      setShowFollowPrompt(true);
-      setGiveawayStatus(data.error ?? "Follow this seller to enter.");
-    } else {
-      setGiveawayStatus(data.error ?? "Unable to enter giveaway.");
+      const data = await response.json().catch(() => ({}));
+      if (response.ok) {
+        setEntryStatuses((current) => ({
+          ...current,
+          [giveawayId]: { entered: true, following: Boolean(followSeller), requiresFollow: Boolean(activeGiveaway?.follow_required) },
+        }));
+        setGiveawayStatus("You’re entered.");
+        setShowFollowPrompt(false);
+      } else if (response.status === 403 && data.requiresFollow) {
+        setShowFollowPrompt(true);
+        setGiveawayStatus(data.error ?? "Follow this seller to enter.");
+      } else {
+        setGiveawayStatus(data.error ?? "Unable to enter giveaway.");
+      }
+    } catch (error) {
+      setGiveawayStatus(error instanceof Error ? error.message : "Unable to enter giveaway.");
+    } finally {
+      setGiveawayBusy(false);
     }
-    setGiveawayBusy(false);
   };
 
   const currentGiveawayState = activeGiveaway ? entryStatuses[activeGiveaway.id] : null;

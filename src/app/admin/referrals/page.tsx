@@ -38,22 +38,22 @@ function StatCard({
 }
 
 export default async function AdminReferralsPage() {
-  // ── Auth ─────────────────────────────────────────────────────
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  if (!user || !isAdminUser(user)) {
-    redirect("/dashboard");
-  }
+    if (!user || !isAdminUser(user)) {
+      redirect("/dashboard");
+    }
 
-  const adminClient = createAdminClient();
+    const adminClient = createAdminClient();
 
-  // ── Aggregate stats via view ─────────────────────────────────
-  const { data: statsRows } = await (adminClient as any)
-    .from("referral_dashboard_stats")
-    .select("total_referrals, qualified_referrals, pending_rewards, paid_rewards");
+    const { data: statsRows, error: statsError } = await (adminClient as any)
+      .from("referral_dashboard_stats")
+      .select("total_referrals, qualified_referrals, pending_rewards, paid_rewards");
+    if (statsError) throw new Error(statsError.message);
 
   const totalReferrals = (statsRows ?? []).reduce(
     (sum: number, r: Record<string, unknown>) => sum + Number(r.total_referrals ?? 0),
@@ -241,4 +241,8 @@ export default async function AdminReferralsPage() {
       </div>
     </div>
   );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to load referral admin.";
+    return <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white"><div className="mx-auto max-w-4xl rounded-3xl border border-red-400/20 bg-red-400/10 p-8 text-red-100">{message}</div></div>;
+  }
 }

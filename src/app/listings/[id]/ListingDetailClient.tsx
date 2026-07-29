@@ -58,16 +58,35 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const [showReportForm, setShowReportForm] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+    let alive = true;
 
-    if (initialListing) {
-      import("@/lib/prices")
-        .then(({ fetchCardPrice }) => fetchCardPrice(initialListing.card_name, initialListing.set_name))
-        .then((price) => setMarketPrice(price.marketPrice));
-    }
+    const load = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!alive) return;
+        setUser(user);
 
-    // Shipping pricing is handled at checkout.
-  }, [id, initialListing]);
+        if (initialListing) {
+          const { fetchCardPrice } = await import("@/lib/prices");
+          const price = await fetchCardPrice(initialListing.card_name, initialListing.set_name);
+          if (!alive) return;
+          setMarketPrice(price.marketPrice);
+        }
+      } catch (error) {
+        if (!alive) return;
+        console.error("[listing] Failed to load listing detail", error);
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    };
+
+    void load();
+
+    return () => {
+      alive = false;
+    };
+  }, [id, initialListing, supabase]);
 
   const listingUrl = typeof window !== "undefined" ? window.location.href : `/listings/${id}`;
 

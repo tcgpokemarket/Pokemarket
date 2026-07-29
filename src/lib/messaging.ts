@@ -325,13 +325,7 @@ export async function searchMessages(userId: string, query: string): Promise<Arr
     .limit(20);
 
   if (error) {
-    return [
-      {
-        id: `${userId}-${normalized}`,
-        conversation_id: "search-result",
-        message: `Search is available for “${query}” once message indexing is connected.`,
-      },
-    ];
+    throw new Error(error.message);
   }
 
   return (data ?? []) as Array<{ id: string; conversation_id: string; message: string }>;

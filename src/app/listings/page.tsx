@@ -17,20 +17,44 @@ export default function ListingsPage() {
   const sellerFilter = searchParams.get("seller") ?? "";
 
   useEffect(() => {
-    let request = supabase
-      .from("listings")
-      .select("*, profiles:seller_id(username, seller_rating)")
-      .eq("status", "active")
-      .order("created_at", { ascending: false });
+    let active = true;
 
-    if (sellerFilter) {
-      request = request.eq("seller_id", sellerFilter);
-    }
+    const loadListings = async () => {
+      try {
+        let request = supabase
+          .from("listings")
+          .select("*, profiles:seller_id(username, seller_rating)")
+          .eq("status", "active")
+          .order("created_at", { ascending: false });
 
-    request.limit(48).then(({ data }) => {
-      setListings((data ?? []) as Listing[]);
-      setLoading(false);
-    });
+        if (sellerFilter) {
+          request = request.eq("seller_id", sellerFilter);
+        }
+
+        const { data, error } = await request.limit(48);
+        if (!active) return;
+        if (error) {
+          console.error("[listings] Failed to load listings", error);
+          setListings([]);
+          return;
+        }
+
+        setListings((data ?? []) as Listing[]);
+      } catch (error) {
+        if (!active) return;
+        console.error("[listings] Failed to load listings", error);
+        setListings([]);
+      } finally {
+        if (!active) return;
+        setLoading(false);
+      }
+    };
+
+    void loadListings();
+
+    return () => {
+      active = false;
+    };
   }, [sellerFilter, supabase]);
 
   const sellerLabel = sellerFilter ? `Seller shop filter active` : null;

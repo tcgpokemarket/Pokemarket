@@ -153,9 +153,16 @@ export default function ScanCardPage() {
 
   useEffect(() => {
     let alive = true;
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(({ data: { user }, error }) => {
       if (!alive) return;
+      if (error) {
+        setError(error.message);
+        return;
+      }
       if (!user) router.replace("/auth?redirectTo=/sell/scan");
+    }).catch((authError) => {
+      if (!alive) return;
+      setError(authError instanceof Error ? authError.message : "Unable to verify your session.");
     });
 
     return () => {

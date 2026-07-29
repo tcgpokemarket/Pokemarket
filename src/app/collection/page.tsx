@@ -19,22 +19,32 @@ export default function CollectionPage() {
   const [cards, setCards] = useState<SavedCardRecord[]>([]);
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [ready, setReady] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     let alive = true;
 
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!alive) return;
+      try {
+        const { data: { user }, error } = await supabase.auth.getUser();
+        if (!alive) return;
 
-      if (!user) {
-        router.replace("/auth?redirectTo=/collection");
-        return;
+        if (error) throw error;
+
+        if (!user) {
+          router.replace("/auth?redirectTo=/collection");
+          return;
+        }
+
+        setIsSignedIn(true);
+        setReady(true);
+      } catch (error) {
+        if (!alive) return;
+        console.error("[collection] Failed to load session", error);
+        setLoadError(error instanceof Error ? error.message : "Unable to load your collection.");
+        setReady(true);
       }
-
-      setIsSignedIn(true);
-      setReady(true);
     };
 
     const {
@@ -43,12 +53,14 @@ export default function CollectionPage() {
       if (!session?.user) {
         setIsSignedIn(false);
         setReady(false);
+        setLoadError(null);
         router.replace("/auth?redirectTo=/collection");
         return;
       }
 
       setIsSignedIn(true);
       setReady(true);
+      setLoadError(null);
     });
 
     void init();
@@ -66,6 +78,10 @@ export default function CollectionPage() {
 
   if (!ready) {
     return <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] text-gray-400">Loading collection…</div>;
+  }
+
+  if (loadError) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-4 text-red-200"><div className="max-w-xl rounded-3xl border border-red-400/20 bg-red-400/10 p-6">{loadError}</div></div>;
   }
 
   return (

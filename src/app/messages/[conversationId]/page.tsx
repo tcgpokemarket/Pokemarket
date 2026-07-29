@@ -17,13 +17,27 @@ export default async function ConversationPage({ params }: PageProps) {
 
   if (!user) redirect(`/auth?redirectTo=/messages/${conversationId}`);
 
-  const [{ data: conversationMembers }, { data: messages }] = await Promise.all([
-    supabase.from("conversation_members").select("user_id, archived, muted, last_read_at, conversations(*)").eq("conversation_id", conversationId).order("created_at", { ascending: true }),
-    supabase.from("messages").select("id, sender_id, message, attachment_url, attachment_type, context, created_at").eq("conversation_id", conversationId).order("created_at", { ascending: true }).limit(100),
-  ]);
+  let conversationMembers: Array<{ user_id: string; archived: boolean | null; muted: boolean | null; last_read_at: string | null; conversations?: any }> = [];
+  let messages: Array<{ id: string; sender_id: string; message: string; attachment_url: string | null; attachment_type: string | null; context: Record<string, unknown>; created_at: string }> = [];
+  let loadError: string | null = null;
 
-  const members = await getConversationMembers(conversationId);
-  await markConversationRead(conversationId, user.id);
+  try {
+    const [conversationResult, messagesResult] = await Promise.all([
+      supabase.from("conversation_members").select("user_id, archived, muted, last_read_at, conversations(*)").eq("conversation_id", conversationId).order("created_at", { ascending: true }),
+      supabase.from("messages").select("id, sender_id, message, attachment_url, attachment_type, context, created_at").eq("conversation_id", conversationId).order("created_at", { ascending: true }).limit(100),
+    ]);
+
+    if (conversationResult.error) throw new Error(conversationResult.error.message);
+    if (messagesResult.error) throw new Error(messagesResult.error.message);
+
+    conversationMembers = (conversationResult.data ?? []) as typeof conversationMembers;
+    messages = (messagesResult.data ?? []) as typeof messages;
+  } catch (error) {
+    loadError = error instanceof Error ? error.message : "Unable to load conversation.";
+  }
+
+  const members = loadError ? [] : await getConversationMembers(conversationId).catch(() => []);
+  if (!loadError) await markConversationRead(conversationId, user.id).catch(() => null);
 
   const participants = (conversationMembers ?? []).filter((item: any) => item.user_id !== user.id);
   const lastReadAt = (members as Array<{ user_id: string; last_read_at: string | null }>).find((member) => member.user_id === user.id)?.last_read_at ?? null;
@@ -42,17 +56,21 @@ export default async function ConversationPage({ params }: PageProps) {
 
         <ConversationActions conversationId={conversationId} />
 
-        <div className="mt-6 space-y-3">
-          {messages?.length ? messages.map((item: any) => (
-            <div key={item.id} className={`rounded-2xl border p-4 ${item.sender_id === user.id ? "border-yellow-400/40 bg-yellow-400/10" : "border-white/10 bg-[#13131f]"}`}>
-              <div className="text-xs uppercase tracking-[0.2em] text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
-              <div className="mt-2 whitespace-pre-wrap text-sm text-gray-100">{item.message}</div>
-              {item.attachment_url ? <a className="mt-3 inline-flex text-sm font-semibold text-yellow-400" href={item.attachment_url} target="_blank" rel="noreferrer">View attachment</a> : null}
-            </div>
-          )) : (
-            <div className="rounded-2xl border border-white/10 bg-[#13131f] p-10 text-center text-gray-400">No messages yet.</div>
-          )}
-        </div>
+        {loadError ? (
+          <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-400/10 p-6 text-center text-red-200">{loadError}</div>
+        ) : (
+          <div className="mt-6 space-y-3">
+            {messages?.length ? messages.map((item: any) => (
+              <div key={item.id} className={`rounded-2xl border p-4 ${item.sender_id === user.id ? "border-yellow-400/40 bg-yellow-400/10" : "border-white/10 bg-[#13131f]"}`}>
+                <div className="text-xs uppercase tracking-[0.2em] text-gray-500">{new Date(item.created_at).toLocaleString()}</div>
+                <div className="mt-2 whitespace-pre-wrap text-sm text-gray-100">{item.message}</div>
+                {item.attachment_url ? <a className="mt-3 inline-flex text-sm font-semibold text-yellow-400" href={item.attachment_url} target="_blank" rel="noreferrer">View attachment</a> : null}
+              </div>
+            )) : (
+              <div className="rounded-2xl border border-white/10 bg-[#13131f] p-10 text-center text-gray-400">No messages yet.</div>
+            )}
+          </div>
+        )}
 
         <ConversationCompose conversationId={conversationId} />
       </main>

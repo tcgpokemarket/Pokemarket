@@ -14,7 +14,8 @@ export default async function MessagesPage({ searchParams }: { searchParams?: { 
     user = authResult.data.user;
     results = user && query ? await searchMessages(user.id, query) : [];
     conversations = user ? await listUserConversations(user.id) : [];
-  } catch {
+  } catch (error) {
+    console.error("[messages] Failed to load inbox", error);
     user = null;
   }
 

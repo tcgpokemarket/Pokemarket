@@ -67,13 +67,19 @@ export default function CardsPage() {
     if (!cardName.trim()) return;
 
     if (!supabase) return;
-    supabase
+    void supabase
       .from("price_history")
       .select("*")
       .eq("card_name", cardName.trim())
       .order("recorded_at", { ascending: false })
       .limit(5)
-      .then(({ data }) => setHistory((data ?? []) as PriceHistory[]));
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("[cards] Failed to load price history", error);
+          return;
+        }
+        setHistory((data ?? []) as PriceHistory[]);
+      });
   }, [cardName, supabase]);
 
   const visibleHistory = cardName.trim() ? history : [];
@@ -119,17 +125,23 @@ export default function CardsPage() {
 
   const handleSaveCard = async () => {
     if (!isSignedIn || (!activeSuggestion && !price)) return;
-    const next = await saveCard(saveTarget, {
-      id: activeSuggestion?.id ?? `${price?.cardName ?? cardName}-${price?.setName ?? setName}`,
-      name: activeSuggestion?.name ?? price?.cardName ?? cardName,
-      setName: activeSuggestion?.setName ?? price?.setName ?? setName,
-      number: activeSuggestion?.number ?? null,
-      rarity: activeSuggestion?.rarity ?? null,
-      image: activeSuggestion?.image ?? null,
-      price: price?.marketPrice ?? null,
-      source: price?.source ?? "Pokémon TCG API",
-    });
-    setSavedMessage(`Saved ${next[0]?.name ?? "card"} to ${SAVE_TARGETS.find((item) => item.key === saveTarget)?.label.toLowerCase()}.`);
+
+    try {
+      const next = await saveCard(saveTarget, {
+        id: activeSuggestion?.id ?? `${price?.cardName ?? cardName}-${price?.setName ?? setName}`,
+        name: activeSuggestion?.name ?? price?.cardName ?? cardName,
+        setName: activeSuggestion?.setName ?? price?.setName ?? setName,
+        number: activeSuggestion?.number ?? null,
+        rarity: activeSuggestion?.rarity ?? null,
+        image: activeSuggestion?.image ?? null,
+        price: price?.marketPrice ?? null,
+        source: price?.source ?? "Pokémon TCG API",
+      });
+      setSavedMessage(`Saved ${next[0]?.name ?? "card"} to ${SAVE_TARGETS.find((item) => item.key === saveTarget)?.label.toLowerCase()}.`);
+    } catch (error) {
+      console.error("[cards] Failed to save card", error);
+      setError(error instanceof Error ? error.message : "Unable to save card right now.");
+    }
   };
 
   return (
