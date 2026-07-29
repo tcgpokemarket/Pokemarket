@@ -104,7 +104,7 @@ export default function AuthClient() {
         redirectTo: `${window.location.origin}/auth/reset-password${preserveRedirect ? `?redirectTo=${encodeURIComponent(redirectTo)}` : ""}`,
       });
       if (error) throw error;
-      setMessage({ type: "success", text: "Password reset email sent. Check your inbox." });
+      setMessage({ type: "success", text: "Password reset email sent. Check your inbox, then use the reset link there." });
     } catch (error) {
       setMessage({ type: "error", text: formatAuthError(error, "Unable to send reset email.") });
     } finally {
