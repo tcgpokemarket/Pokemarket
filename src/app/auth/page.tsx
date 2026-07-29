@@ -7,6 +7,7 @@ const trustPoints = [
   "Live auction control room",
   "Secure checkout and order tracking",
   "Collector profiles and trust scores",
+  "Fast path for sellers, buyers, and admins",
 ];
 
 const metrics = [

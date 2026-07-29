@@ -1176,6 +1176,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             <a href="/listings" className="text-sm text-gray-300 hover:text-white">Browse</a>
             <a href="/dashboard/fees" className="text-sm text-gray-300 hover:text-white">Fees</a>
             {isAdminAccount && <a href="/admin" className="text-sm font-semibold text-yellow-400 hover:text-yellow-300">Admin</a>}
+            <a href="/sell/scan" className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-bold text-yellow-300 hover:bg-yellow-400/20">Scan Card</a>
             <a href="/listings/create" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">+ New Listing</a>
             <button onClick={handleSignOut} className="text-sm text-gray-400 hover:text-white">Sign out</button>
           </div>
@@ -1508,7 +1509,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
                 <h3 className="text-lg font-bold">What to do next</h3>
                 <div className="mt-4 space-y-3 text-sm text-gray-300">
-                  <a href="/listings/create" className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 hover:border-yellow-400/40">
+                  <a href="/sell/scan" className="flex items-center justify-between rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 hover:border-yellow-400/50">
+                    <span>Scan a card</span>
+                    <span className="text-yellow-400">→</span>
+                  </a>
+                  <a href="/listings/create" className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 hover:border-white/20">
                     <span>Add a new listing</span>
                     <span className="text-yellow-400">→</span>
                   </a>
@@ -1631,12 +1636,15 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
           <div>
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-xl font-bold">My Listings</h2>
-              <a href="/listings/create" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">+ New Listing</a>
+              <div className="flex gap-2">
+                <a href="/sell/scan" className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-bold text-yellow-300 hover:bg-yellow-400/20">Scan Card</a>
+                <a href="/listings/create" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">+ New Listing</a>
+              </div>
             </div>
             {listings.length === 0 ? (
               <div className="py-16 text-center text-gray-400">
                 <div className="mb-3 text-5xl">🃏</div>
-                <p>No listings yet. <a href="/listings/create" className="text-yellow-400 hover:underline">Create your first one.</a></p>
+                <p>No listings yet. <a href="/sell/scan" className="text-yellow-400 hover:underline">Scan a card</a> or <a href="/listings/create" className="text-yellow-400 hover:underline">create your first one</a>.</p>
               </div>
             ) : (
               <div className="space-y-3">

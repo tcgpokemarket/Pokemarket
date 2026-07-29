@@ -13,6 +13,8 @@ export default function CreateListingPage() {
         actionHint: "Your draft saves locally as you work, and you can save it to the marketplace anytime before publishing it.",
       }}
       redirectTo="/listings/create"
+      scannerHref="/sell/scan"
+      scannerLabel="Scan Card"
     />
   );
 }

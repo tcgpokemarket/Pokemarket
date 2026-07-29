@@ -12,6 +12,7 @@ const primaryNav = [
   { label: "Marketplace", href: "/collection" },
   { label: "Categories", href: "/cards" },
   { label: "Sell", href: "/sell" },
+  { label: "Scan Card", href: "/sell/scan" },
   { label: "Wallet", href: "/dashboard?tab=overview" },
   { label: "Messages", href: "/messages" },
   { label: "Notifications", href: "/dashboard?tab=overview" },
@@ -41,6 +42,7 @@ const routeLabels: Record<string, string> = {
   "/collection": "Marketplace",
   "/cards": "Categories",
   "/sell": "Sell",
+  "/sell/scan": "Scan Card",
   "/dashboard": "Wallet",
   "/messages": "Messages",
   "/social": "Community",
@@ -93,6 +95,7 @@ function getBreadcrumbs(pathname: string) {
   if (pathname.startsWith("/profile/")) return ["Home", "Community", "Profile"];
   if (pathname.startsWith("/sellers/")) return ["Home", "Community", "Seller Store"];
   if (pathname.startsWith("/dashboard/fees")) return ["Home", "Wallet", "Fees"];
+  if (pathname.startsWith("/sell/scan")) return ["Home", "Sell", "Scan Card"];
   const base = `/${pathname.split("/")[1]}`;
   const label = routeLabels[base] ?? "Page";
   return ["Home", label];
@@ -300,6 +303,14 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                     {item.label}
                   </Link>
                 ))}
+              </div>
+              <div className="mt-3 grid gap-2">
+                <Link href="/sell/scan" scroll={false} onClick={() => setOpen(false)} className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-center text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/20">
+                  Scan Card
+                </Link>
+                <Link href="/listings/create" scroll={false} onClick={() => setOpen(false)} className="rounded-full bg-yellow-400 px-3 py-2 text-center text-sm font-bold text-black transition hover:bg-yellow-300">
+                  New Listing
+                </Link>
               </div>
             </div>
             <div>

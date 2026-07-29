@@ -13,6 +13,8 @@ export default function SellPage() {
         actionHint: "",
       }}
       redirectTo="/sell"
+      scannerHref="/sell/scan"
+      scannerLabel="Scan Card"
     />
   );
 }

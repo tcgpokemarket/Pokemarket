@@ -107,7 +107,9 @@ export default function SignupWizard() {
   useEffect(() => {
     const client = createClient();
     client.auth.getUser().then(({ data: { user } }) => {
-      if (user) router.replace(redirectTo);
+      if (!user) return;
+      const role = (user.app_metadata?.role ?? user.user_metadata?.role) as string | null;
+      router.replace(role === "seller" ? "/sell" : redirectTo);
     });
   }, [redirectTo, router]);
 

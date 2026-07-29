@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
@@ -18,6 +19,7 @@ const CATEGORIES = [
 ] as const;
 const GRADE_COMPANIES = ["", "PSA", "BGS", "CGC"] as const;
 const STORAGE_KEY_PREFIX = "tcgpm:listings:draft";
+const SCAN_DRAFT_STORAGE_KEY = "tcgpm:scan-card:draft";
 
 export type ListingWizardCopy = {
   title: string;
@@ -39,6 +41,8 @@ type VerificationRow = {
 type ListingWizardProps = {
   copy: ListingWizardCopy;
   redirectTo: string;
+  scannerHref?: string;
+  scannerLabel?: string;
 };
 
 type FormState = {
@@ -143,7 +147,7 @@ function compressListingImage(file: File) {
   });
 }
 
-export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) {
+export default function ListingWizard({ copy, redirectTo, scannerHref, scannerLabel = "Scan Card" }: ListingWizardProps) {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(false);
@@ -225,6 +229,25 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
       setDraftLoaded(true);
     }
   }, [redirectTo, userId]);
+
+  useEffect(() => {
+    if (!userId || typeof window === "undefined" || !draftLoaded) return;
+    const raw = window.localStorage.getItem(SCAN_DRAFT_STORAGE_KEY);
+    if (!raw) return;
+
+    try {
+      const parsed = JSON.parse(raw) as Partial<DraftState>;
+      if (parsed.form) setForm((current) => ({ ...current, ...parsed.form }));
+      if (Array.isArray(parsed.imageUrls)) setImageUrls(parsed.imageUrls.filter((value): value is string => typeof value === "string"));
+      if (typeof parsed.coverImageIndex === "number") setCoverImageIndex(parsed.coverImageIndex);
+      setDraftSavedAt(new Date().toLocaleString());
+      setAutosaveStatus("Scan draft loaded.");
+    } catch {
+      window.localStorage.removeItem(SCAN_DRAFT_STORAGE_KEY);
+    } finally {
+      window.localStorage.removeItem(SCAN_DRAFT_STORAGE_KEY);
+    }
+  }, [draftLoaded, userId]);
 
   useEffect(() => {
     if (!userId || typeof window === "undefined" || !draftLoaded) return;
@@ -563,7 +586,10 @@ export default function ListingWizard({ copy, redirectTo }: ListingWizardProps) 
               <h2 className="mt-2 text-2xl font-black">Create a listing</h2>
               {copy.actionHint ? <p className="mt-2 text-sm text-gray-400">{copy.actionHint}</p> : null}
             </div>
-            <a href={copy.backHref} className="rounded-xl border border-white/20 px-3 py-2 text-sm text-gray-300 hover:bg-white/5">{copy.backLabel}</a>
+            <div className="flex flex-wrap gap-2">
+              {scannerHref ? <Link href={scannerHref} className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/20">{scannerLabel}</Link> : null}
+              <a href={copy.backHref} className="rounded-xl border border-white/20 px-3 py-2 text-sm text-gray-300 hover:bg-white/5">{copy.backLabel}</a>
+            </div>
           </div>
 
           <div className="space-y-4">
