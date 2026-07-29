@@ -110,6 +110,16 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
       router.replace(`/auth?${query.join("&")}`);
     };
 
+    const fallback = window.setTimeout(() => {
+      if (!alive || authState !== "loading") return;
+      if (isProtectedPage || isAuthPage) {
+        setAuthState("redirecting");
+        sendToAuth("session_expired");
+      } else {
+        setAuthState("ready");
+      }
+    }, SESSION_CHECK_TIMEOUT_MS + 1000);
+
     const syncSession = async () => {
       const { data: { user } } = await withTimeout(client.auth.getUser(), SESSION_CHECK_TIMEOUT_MS);
       if (!alive) return;
@@ -160,7 +170,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
 
     syncSession().catch(() => {
       if (!alive) return;
-      if (isProtectedPage) {
+      if (isProtectedPage || isAuthPage) {
         setAuthState("redirecting");
         sendToAuth("session_expired");
       } else {
@@ -170,9 +180,10 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
 
     return () => {
       alive = false;
+      window.clearTimeout(fallback);
       subscription.unsubscribe();
     };
-  }, [isAuthPage, isProtectedPage, pathname, requestedPath, router, searchParams]);
+  }, [authState, isAuthPage, isProtectedPage, pathname, requestedPath, router, searchParams]);
 
   if (authState !== "ready") {
     return <FullPageLoader label={isAuthPage ? "Opening your account" : "Checking access"} />;
