@@ -5,6 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import type { Listing, Order, Profile, SellerWallet } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
+import { ensureProfileForUser } from "@/lib/auth-bootstrap";
+import { getAppRole } from "@/lib/security";
 import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
 import { getEffectiveSellerVerificationStatus, isAdminVerifiedUser, isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
 import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
@@ -407,86 +409,151 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const liveShowCount = sellerLiveShows.length;
   const notificationCount = liveShowCount;
   const [loading, setLoading] = useState(true);
+  const [loadingError, setLoadingError] = useState<string | null>(null);
+  const [authStep, setAuthStep] = useState("Starting dashboard...");
   const [brainCopied, setBrainCopied] = useState(false);
   const [isAdminAccount, setIsAdminAccount] = useState(false);
 
   useEffect(() => {
+    let alive = true;
+    const timeout = window.setTimeout(() => {
+      if (!alive) return;
+      setLoading(false);
+      setLoadingError("Dashboard access check timed out after 5 seconds.");
+    }, 5000);
+
     const init = async () => {
-      if (!supabase) return;
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/auth?redirectTo=/dashboard");
+      if (!supabase) {
+        setLoading(false);
+        setLoadingError("Supabase is not available on this device.");
         return;
       }
 
-      const [{ data: profileData }, { data: shippingData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: storeData }, { data: privacyData }] = await Promise.all([
-        supabase.from("profiles").select("*").eq("id", user.id).single(),
-        supabase.from("profiles").select("shipping_address").eq("id", user.id).maybeSingle(),
-        supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
-        supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
-        supabase.from("listings").select("*").eq("seller_id", user.id).neq("status", "removed").order("created_at", { ascending: false }),
-        supabase.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
-        supabase.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
-        supabase.from("profile_privacy_settings").select("*").eq("user_id", user.id).maybeSingle(),
-      ]);
+      try {
+        setAuthStep("Checking session...");
+        const [sessionResult, userResult] = await Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]);
+        const session = sessionResult.data.session ?? null;
+        const user = userResult.data.user ?? session?.user ?? null;
 
-      const sellerLiveShowsData = await listLiveShowsBySeller(user.id);
+        if (!alive) return;
 
-      const profileRow = profileData as Profile | null;
-      const shippingRow = shippingData as { shipping_address?: unknown } | null;
-      const storeRow = storeData as StoreRow | null;
-      const verificationRow = verificationData as VerificationRow | null;
-      const privacyRow = privacyData as PrivacySettingsRow | null;
+        if (session) console.info("[auth] Session found", { userId: session.user.id });
+        if (user) console.info("[auth] User loaded", { userId: user.id });
 
-      setProfile(profileRow);
-      setShippingAddress(normalizeShippingAddress(shippingRow?.shipping_address ?? profileRow?.shipping_address ?? null));
-      setShippingAddressLoaded(true);
-      setIsAdminAccount(Boolean(user?.app_metadata?.role === "admin" || user?.app_metadata?.role === "super_admin" || user?.user_metadata?.role === "admin" || user?.user_metadata?.role === "super_admin"));
-      setVerificationStatus(getEffectiveSellerVerificationStatus(user, verificationRow?.status ?? profileRow?.verification_status ?? "not_started"));
-      setVerificationDetails(verificationRow ? {
-        rejection_reason: verificationRow.rejection_reason,
-        more_information_request: verificationRow.more_information_request,
-        verified_at: verificationRow.verified_at,
-      } : null);
-      setSellerRecord({ avatar_url: profileRow?.avatar_url ?? null, banner_url: null });
-      setStoreRecord(storeRow);
-      setBrandAssets(createBrandAssetsState(profileRow, storeRow));
-      setStoreName(storeRow?.name ?? "");
-      setStoreSlug(storeRow?.slug ?? "");
-      setStoreDescription(storeRow?.description ?? "");
-      setStoreAccent((storeRow?.theme?.accent as string | null | undefined) ?? "#e22400");
-      setStoreSecondary((storeRow?.theme?.secondary as string | null | undefined) ?? "#ffab01");
-      setStoreHighlight((storeRow?.theme?.highlight as string | null | undefined) ?? "#fefb41");
-      setStoreInstagram((storeRow?.theme?.social_links?.instagram as string | null | undefined) ?? "");
-      setStoreFacebook((storeRow?.theme?.social_links?.facebook as string | null | undefined) ?? "");
-      setStoreYouTube((storeRow?.theme?.social_links?.youtube as string | null | undefined) ?? "");
-      setStoreTikTok((storeRow?.theme?.social_links?.tiktok as string | null | undefined) ?? "");
-      setStoreX((storeRow?.theme?.social_links?.x as string | null | undefined) ?? "");
-      setStoreWebsite((storeRow?.theme?.social_links?.website as string | null | undefined) ?? "");
-      setStoreSettingsLoaded(true);
-      setPrivacyRecord(privacyRow);
-      setPrivacySettings(normalizePrivacySettings(privacyRow));
-      setPrivacySettingsLoaded(true);
-      setPrivacySaveStatus(null);
-      setPrivacySaveError(null);
-      setPrivacySavePending(false);
-      setShippingSaveStatus(null);
-      setShippingSaveError(null);
-      setShippingSavePending(false);
-      setBrandSaveStatus(null);
-      setBrandSaveError(null);
-      setBrandSavePending(false);
-      setWallet(walletData ?? null);
-      setListings(listingData ?? []);
-      setPurchases((purchaseData ?? []) as DashboardOrder[]);
-      setSales((salesData ?? []) as DashboardOrder[]);
-      setSellerLiveShows((sellerLiveShowsData ?? []) as LiveShowDirectoryItem[]);
-      setLoading(false);
-      if (!storeRow) {
-        setStoreName(profileRow?.full_name ?? profileRow?.username ?? "");
-        setStoreSlug(profileRow?.username ?? "");
-        setStoreDescription("");
+        if (!session || !user) {
+          setLoading(false);
+          setLoadingError("No active session was found. Please sign in again.");
+          router.replace("/auth?reason=session_expired&redirectTo=/dashboard");
+          return;
+        }
+
+        setAuthStep("Checking profile...");
+        const { data: profileData, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+        if (!alive) return;
+        if (profileError) throw new Error(profileError.message);
+
+        let profileRow = profileData as Profile | null;
+        if (!profileRow) {
+          setAuthStep("Creating profile...");
+          await ensureProfileForUser({
+            userId: user.id,
+            email: user.email,
+            fullName: user.user_metadata?.full_name ?? user.user_metadata?.name ?? null,
+            avatarUrl: user.user_metadata?.avatar_url ?? null,
+            sellerState: user.user_metadata?.seller_state ?? null,
+            shippingAddress: null,
+            accountType: getAppRole(user) === "seller" ? "seller" : "buyer",
+          });
+
+          const { data: createdProfile, error: reloadError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+          if (!alive) return;
+          if (reloadError) throw new Error(reloadError.message);
+          profileRow = createdProfile as Profile | null;
+        }
+
+        if (!profileRow) throw new Error("Profile could not be loaded.");
+
+        console.info("[auth] Profile loaded", { userId: user.id, username: profileRow.username });
+        const role = getAppRole(user);
+        console.info("[auth] Role loaded", { userId: user.id, role });
+        setAuthStep("Loading dashboard data...");
+
+        const [{ data: shippingData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: storeData }, { data: privacyData }] = await Promise.all([
+          supabase.from("profiles").select("shipping_address").eq("id", user.id).maybeSingle(),
+          supabase.from("seller_wallets").select("*").eq("seller_id", user.id).maybeSingle(),
+          supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
+          supabase.from("listings").select("*").eq("seller_id", user.id).neq("status", "removed").order("created_at", { ascending: false }),
+          supabase.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
+          supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
+          supabase.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
+          supabase.from("profile_privacy_settings").select("*").eq("user_id", user.id).maybeSingle(),
+        ]);
+
+        const sellerLiveShowsData = await listLiveShowsBySeller(user.id);
+        if (!alive) return;
+
+        const shippingRow = shippingData as { shipping_address?: unknown } | null;
+        const storeRow = storeData as StoreRow | null;
+        const verificationRow = verificationData as VerificationRow | null;
+        const privacyRow = privacyData as PrivacySettingsRow | null;
+
+        setProfile(profileRow);
+        setShippingAddress(normalizeShippingAddress(shippingRow?.shipping_address ?? profileRow?.shipping_address ?? null));
+        setShippingAddressLoaded(true);
+        setIsAdminAccount(role === "admin" || role === "super_admin");
+        setVerificationStatus(getEffectiveSellerVerificationStatus(user, verificationRow?.status ?? profileRow?.verification_status ?? "not_started"));
+        setVerificationDetails(verificationRow ? {
+          rejection_reason: verificationRow.rejection_reason,
+          more_information_request: verificationRow.more_information_request,
+          verified_at: verificationRow.verified_at,
+        } : null);
+        setSellerRecord({ avatar_url: profileRow?.avatar_url ?? null, banner_url: null });
+        setStoreRecord(storeRow);
+        setBrandAssets(createBrandAssetsState(profileRow, storeRow));
+        setStoreName(storeRow?.name ?? "");
+        setStoreSlug(storeRow?.slug ?? "");
+        setStoreDescription(storeRow?.description ?? "");
+        setStoreAccent((storeRow?.theme?.accent as string | null | undefined) ?? "#e22400");
+        setStoreSecondary((storeRow?.theme?.secondary as string | null | undefined) ?? "#ffab01");
+        setStoreHighlight((storeRow?.theme?.highlight as string | null | undefined) ?? "#fefb41");
+        setStoreInstagram((storeRow?.theme?.social_links?.instagram as string | null | undefined) ?? "");
+        setStoreFacebook((storeRow?.theme?.social_links?.facebook as string | null | undefined) ?? "");
+        setStoreYouTube((storeRow?.theme?.social_links?.youtube as string | null | undefined) ?? "");
+        setStoreTikTok((storeRow?.theme?.social_links?.tiktok as string | null | undefined) ?? "");
+        setStoreX((storeRow?.theme?.social_links?.x as string | null | undefined) ?? "");
+        setStoreWebsite((storeRow?.theme?.social_links?.website as string | null | undefined) ?? "");
+        setStoreSettingsLoaded(true);
+        setPrivacyRecord(privacyRow);
+        setPrivacySettings(normalizePrivacySettings(privacyRow));
+        setPrivacySettingsLoaded(true);
+        setPrivacySaveStatus(null);
+        setPrivacySaveError(null);
+        setPrivacySavePending(false);
+        setShippingSaveStatus(null);
+        setShippingSaveError(null);
+        setShippingSavePending(false);
+        setBrandSaveStatus(null);
+        setBrandSaveError(null);
+        setBrandSavePending(false);
+        setWallet(walletData ?? null);
+        setListings(listingData ?? []);
+        setPurchases((purchaseData ?? []) as DashboardOrder[]);
+        setSales((salesData ?? []) as DashboardOrder[]);
+        setSellerLiveShows((sellerLiveShowsData ?? []) as LiveShowDirectoryItem[]);
+        setLoading(false);
+        console.info("[auth] Dashboard rendered", { userId: user.id });
+        if (!storeRow) {
+          setStoreName(profileRow?.full_name ?? profileRow?.username ?? "");
+          setStoreSlug(profileRow?.username ?? "");
+          setStoreDescription("");
+        }
+      } catch (error) {
+        if (!alive) return;
+        const message = error instanceof Error ? error.message : "Dashboard validation failed.";
+        setLoadingError(message);
+        setLoading(false);
+      } finally {
+        window.clearTimeout(timeout);
       }
     };
 
@@ -495,6 +562,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     if (orderSuccess) {
       setTimeout(() => router.replace("/dashboard"), 100);
     }
+
+    return () => {
+      alive = false;
+      window.clearTimeout(timeout);
+    };
   }, [orderSuccess, router, supabase]);
 
   const handleSignOut = async () => {

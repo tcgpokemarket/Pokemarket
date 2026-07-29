@@ -21,6 +21,186 @@ type AdminBootstrapResult = {
   recoveryLink: string | null;
 };
 
+type EnsureProfileResult = {
+  profileExists: boolean;
+  created: boolean;
+  username: string;
+};
+
+function logAuthStep(step: string, details: Record<string, unknown>) {
+  if (process.env.NODE_ENV === "production") return;
+  console.info(`[auth] ${step}`, details);
+}
+
+async function readProfile(admin: ReturnType<typeof createAdminClient>, userId: string) {
+  return admin.from("profiles").select("id, username, full_name, avatar_url, seller_state, shipping_address, is_seller, seller_rating, total_sales").eq("id", userId).maybeSingle<{ id: string; username: string | null; full_name: string | null; avatar_url: string | null; seller_state: string | null; shipping_address: unknown; is_seller: boolean; seller_rating: number; total_sales: number }>();
+}
+
+export async function ensureProfileForUser(input: {
+  userId: string;
+  email?: string | null;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+  sellerState?: string | null;
+  shippingAddress?: unknown;
+  accountType?: "buyer" | "seller" | null;
+}): Promise<EnsureProfileResult> {
+  const admin = createAdminClient();
+  logAuthStep("profile lookup started", { userId: input.userId });
+  const email = normalizeEmail(input.email);
+  const fallbackName = input.fullName?.trim() || email?.split("@")[0] || "Marketplace user";
+  const username = buildUsername(fallbackName.replace(/\s+/g, "-"), input.userId);
+  const isSeller = input.accountType === "seller";
+
+  const [{ data: existingProfile }, { data: existingStore }, { data: existingWallet }, { data: existingPrivacy }, { data: existingEmails }, { data: existingMessageRules }] = await Promise.all([
+    readProfile(admin, input.userId),
+    admin.from("seller_stores").select("id, slug").eq("seller_id", input.userId).maybeSingle<{ id: string; slug: string | null }>(),
+    admin.from("seller_wallets").select("seller_id").eq("seller_id", input.userId).maybeSingle<{ seller_id: string }>(),
+    admin.from("profile_privacy_settings").select("user_id").eq("user_id", input.userId).maybeSingle<{ user_id: string }>(),
+    admin.from("email_preferences").select("notification_type").eq("user_id", input.userId).limit(1),
+    admin.from("message_access_rules").select("user_id").eq("user_id", input.userId).maybeSingle<{ user_id: string }>(),
+  ]);
+
+  if (!existingProfile) {
+    const { error } = await (admin as any).from("profiles").upsert(
+      {
+        id: input.userId,
+        username,
+        full_name: input.fullName ?? fallbackName,
+        avatar_url: input.avatarUrl ?? null,
+        seller_state: input.sellerState?.trim().toUpperCase() || null,
+        shipping_address: input.shippingAddress ?? null,
+        is_seller: isSeller,
+        seller_rating: 0,
+        total_sales: 0,
+      },
+      { onConflict: "id" },
+    );
+
+    if (error) throw new Error(error.message);
+    logAuthStep("profile created", { userId: input.userId });
+  } else if (!existingProfile.username) {
+    const { error } = await (admin as any).from("profiles").update({ username }).eq("id", input.userId);
+    if (error) throw new Error(error.message);
+  }
+
+  const { data: refreshedProfile } = await readProfile(admin, input.userId);
+  if (!refreshedProfile) {
+    throw new Error("Profile setup failed.");
+  }
+  logAuthStep("profile loaded", { userId: input.userId, username: refreshedProfile.username ?? username });
+
+  if (isSeller) {
+    if (!existingStore) {
+      const { error } = await (admin as any).from("seller_stores").upsert(
+        {
+          seller_id: input.userId,
+          name: fallbackName,
+          slug: `${username}-store`,
+          description: `${fallbackName}'s storefront is ready for listings and live shows.`,
+          banner_url: null,
+          logo_url: input.avatarUrl ?? null,
+          theme: {
+            accent: "#e22400",
+            secondary: "#ffab01",
+            highlight: "#fefb41",
+            social_links: { instagram: null, facebook: null, youtube: null, tiktok: null, x: null, website: null },
+          },
+          verified: false,
+          featured: false,
+        },
+        { onConflict: "seller_id" },
+      );
+
+      if (error) throw new Error(error.message);
+    }
+
+    if (!existingWallet) {
+      const { error } = await (admin as any).from("seller_wallets").upsert(
+        {
+          seller_id: input.userId,
+          available_balance: 0,
+          pending_balance: 0,
+          frozen_balance: 0,
+          lifetime_earnings: 0,
+          completed_orders_count: 0,
+          instant_payout_enabled: false,
+          fraud_flag: false,
+          fraud_risk_score: 0,
+          manual_review_required: false,
+        },
+        { onConflict: "seller_id" },
+      );
+
+      if (error) throw new Error(error.message);
+    }
+  }
+
+  if (!existingPrivacy) {
+    const { error } = await (admin as any).from("profile_privacy_settings").upsert(
+      {
+        user_id: input.userId,
+        who_can_follow: "everyone",
+        who_can_friend_request: "everyone",
+        profile_visibility: "public",
+        collection_visibility: "public",
+        activity_visibility: "public",
+        message_visibility: "everyone",
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (error) throw new Error(error.message);
+  }
+
+  if (!existingMessageRules) {
+    const { error } = await (admin as any).from("message_access_rules").upsert(
+      {
+        user_id: input.userId,
+        allow_followers: true,
+        allow_friends: true,
+        allow_sellers: true,
+        allow_buyer_support: true,
+        allow_admin_messages: true,
+      },
+      { onConflict: "user_id" },
+    );
+
+    if (error) throw new Error(error.message);
+  }
+
+  if (!existingEmails?.length) {
+    const defaults = ["welcome", "order_confirmation", "shipping_update", "delivery_confirmation", "login_alert"];
+    const { error } = await (admin as any).from("email_preferences").upsert(
+      defaults.map((notificationType) => ({ user_id: input.userId, notification_type: notificationType, enabled: true })),
+      { onConflict: "user_id,notification_type" },
+    );
+
+    if (error) throw new Error(error.message);
+  }
+
+  return { profileExists: true, created: !existingProfile, username: refreshedProfile.username ?? username };
+}
+
+export async function bootstrapUserAccount(input: {
+  userId: string;
+  email?: string | null;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+  sellerState?: string | null;
+  shippingAddress?: unknown;
+  accountType?: "buyer" | "seller" | null;
+  skipRewards?: boolean;
+}) {
+  const { username } = await ensureProfileForUser(input);
+  if (!input.skipRewards) {
+    await issueSignupBonus(input.userId).catch(() => null);
+  }
+
+  const sellerStoreSlug = `${username}-store`;
+  return { username, sellerId: input.userId, storefrontSlug: sellerStoreSlug };
+}
+
 let adminBootstrapPromise: Promise<AdminBootstrapResult> | null = null;
 
 function getPrimaryAdminEmail() {
@@ -129,162 +309,3 @@ export async function ensureAdminAccount() {
   return adminBootstrapPromise;
 }
 
-export async function bootstrapUserAccount(input: {
-  userId: string;
-  email?: string | null;
-  fullName?: string | null;
-  avatarUrl?: string | null;
-  sellerState?: string | null;
-  shippingAddress?: unknown;
-  accountType?: "buyer" | "seller" | null;
-  skipRewards?: boolean;
-}) {
-  const admin = createAdminClient();
-  const email = normalizeEmail(input.email);
-  const fallbackName = input.fullName?.trim() || email?.split("@")[0] || "Marketplace user";
-  const usernameBase = fallbackName.replace(/\s+/g, "-");
-  const username = buildUsername(usernameBase, input.userId);
-  const isSeller = input.accountType === "seller";
-  const sellerState = input.sellerState?.trim().toUpperCase() || null;
-  const sellerStoreName = fallbackName;
-  const sellerStoreSlug = `${username}-store`;
-  const sellerStoreTheme = {
-    accent: "#e22400",
-    secondary: "#ffab01",
-    highlight: "#fefb41",
-    social_links: {
-      instagram: null,
-      facebook: null,
-      youtube: null,
-      tiktok: null,
-      x: null,
-      website: null,
-    },
-  };
-
-  const [{ data: existingProfile }, { data: existingStore }, { data: existingWallet }, { data: existingPrivacy }, { data: existingEmails }, { data: existingMessageRules }] = await Promise.all([
-    admin.from("profiles").select("id, username").eq("id", input.userId).maybeSingle<{ id: string; username: string | null }>(),
-    admin.from("seller_stores").select("id, slug").eq("seller_id", input.userId).maybeSingle<{ id: string; slug: string | null }>(),
-    admin.from("seller_wallets").select("seller_id").eq("seller_id", input.userId).maybeSingle<{ seller_id: string }>(),
-    admin.from("profile_privacy_settings").select("user_id").eq("user_id", input.userId).maybeSingle<{ user_id: string }>(),
-    admin.from("email_preferences").select("notification_type").eq("user_id", input.userId).limit(1),
-    admin.from("message_access_rules").select("user_id").eq("user_id", input.userId).maybeSingle<{ user_id: string }>(),
-  ]);
-
-  if (!existingProfile) {
-    const { error } = await (admin as any).from("profiles").upsert(
-      {
-        id: input.userId,
-        username,
-        full_name: input.fullName ?? fallbackName,
-        avatar_url: input.avatarUrl ?? null,
-        seller_state: sellerState,
-        shipping_address: input.shippingAddress ?? null,
-        is_seller: isSeller,
-        seller_rating: 0,
-        total_sales: 0,
-      },
-      { onConflict: "id" },
-    );
-
-    if (error) throw new Error(error.message);
-  } else if (!existingProfile.username) {
-    const { error } = await (admin as any).from("profiles").update({ username }).eq("id", input.userId);
-    if (error) throw new Error(error.message);
-  }
-
-  const { data: refreshedProfile } = await admin.from("profiles").select("id, username").eq("id", input.userId).maybeSingle<{ id: string; username: string | null }>();
-  if (!refreshedProfile) {
-    throw new Error("Profile setup failed.");
-  }
-
-  if (isSeller) {
-    if (!existingStore) {
-      const { error } = await (admin as any).from("seller_stores").upsert(
-        {
-          seller_id: input.userId,
-          name: sellerStoreName,
-          slug: sellerStoreSlug,
-          description: `${sellerStoreName}'s storefront is ready for listings and live shows.`,
-          banner_url: null,
-          logo_url: input.avatarUrl ?? null,
-          theme: sellerStoreTheme,
-          verified: false,
-          featured: false,
-        },
-        { onConflict: "seller_id" },
-      );
-
-      if (error) throw new Error(error.message);
-    }
-
-    if (!existingWallet) {
-      const { error } = await (admin as any).from("seller_wallets").upsert(
-        {
-          seller_id: input.userId,
-          available_balance: 0,
-          pending_balance: 0,
-          frozen_balance: 0,
-          lifetime_earnings: 0,
-          completed_orders_count: 0,
-          instant_payout_enabled: false,
-          fraud_flag: false,
-          fraud_risk_score: 0,
-          manual_review_required: false,
-        },
-        { onConflict: "seller_id" },
-      );
-
-      if (error) throw new Error(error.message);
-    }
-  }
-
-  if (!existingPrivacy) {
-    const { error } = await (admin as any).from("profile_privacy_settings").upsert(
-      {
-        user_id: input.userId,
-        who_can_follow: "everyone",
-        who_can_friend_request: "everyone",
-        profile_visibility: "public",
-        collection_visibility: "public",
-        activity_visibility: "public",
-        message_visibility: "everyone",
-      },
-      { onConflict: "user_id" },
-    );
-
-    if (error) throw new Error(error.message);
-  }
-
-  if (!existingMessageRules) {
-    const { error } = await (admin as any).from("message_access_rules").upsert(
-      {
-        user_id: input.userId,
-        allow_followers: true,
-        allow_friends: true,
-        allow_sellers: true,
-        allow_buyer_support: true,
-        allow_admin_messages: true,
-      },
-      { onConflict: "user_id" },
-    );
-
-    if (error) throw new Error(error.message);
-  }
-
-  if (!existingEmails?.length) {
-    const defaults = ["welcome", "order_confirmation", "shipping_update", "delivery_confirmation", "login_alert"];
-    const { error } = await (admin as any).from("email_preferences").upsert(
-      defaults.map((notificationType) => ({ user_id: input.userId, notification_type: notificationType, enabled: true })),
-      { onConflict: "user_id,notification_type" },
-    );
-
-    if (error) throw new Error(error.message);
-  }
-
-  if (!input.skipRewards) {
-    await issueSignupBonus(input.userId).catch(() => null);
-  }
-
-  return { username: refreshedProfile.username ?? username, sellerId: input.userId, storefrontSlug: sellerStoreSlug };
-}
