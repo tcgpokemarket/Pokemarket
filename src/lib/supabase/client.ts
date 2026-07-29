@@ -13,7 +13,7 @@ export function createClient(options: { rememberSession?: boolean } = {}) {
     auth: {
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      persistSession: options.rememberSession ?? true,
+      persistSession: options.rememberSession ?? false,
     } as any,
     isSingleton: false,
   });

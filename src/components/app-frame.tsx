@@ -88,7 +88,13 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     let alive = true;
     const client = createClient();
 
-    const run = async () => {
+    const sendToAuth = (reason?: string) => {
+      const query = [`redirectTo=${encodeURIComponent(requestedPath)}`];
+      if (reason) query.push(`reason=${encodeURIComponent(reason)}`);
+      router.replace(`/auth?${query.join("&")}`);
+    };
+
+    const syncSession = async () => {
       const { data: { user } } = await client.auth.getUser();
       if (!alive) return;
 
@@ -107,18 +113,40 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
 
       if (isProtectedPage && !user) {
         setAuthState("redirecting");
-        router.replace(`/auth?redirectTo=${encodeURIComponent(requestedPath)}`);
+        sendToAuth("session_expired");
         return;
       }
 
       setAuthState("ready");
     };
 
-    run().catch(() => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, session) => {
+      if (!alive) return;
+
+      if (!session?.user) {
+        if (isProtectedPage || isAuthPage) {
+          setAuthState("redirecting");
+          sendToAuth(event === "SIGNED_OUT" ? "signed_out" : "session_expired");
+        } else {
+          setAuthState("ready");
+        }
+        return;
+      }
+
+      if (isAuthPage) {
+        setAuthState("redirecting");
+        router.replace(getDestination(getAppRole(session.user), getSafeRedirect(searchParams.get("redirectTo"))));
+        return;
+      }
+
+      setAuthState("ready");
+    });
+
+    syncSession().catch(() => {
       if (!alive) return;
       if (isProtectedPage) {
         setAuthState("redirecting");
-        router.replace(`/auth?redirectTo=${encodeURIComponent(requestedPath)}`);
+        sendToAuth("session_expired");
       } else {
         setAuthState("ready");
       }
@@ -126,6 +154,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
 
     return () => {
       alive = false;
+      subscription.unsubscribe();
     };
   }, [isAuthPage, isProtectedPage, pathname, requestedPath, router, searchParams]);
 

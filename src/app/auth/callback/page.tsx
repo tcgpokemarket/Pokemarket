@@ -36,8 +36,15 @@ export default function AuthCallbackPage() {
 
         if (activeUser) {
           const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
+          const reason = searchParams.get("reason") === "session_expired" ? "session_expired" : null;
           const role = (activeUser.app_metadata?.role ?? activeUser.user_metadata?.role) as string | null;
-          router.replace(redirectTo === "/dashboard" && role === "seller" ? "/sell" : redirectTo);
+          const destination = redirectTo === "/dashboard" && role === "seller" ? "/sell" : redirectTo;
+          router.replace(reason ? `${destination}?reason=${encodeURIComponent(reason)}` : destination);
+          return;
+        }
+
+        if (searchParams.get("reason") === "session_expired") {
+          router.replace("/auth?reason=session_expired");
           return;
         }
 
