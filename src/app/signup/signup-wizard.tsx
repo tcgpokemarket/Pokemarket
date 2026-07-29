@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -82,27 +82,6 @@ export default function SignupWizard() {
     referralCode,
     agreeToTerms: false,
   }));
-  const fullNameRef = useRef<HTMLInputElement | null>(null);
-  const emailRef = useRef<HTMLInputElement | null>(null);
-  const passwordRef = useRef<HTMLInputElement | null>(null);
-  const usernameRef = useRef<HTMLInputElement | null>(null);
-  const sellerStateRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => {
-    const target =
-      step === 0 ? fullNameRef.current ?? emailRef.current ?? passwordRef.current :
-      step === 2 ? usernameRef.current ?? sellerStateRef.current :
-      null;
-
-    if (!target) return;
-
-    const frame = window.requestAnimationFrame(() => {
-      target.focus({ preventScroll: true });
-      target.scrollIntoView({ block: "center", behavior: "smooth" });
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [step]);
 
 
   const referralSource = useMemo(() => referralCode, [referralCode]);
@@ -304,10 +283,7 @@ export default function SignupWizard() {
                 <label className="block text-sm font-medium text-gray-200">
                   Full name
                   <input
-                    ref={fullNameRef}
                     type="text"
-                    onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
-                    onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                     value={form.fullName}
                     onChange={(e) => setValue("fullName", e.target.value)}
                     placeholder="Your full name"
@@ -322,10 +298,7 @@ export default function SignupWizard() {
                 <label className="block text-sm font-medium text-gray-200">
                   Email
                   <input
-                    ref={emailRef}
                     type="email"
-                    onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
-                    onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                     inputMode="email"
                     autoCapitalize="none"
                     autoCorrect="off"
@@ -344,10 +317,7 @@ export default function SignupWizard() {
                   Password
                   <div className="mt-2 flex items-stretch gap-2 rounded-2xl border border-white/10 bg-[#111827] pr-2 focus-within:border-yellow-400/60">
                     <input
-                      ref={passwordRef}
                       type={showPassword ? "text" : "password"}
-                      onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
-                      onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                       value={form.password}
                       onChange={(e) => setValue("password", e.target.value)}
                       placeholder="Create a strong password"
@@ -404,10 +374,7 @@ export default function SignupWizard() {
                 <label className="block text-sm font-medium text-gray-200">
                   Username
                   <input
-                    ref={usernameRef}
                     type="text"
-                    onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
-                    onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                     value={form.username}
                     onChange={(e) => setValue("username", normalizeUsername(e.target.value))}
                     placeholder="ash-ketchum"
@@ -424,8 +391,6 @@ export default function SignupWizard() {
                   Referral code
                   <input
                     type="text"
-                    onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
-                    onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                     value={form.referralCode}
                     onChange={(e) => setValue("referralCode", e.target.value.toUpperCase())}
                     placeholder="Optional"
@@ -439,10 +404,7 @@ export default function SignupWizard() {
                   <label className="block text-sm font-medium text-gray-200">
                     Seller state
                     <input
-                      ref={sellerStateRef}
                       type="text"
-                      onPointerDownCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
-                      onTouchStartCapture={(event) => event.currentTarget.focus({ preventScroll: true })}
                       value={form.sellerState}
                       onChange={(e) => setValue("sellerState", e.target.value.toUpperCase().slice(0, 2))}
                       placeholder="CA"
