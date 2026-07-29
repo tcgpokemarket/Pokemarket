@@ -4,17 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-function GoogleIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5">
-      <path fill="#EA4335" d="M12 9.5v5h6.9c-.3 1.8-2 5.3-6.9 5.3A7.8 7.8 0 1 1 12 4.2c2.2 0 3.7.9 4.6 1.8l3.1-3A11.8 11.8 0 0 0 12 0C5.4 0 .1 5.4.1 12S5.4 24 12 24c6.8 0 11.3-4.7 11.3-11.3 0-.8-.1-1.4-.2-2H12Z" />
-      <path fill="#4285F4" d="M23.3 12.7c0-.7-.1-1.3-.2-2H12v4.1h6.3c-.3 1.5-1.1 2.9-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.7Z" />
-      <path fill="#FBBC05" d="m5.6 14.3-.8.6-3 2.4A12 12 0 0 0 12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4Z" />
-      <path fill="#34A853" d="M12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4l-3.3 2.5C2.7 20.7 7 24 12 24Z" />
-    </svg>
-  );
-}
-
 function Spinner() {
   return <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />;
 }
@@ -60,7 +49,6 @@ export default function AuthClient() {
   const [fullName, setFullName] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(
     searchParams.get("reason") === "session_expired"
@@ -81,29 +69,6 @@ export default function AuthClient() {
       router.replace(getDestination((user.app_metadata?.role ?? user.user_metadata?.role) as string | null, redirectTo, preserveRedirect));
     });
   }, [preserveRedirect, rememberMe, redirectTo, router]);
-
-  const handleGoogleSignIn = async () => {
-    setMessage(null);
-    setGoogleLoading(true);
-
-    try {
-      const client = createClient({ rememberSession: rememberMe });
-      const redirectUrl = preserveRedirect
-        ? `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`
-        : `${window.location.origin}/auth/callback`;
-      const { error } = await client.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: { prompt: "select_account" },
-        },
-      });
-      if (error) throw error;
-    } catch (error) {
-      setMessage({ type: "error", text: formatAuthError(error, "Google sign-in failed. Please try again.") });
-      setGoogleLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,19 +141,9 @@ export default function AuthClient() {
         </button>
       </div>
 
-      <button
-        type="button"
-        onClick={handleGoogleSignIn}
-        disabled={loading || googleLoading || resetLoading}
-        className="flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 font-bold text-black transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        {googleLoading ? <Spinner /> : <GoogleIcon />}
-        Continue with Google
-      </button>
-
       <div className="my-5 flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-gray-500">
         <span className="h-px flex-1 bg-white/10" />
-        <span>or email</span>
+        <span>Email only</span>
         <span className="h-px flex-1 bg-white/10" />
       </div>
 
@@ -203,7 +158,7 @@ export default function AuthClient() {
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Your full name"
               required
-              disabled={loading || googleLoading || resetLoading}
+              disabled={loading || resetLoading}
               className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
             />
           </div>
@@ -218,7 +173,7 @@ export default function AuthClient() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             required
-            disabled={loading || googleLoading || resetLoading}
+            disabled={loading || resetLoading}
             className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
           />
         </div>
@@ -226,7 +181,7 @@ export default function AuthClient() {
         <div>
           <div className="mb-2 flex items-center justify-between gap-3">
             <label htmlFor="password" className="block text-sm font-medium text-gray-200">Password</label>
-            <button type="button" onClick={handlePasswordReset} disabled={loading || googleLoading || resetLoading} className="text-sm font-semibold text-yellow-400 hover:text-yellow-300 disabled:opacity-50">
+            <button type="button" onClick={handlePasswordReset} disabled={loading || resetLoading} className="text-sm font-semibold text-yellow-400 hover:text-yellow-300 disabled:opacity-50">
               {resetLoading ? "Sending..." : "Forgot Password"}
             </button>
           </div>
@@ -238,7 +193,7 @@ export default function AuthClient() {
             placeholder="••••••••"
             required
             minLength={8}
-            disabled={loading || googleLoading || resetLoading}
+            disabled={loading || resetLoading}
             className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
           />
         </div>
@@ -261,7 +216,7 @@ export default function AuthClient() {
 
         <button
           type="submit"
-          disabled={loading || googleLoading || resetLoading}
+          disabled={loading || resetLoading}
           className="w-full rounded-2xl bg-gradient-to-r from-[#e22400] to-[#ffab01] px-4 py-3 font-bold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {loading ? <span className="inline-flex items-center gap-2"><Spinner /> Loading...</span> : mode === "signin" ? "Sign in" : "Create account"}
