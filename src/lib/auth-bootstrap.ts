@@ -14,6 +14,121 @@ function buildUsername(base: string, fallbackId: string) {
   return cleaned || `user-${fallbackId.slice(0, 8)}`;
 }
 
+type AdminBootstrapResult = {
+  email: string;
+  userId: string | null;
+  created: boolean;
+  recoveryLink: string | null;
+};
+
+let adminBootstrapPromise: Promise<AdminBootstrapResult> | null = null;
+
+function getPrimaryAdminEmail() {
+  const candidates = [process.env.ADMIN_EMAIL, process.env.ADMIN_EMAILS, "tcgpokemarketadmin@gmail.com"];
+  for (const candidate of candidates) {
+    const email = candidate
+      ?.split(",")
+      .map((value) => value.trim().toLowerCase())
+      .find(Boolean);
+    if (email) return email;
+  }
+  return "tcgpokemarketadmin@gmail.com";
+}
+
+function getAdminPassword() {
+  return process.env.ADMIN_PASSWORD?.trim() ?? "";
+}
+
+async function findUserByEmail(admin: ReturnType<typeof createAdminClient>, email: string) {
+  const pageSize = 100;
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await (admin.auth.admin as any).listUsers({ page, perPage: pageSize });
+    if (error) throw new Error(error.message);
+    const user = (data?.users ?? []).find((entry: { email?: string | null }) => entry.email?.toLowerCase() === email);
+    if (user) return user;
+    if ((data?.users ?? []).length < pageSize) return null;
+  }
+  return null;
+}
+
+async function createRecoveryLink(admin: ReturnType<typeof createAdminClient>, email: string) {
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://tcg-poke-market.sintra.site").replace(/\/$/, "");
+  const { data, error } = await (admin.auth.admin as any).generateLink({
+    type: "recovery",
+    email,
+    options: {
+      redirectTo: `${siteUrl}/auth/reset-password?redirectTo=%2Fadmin`,
+    },
+  });
+
+  if (error) throw new Error(error.message);
+
+  return data?.properties?.action_link ?? data?.properties?.actionLink ?? null;
+}
+
+async function bootstrapAdminAccount(): Promise<AdminBootstrapResult> {
+  const admin = createAdminClient();
+  const email = getPrimaryAdminEmail();
+  const password = getAdminPassword();
+  const existingUser = await findUserByEmail(admin, email);
+
+  if (!existingUser) {
+    if (!password) throw new Error("ADMIN_PASSWORD is not configured.");
+
+    const { data, error } = await (admin.auth.admin as any).createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { role: "admin" },
+      app_metadata: { role: "admin" },
+    });
+
+    if (error) throw new Error(error.message);
+
+    const userId = data?.user?.id ?? null;
+    if (userId) {
+      await bootstrapUserAccount({
+        userId,
+        email,
+        fullName: "Marketplace Admin",
+        accountType: "buyer",
+        skipRewards: true,
+      });
+    }
+
+    return { email, userId, created: true, recoveryLink: null };
+  }
+
+  const { error } = await (admin.auth.admin as any).updateUserById(existingUser.id, {
+    app_metadata: { ...(existingUser.app_metadata ?? {}), role: "admin" },
+    user_metadata: { ...(existingUser.user_metadata ?? {}), role: "admin" },
+  });
+
+  if (error) throw new Error(error.message);
+
+  await bootstrapUserAccount({
+    userId: existingUser.id,
+    email,
+    fullName: existingUser.user_metadata?.full_name ?? existingUser.user_metadata?.name ?? "Marketplace Admin",
+    accountType: "buyer",
+    skipRewards: true,
+  });
+
+  const recoveryLink = await createRecoveryLink(admin, email).catch(() => null);
+  return { email, userId: existingUser.id, created: false, recoveryLink };
+}
+
+export async function ensureAdminAccount() {
+  if (!adminBootstrapPromise) {
+    adminBootstrapPromise = bootstrapAdminAccount().catch((error) => {
+      adminBootstrapPromise = null;
+      throw error;
+    });
+  }
+
+  return adminBootstrapPromise;
+}
+
 export async function bootstrapUserAccount(input: {
   userId: string;
   email?: string | null;
@@ -22,6 +137,7 @@ export async function bootstrapUserAccount(input: {
   sellerState?: string | null;
   shippingAddress?: unknown;
   accountType?: "buyer" | "seller" | null;
+  skipRewards?: boolean;
 }) {
   const admin = createAdminClient();
   const email = normalizeEmail(input.email);
@@ -166,7 +282,9 @@ export async function bootstrapUserAccount(input: {
     if (error) throw new Error(error.message);
   }
 
-  await issueSignupBonus(input.userId).catch(() => null);
+  if (!input.skipRewards) {
+    await issueSignupBonus(input.userId).catch(() => null);
+  }
 
   return { username: refreshedProfile.username ?? username, sellerId: input.userId, storefrontSlug: sellerStoreSlug };
 }

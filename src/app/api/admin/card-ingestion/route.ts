@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
 import { analyzeCardImage, createImageHash, downloadStorageImage, ensureCardIngestionStorageBucket, findManualCardMatches, listPotentialDuplicates, summarizeDuplicateSignals } from "@/lib/card-ingestion";
 import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
+import { ensureAdminAccount } from "@/lib/auth-bootstrap";
 import { MAX_IMAGE_SIZE_BYTES } from "@/lib/uploads";
 
 export const dynamic = "force-dynamic";
@@ -18,6 +19,8 @@ async function ensureAdminUser() {
   if (!user || !isAdminUser(user)) {
     return { user: null, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
+
+  await ensureAdminAccount().catch(() => null);
 
   return { user, response: null };
 }

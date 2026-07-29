@@ -3,7 +3,7 @@ import { createClient as createServerSupabaseClient } from "@/lib/supabase/serve
 import { createAdminClient } from "@/lib/supabase/admin";
 import { detectReferralFraud, logFraudFlag } from "@/lib/referral-fraud";
 import { recordSecurityEvent } from "@/lib/audit-log";
-import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
+import { bootstrapUserAccount, ensureAdminAccount } from "@/lib/auth-bootstrap";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -33,6 +33,8 @@ export async function POST(request: Request) {
   const fallbackName = fullName || email.split("@")[0] || "Marketplace user";
   const userId = user.id;
   const role = accountType === "seller" ? "seller" : "buyer";
+
+  await ensureAdminAccount().catch(() => null);
 
   await bootstrapUserAccount({
     userId,
