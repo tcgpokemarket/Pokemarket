@@ -65,9 +65,9 @@ export function getEnvironmentAudit(env: EnvMap = process.env) {
       optional: [],
     },
     {
-      name: "OpenAI",
+      name: "OpenAI / Scanner",
       required: ["OPENAI_API_KEY"],
-      optional: [],
+      optional: ["OPENAI_CARD_MODEL", "CARD_INGESTION_STORAGE_BUCKET"],
     },
     {
       name: "Pokémon pricing",

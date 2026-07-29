@@ -196,7 +196,9 @@ export default function ScanCardPage() {
       setResult(nextResult);
       setMessage(nextResult?.confidence && nextResult.confidence < 50 ? "Fallback scan complete. Please review the details before publishing." : "Scan complete. Review the draft and publish when ready.");
       if (nextResult?.source?.toLowerCase().includes("fallback") || nextResult?.source?.toLowerCase().includes("manual")) {
-        setError("Automated recognition was unavailable, so a fallback match was used.");
+        setMessage("Fallback scan complete. Please review the details before publishing.");
+      } else {
+        setMessage("Scan complete. Review the draft and publish when ready.");
       }
     } finally {
       setLoading(false);
