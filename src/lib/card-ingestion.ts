@@ -158,7 +158,7 @@ function parseJsonObject(value: string) {
 async function openAiAnalyzeImage(imageDataUrl: string, fileName: string) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured.");
+    return buildFallbackRecognitionResult({ imageDataUrl, fileName });
   }
 
   const schema = {
@@ -333,6 +333,62 @@ export async function findManualCardMatches(params: { cardName: string; setName?
 
   const matches = await searchPokemonCards(query);
   return matches.slice(0, params.limit ?? 6) as ManualCardMatch[];
+}
+
+function cleanFallbackQuery(fileName: string) {
+  return fileName
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function buildFallbackRecognitionResult(params: { imageDataUrl: string; fileName: string }): Promise<CardIngestionAIResult> {
+  const query = cleanFallbackQuery(params.fileName);
+  const matches = query ? await findManualCardMatches({ cardName: query, limit: 1 }).catch(() => []) : [];
+  const primary = matches[0] ?? null;
+  const cardName = primary?.name ?? (query || "Pokémon Card");
+  const setName = primary?.setName ?? "Unknown Set";
+  const cardNumber = primary?.number ?? null;
+  const rarity = primary?.rarity ?? null;
+  const price = primary ? await fetchCardPrice(primary.name, primary.setName ?? "").catch(() => null) : null;
+  const title = primary
+    ? `${primary.name}${primary.setName ? ` — ${primary.setName}` : ""}${primary.number ? ` · ${primary.number}` : ""}`.trim()
+    : "Pokémon Card — Manual Review Needed";
+
+  return {
+    card_name: cardName,
+    set_name: setName,
+    card_number: cardNumber,
+    rarity,
+    language: null,
+    variant: null,
+    category: "single",
+    ocr_text: query,
+    title,
+    description: primary
+      ? `Fallback card lookup used because automated recognition was unavailable. Review the details before publishing.`
+      : `Automated recognition was unavailable. Add the card details manually before publishing.`,
+    condition_assistance: {
+      likely_condition: "Near Mint",
+      confidence: 30,
+      notes: primary
+        ? `Fallback matched ${primary.name}${primary.setName ? ` (${primary.setName})` : ""}.`
+        : "No automated recognition provider was available.",
+    },
+    pricing: {
+      estimated_price: price?.marketPrice ?? null,
+      low_price: price?.lowPrice ?? null,
+      high_price: price?.highPrice ?? null,
+      source: primary ? `Fallback + ${price?.source ?? "manual lookup"}` : "manual review",
+    },
+    confidence: primary ? 45 : 15,
+    duplicate_signals: primary ? [`fallback:${primary.source}`] : ["fallback:manual-review"],
+    notes: primary
+      ? `Fallback lookup from filename because automated recognition was unavailable.`
+      : `Manual review required because automated recognition was unavailable.`,
+    tags: primary ? ["fallback", "manual-review"] : ["manual-review"],
+  };
 }
 
 export function getPublishabilityIssues(item: {

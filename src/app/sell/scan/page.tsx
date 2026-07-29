@@ -192,8 +192,12 @@ export default function ScanCardPage() {
         throw new Error(stagePrefix + (data.error ?? "Scan failed."));
       }
 
-      setResult(data.result ?? null);
-      setMessage("Scan complete. Review the draft and publish when ready.");
+      const nextResult = data.result ?? null;
+      setResult(nextResult);
+      setMessage(nextResult?.confidence && nextResult.confidence < 50 ? "Fallback scan complete. Please review the details before publishing." : "Scan complete. Review the draft and publish when ready.");
+      if (nextResult?.source?.toLowerCase().includes("fallback") || nextResult?.source?.toLowerCase().includes("manual")) {
+        setError("Automated recognition was unavailable, so a fallback match was used.");
+      }
     } finally {
       setLoading(false);
     }
@@ -338,7 +342,10 @@ export default function ScanCardPage() {
                     <img src={result.source_image_url} alt={result.title} className="h-full w-full object-cover" />
                   </div>
                   <div className="space-y-2 p-5">
-                    <h2 className="text-2xl font-black">{result.title}</h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-2xl font-black">{result.title}</h2>
+                      {result.confidence < 50 ? <span className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.25em] text-yellow-300">Fallback</span> : null}
+                    </div>
                     <p className="text-sm text-gray-400">{result.description}</p>
                   </div>
                 </div>
