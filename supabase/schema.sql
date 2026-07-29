@@ -783,6 +783,7 @@ create policy "seller_verification_documents_select_own" on public.seller_verifi
 create policy "seller_verification_documents_insert_own" on public.seller_verification_documents for insert with check (auth.uid() = user_id);
 create policy "seller_verification_history_select" on public.seller_verification_history for select using (auth.uid() = actor_id or exists (select 1 from public.seller_verifications v where v.id = verification_id and v.user_id = auth.uid()));
 
+alter table public.profiles add column if not exists shipping_address jsonb;
 alter table public.profiles add column if not exists verification_status text default 'not_started' check (verification_status in ('not_started', 'pending_review', 'approved', 'rejected', 'more_information_required', 'suspended'));
 alter table public.profiles add column if not exists verification_submitted_at timestamptz;
 alter table public.profiles add column if not exists verification_reviewed_at timestamptz;

@@ -209,6 +209,7 @@ export default function SignupWizard() {
           sellerState: form.accountType === "seller" ? form.sellerState.trim().toUpperCase() : null,
           referralCode: form.referralCode.trim(),
           avatarUrl: null,
+          shippingAddress: null,
         }),
       });
 

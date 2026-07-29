@@ -22,6 +22,7 @@ export async function POST(request: Request) {
   const sellerState = String(body.sellerState ?? "").trim().toUpperCase() || null;
   const referralCode = String(body.referralCode ?? "").trim().toUpperCase();
   const avatarUrl = typeof body.avatarUrl === "string" ? body.avatarUrl : null;
+  const shippingAddress = body.shippingAddress ?? null;
   const email = user.email?.toLowerCase() ?? "";
 
   if (!fullName || !username || !accountType) {
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     fullName: fullName || fallbackName,
     avatarUrl,
     sellerState,
+    shippingAddress,
     accountType: role,
   }).catch((error) => {
     throw new Error(error instanceof Error ? error.message : String(error));
@@ -59,6 +61,7 @@ export async function POST(request: Request) {
         full_name: fullName || fallbackName,
         avatar_url: avatarUrl,
         seller_state: sellerState,
+        shipping_address: shippingAddress,
         is_seller: role === "seller",
         seller_rating: 0,
         total_sales: 0,
@@ -75,6 +78,7 @@ export async function POST(request: Request) {
       full_name: fullName || fallbackName,
       avatar_url: avatarUrl,
       seller_state: sellerState,
+      shipping_address: shippingAddress,
       is_seller: role === "seller",
       referral_code: referralCode || null,
       referral_code_created_at: referralCode ? new Date().toISOString() : null,

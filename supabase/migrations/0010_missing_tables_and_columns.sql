@@ -11,6 +11,7 @@
 -- ──────────────────────────────────────────────────────────────
 alter table public.profiles
   add column if not exists seller_state text,
+  add column if not exists shipping_address jsonb,
   add column if not exists updated_at timestamptz default now(),
   add column if not exists verification_status text default 'not_started'
     check (verification_status in (

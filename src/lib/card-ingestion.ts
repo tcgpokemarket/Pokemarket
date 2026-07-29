@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchCardPrice } from "@/lib/prices";
+import { searchPokemonCards } from "@/lib/api-integrations";
 import type { Database } from "@/lib/supabase/types";
 
 export type CardIngestionStatus =
@@ -50,6 +51,16 @@ export type CardIngestionAIResult = {
   duplicate_signals: string[];
   notes: string;
   tags: string[];
+};
+
+export type ManualCardMatch = {
+  id: string;
+  name: string;
+  setName?: string;
+  number?: string;
+  image?: string;
+  rarity?: string;
+  source: string;
 };
 
 export type CardIngestionBatchRow = Database["public"]["Tables"]["card_ingestion_batches"]["Row"];
@@ -287,6 +298,14 @@ export async function analyzeCardImage(params: { imageDataUrl: string; fileName:
       source: ai.pricing.source || price?.source || "OpenAI estimate",
     },
   } satisfies CardIngestionAIResult;
+}
+
+export async function findManualCardMatches(params: { cardName: string; setName?: string | null; limit?: number }) {
+  const query = [params.cardName.trim(), params.setName?.trim()].filter(Boolean).join(" ").trim();
+  if (!query) return [];
+
+  const matches = await searchPokemonCards(query);
+  return matches.slice(0, params.limit ?? 6) as ManualCardMatch[];
 }
 
 export function getPublishabilityIssues(item: {

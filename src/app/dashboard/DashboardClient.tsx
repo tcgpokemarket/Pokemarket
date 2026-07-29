@@ -41,6 +41,42 @@ type PrivacySettingsState = {
   whoCanFriendRequest: FollowVisibility;
 };
 
+type ShippingAddressState = {
+  firstName: string;
+  lastName: string;
+  streetAddress: string;
+  city: string;
+  state: string;
+  zipCode: string;
+};
+
+function normalizeShippingAddress(value: unknown): ShippingAddressState {
+  const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  return {
+    firstName: String(record.firstName ?? record.first_name ?? "").trim(),
+    lastName: String(record.lastName ?? record.last_name ?? "").trim(),
+    streetAddress: String(record.streetAddress ?? record.address1 ?? record.address ?? "").trim(),
+    city: String(record.city ?? "").trim(),
+    state: String(record.state ?? "").trim().toUpperCase(),
+    zipCode: String(record.ZIPCode ?? record.zipCode ?? record.zip ?? record.postalCode ?? "").trim(),
+  };
+}
+
+function shippingAddressToPayload(address: ShippingAddressState) {
+  return {
+    firstName: address.firstName.trim(),
+    lastName: address.lastName.trim(),
+    streetAddress: address.streetAddress.trim(),
+    city: address.city.trim(),
+    state: address.state.trim().toUpperCase(),
+    ZIPCode: address.zipCode.trim(),
+  };
+}
+
+function hasCompleteShippingAddress(address: ShippingAddressState) {
+  return Boolean(address.firstName && address.lastName && address.streetAddress && address.city && address.state && address.zipCode);
+}
+
 const DEFAULT_PRIVACY_SETTINGS: PrivacySettingsState = {
   profileVisibility: "public",
   collectionVisibility: "public",
@@ -357,6 +393,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [privacySaveStatus, setPrivacySaveStatus] = useState<string | null>(null);
   const [privacySaveError, setPrivacySaveError] = useState<string | null>(null);
   const [privacySavePending, setPrivacySavePending] = useState(false);
+  const [shippingAddress, setShippingAddress] = useState<ShippingAddressState>({ firstName: "", lastName: "", streetAddress: "", city: "", state: "", zipCode: "" });
+  const [shippingAddressLoaded, setShippingAddressLoaded] = useState(false);
+  const [shippingSaveStatus, setShippingSaveStatus] = useState<string | null>(null);
+  const [shippingSaveError, setShippingSaveError] = useState<string | null>(null);
+  const [shippingSavePending, setShippingSavePending] = useState(false);
   const [brandAssetBusy, setBrandAssetBusy] = useState<BrandAssetField | null>(null);
   const [wallet, setWallet] = useState<SellerWallet | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
@@ -378,8 +419,9 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         return;
       }
 
-      const [{ data: profileData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: storeData }, { data: privacyData }] = await Promise.all([
+      const [{ data: profileData }, { data: shippingData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: storeData }, { data: privacyData }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", user.id).single(),
+        supabase.from("profiles").select("shipping_address").eq("id", user.id).maybeSingle(),
         supabase.from("seller_wallets").select("*").eq("seller_id", user.id).single(),
         supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
         supabase.from("listings").select("*").eq("seller_id", user.id).neq("status", "removed").order("created_at", { ascending: false }),
@@ -392,11 +434,14 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       const sellerLiveShowsData = await listLiveShowsBySeller(user.id);
 
       const profileRow = profileData as Profile | null;
+      const shippingRow = shippingData as { shipping_address?: unknown } | null;
       const storeRow = storeData as StoreRow | null;
       const verificationRow = verificationData as VerificationRow | null;
       const privacyRow = privacyData as PrivacySettingsRow | null;
 
       setProfile(profileRow);
+      setShippingAddress(normalizeShippingAddress(shippingRow?.shipping_address ?? profileRow?.shipping_address ?? null));
+      setShippingAddressLoaded(true);
       setIsAdminAccount(Boolean(user?.app_metadata?.role === "admin" || user?.app_metadata?.role === "super_admin" || user?.user_metadata?.role === "admin" || user?.user_metadata?.role === "super_admin"));
       setVerificationStatus(getEffectiveSellerVerificationStatus(user, verificationRow?.status ?? profileRow?.verification_status ?? "not_started"));
       setVerificationDetails(verificationRow ? {
@@ -426,6 +471,9 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       setPrivacySaveStatus(null);
       setPrivacySaveError(null);
       setPrivacySavePending(false);
+      setShippingSaveStatus(null);
+      setShippingSaveError(null);
+      setShippingSavePending(false);
       setBrandSaveStatus(null);
       setBrandSaveError(null);
       setBrandSavePending(false);
@@ -802,6 +850,46 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     setPrivacySaveError(null);
   };
 
+  const handleShippingInput = <K extends keyof ShippingAddressState>(key: K, value: ShippingAddressState[K]) => {
+    setShippingAddress((current) => ({ ...current, [key]: value }));
+    setShippingSaveStatus(null);
+    setShippingSaveError(null);
+  };
+
+  const saveShippingAddress = async () => {
+    if (!supabase || !profile) return;
+    if (!hasCompleteShippingAddress(shippingAddress)) {
+      setShippingSaveError("Enter your full shipping address.");
+      return;
+    }
+
+    setShippingSavePending(true);
+    setShippingSaveStatus(null);
+    setShippingSaveError(null);
+
+    try {
+      const response = await fetch("/api/profile-assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          target: "profile",
+          shipping_address: shippingAddressToPayload(shippingAddress),
+        }),
+      });
+      const payload = await response.json().catch(() => ({} as { error?: string }));
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to save shipping address.");
+      }
+
+      setShippingSaveStatus("Shipping address saved");
+      setShippingAddressLoaded(true);
+    } catch (error) {
+      setShippingSaveError(error instanceof Error ? error.message : "Unable to save shipping address.");
+    } finally {
+      setShippingSavePending(false);
+    }
+  };
+
   const savePrivacySettings = async () => {
     if (!supabase || !profile) return;
     setPrivacySavePending(true);
@@ -1147,11 +1235,50 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
               <button
                 type="button"
                 onClick={() => void saveBrandAssets()}
-                disabled={brandSavePending || privacySavePending || (!hasPendingBrandChanges(brandAssets) && !brandSettingsChanged && !privacySettingsDirty)}
+                disabled={brandSavePending || privacySavePending || shippingSavePending || (!hasPendingBrandChanges(brandAssets) && !brandSettingsChanged && !privacySettingsDirty && !shippingAddressLoaded)}
                 className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition-colors hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {brandSavePending || privacySavePending ? "Saving..." : `Save Changes${brandDraftCount > 0 ? ` (${brandDraftCount})` : ""}`}
+                {brandSavePending || privacySavePending || shippingSavePending ? "Saving..." : `Save Changes${brandDraftCount > 0 ? ` (${brandDraftCount})` : ""}`}
               </button>
+            </div>
+
+            <div className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">
+              <div className="font-semibold text-white">Shipping address</div>
+              <p className="mt-2 text-gray-400">Save your buyer shipping address once so checkout and labels can reuse it automatically.</p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">First name</label>
+                  <input value={shippingAddress.firstName} onChange={(e) => handleShippingInput("firstName", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Last name</label>
+                  <input value={shippingAddress.lastName} onChange={(e) => handleShippingInput("lastName", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Street address</label>
+                  <input value={shippingAddress.streetAddress} onChange={(e) => handleShippingInput("streetAddress", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">City</label>
+                  <input value={shippingAddress.city} onChange={(e) => handleShippingInput("city", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">State</label>
+                  <input value={shippingAddress.state} onChange={(e) => handleShippingInput("state", e.target.value.toUpperCase())} maxLength={2} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                </div>
+                <div>
+                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">ZIP code</label>
+                  <input value={shippingAddress.zipCode} onChange={(e) => handleShippingInput("zipCode", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <span className="text-xs text-gray-500">Used for buyer checkout and shipping labels.</span>
+                <button type="button" onClick={() => void saveShippingAddress()} disabled={shippingSavePending} className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50">
+                  {shippingSavePending ? "Saving address..." : "Save shipping address"}
+                </button>
+              </div>
+              {shippingSaveStatus && <div className="mt-3 rounded-xl border border-green-400/20 bg-green-400/10 px-4 py-3 text-sm text-green-300">✓ {shippingSaveStatus}</div>}
+              {shippingSaveError && <div className="mt-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{shippingSaveError}</div>}
             </div>
 
             <div className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">

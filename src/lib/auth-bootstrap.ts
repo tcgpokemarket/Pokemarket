@@ -20,6 +20,7 @@ export async function bootstrapUserAccount(input: {
   fullName?: string | null;
   avatarUrl?: string | null;
   sellerState?: string | null;
+  shippingAddress?: unknown;
   accountType?: "buyer" | "seller" | null;
 }) {
   const admin = createAdminClient();
@@ -62,6 +63,7 @@ export async function bootstrapUserAccount(input: {
         full_name: input.fullName ?? fallbackName,
         avatar_url: input.avatarUrl ?? null,
         seller_state: sellerState,
+        shipping_address: input.shippingAddress ?? null,
         is_seller: isSeller,
         seller_rating: 0,
         total_sales: 0,

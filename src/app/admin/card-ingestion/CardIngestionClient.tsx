@@ -429,6 +429,24 @@ export default function CardIngestionClient({ batches, items }: Props) {
                         </div>
                       ) : null}
 
+                      {(() => {
+                        const manualMatches = (item.ai_payload as { manual_matches?: Array<{ id: string; name: string; setName?: string; number?: string; image?: string; rarity?: string; source: string }> } | null)?.manual_matches ?? [];
+                        if (!manualMatches.length) return null;
+                        return (
+                          <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-sm text-gray-200">
+                            <div className="font-semibold text-white">Manual search matches</div>
+                            <div className="mt-2 grid gap-2">
+                              {manualMatches.map((match) => (
+                                <div key={match.id} className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-gray-300">
+                                  <div className="font-semibold text-white">{match.name}</div>
+                                  <div className="mt-1 text-gray-400">{match.setName ?? "Unknown set"}{match.number ? ` · #${match.number}` : ""}{match.rarity ? ` · ${match.rarity}` : ""}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
+
                       {item.error_message ? <p className="text-sm text-red-300">{item.error_message}</p> : null}
 
                       <div className="flex flex-wrap gap-2">

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
-import { normalizeListingImageUrls, toListingImageRecord } from "@/lib/uploads";
 import { bootstrapUserAccount } from "@/lib/auth-bootstrap";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { buildListingDraftFromIngestionItem, getPublishabilityIssues } from "@/lib/card-ingestion";
@@ -83,16 +82,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ bat
 
       const { data: listing, error: listingError } = await (admin.from("listings") as any).insert(payload).select("id").single() as { data: { id: string } | null; error: { message: string } | null };
       if (listingError || !listing) throw listingError ?? new Error("Listing creation failed.");
-
-      const imageRows = normalizeListingImageUrls([item.source_image_url]).map((publicUrl, sortOrder) => ({
-        listing_id: listing.id,
-        ...toListingImageRecord(publicUrl, sortOrder, "card_ingestion"),
-      }));
-
-      if (imageRows.length) {
-        const { error: imageInsertError } = await (admin.from("listing_images") as any).upsert(imageRows, { onConflict: "listing_id,storage_path" });
-        if (imageInsertError) throw imageInsertError;
-      }
 
       await (admin.from("card_ingestion_items") as any)
         .update({ status: "published", published_listing_id: listing.id, published_at: new Date().toISOString() })

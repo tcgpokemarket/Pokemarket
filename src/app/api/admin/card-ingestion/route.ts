@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/admin-access";
-import { analyzeCardImage, createImageHash, downloadStorageImage, ensureCardIngestionStorageBucket, listPotentialDuplicates, summarizeDuplicateSignals } from "@/lib/card-ingestion";
+import { analyzeCardImage, createImageHash, downloadStorageImage, ensureCardIngestionStorageBucket, findManualCardMatches, listPotentialDuplicates, summarizeDuplicateSignals } from "@/lib/card-ingestion";
 import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
 import { MAX_IMAGE_SIZE_BYTES } from "@/lib/uploads";
 
@@ -116,6 +116,7 @@ export async function POST(request: Request) {
       const duplicates = await listPotentialDuplicates({ cardName: analysis.card_name, setName: analysis.set_name, cardNumber: analysis.card_number, variant: analysis.variant });
       const duplicateIds = duplicates.map((listing) => listing.id);
       const duplicateSummary = summarizeDuplicateSignals(duplicates);
+      const manualMatches = analysis.confidence >= 80 ? [] : await findManualCardMatches({ cardName: analysis.card_name, setName: analysis.set_name, limit: 6 });
       const status = duplicateIds.length ? "duplicate" : analysis.confidence >= 80 ? "ready_to_publish" : "needs_review";
 
       const itemPayload = {
@@ -146,7 +147,10 @@ export async function POST(request: Request) {
         confidence_score: analysis.confidence,
         duplicate_listing_ids: duplicateIds,
         duplicate_summary: duplicateSummary,
-        ai_payload: analysis,
+        ai_payload: {
+          ...analysis,
+          manual_matches: manualMatches,
+        },
         review_notes: analysis.notes,
         processed_at: new Date().toISOString(),
       };
@@ -251,6 +255,7 @@ export async function POST(request: Request) {
     const duplicates = await listPotentialDuplicates({ cardName: analysis.card_name, setName: analysis.set_name, cardNumber: analysis.card_number, variant: analysis.variant });
     const duplicateIds = duplicates.map((listing) => listing.id);
     const duplicateSummary = summarizeDuplicateSignals(duplicates);
+    const manualMatches = analysis.confidence >= 80 ? [] : await findManualCardMatches({ cardName: analysis.card_name, setName: analysis.set_name, limit: 6 });
     const status = duplicateIds.length ? "duplicate" : analysis.confidence >= 80 ? "ready_to_publish" : "needs_review";
 
     const { data: updated, error: updateError } = await (admin.from("card_ingestion_items") as any)
@@ -276,7 +281,10 @@ export async function POST(request: Request) {
         confidence_score: analysis.confidence,
         duplicate_listing_ids: duplicateIds,
         duplicate_summary: duplicateSummary,
-        ai_payload: analysis,
+        ai_payload: {
+          ...analysis,
+          manual_matches: manualMatches,
+        },
         review_notes: analysis.notes,
         error_message: null,
         processed_at: new Date().toISOString(),

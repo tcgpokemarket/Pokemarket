@@ -10,6 +10,7 @@ export interface Database {
           full_name: string | null
           avatar_url: string | null
           seller_state: string | null
+          shipping_address: Json | null
           is_seller: boolean
           seller_rating: number
           total_sales: number
@@ -36,6 +37,7 @@ export interface Database {
           full_name?: string | null
           avatar_url?: string | null
           seller_state?: string | null
+          shipping_address?: Json | null
           is_seller?: boolean
           seller_rating?: number
           total_sales?: number
@@ -62,6 +64,7 @@ export interface Database {
           full_name?: string | null
           avatar_url?: string | null
           seller_state?: string | null
+          shipping_address?: Json | null
           is_seller?: boolean
           seller_rating?: number
           total_sales?: number

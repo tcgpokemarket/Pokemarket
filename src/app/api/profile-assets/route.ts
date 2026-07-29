@@ -20,9 +20,10 @@ export async function POST(request: Request) {
   const admin = createAdminClient();
 
   if (target === "profile") {
-    const profileUpdate: Record<string, string | null> = {};
+    const profileUpdate: Record<string, string | Record<string, unknown> | null> = {};
     if ("avatar_url" in body) profileUpdate.avatar_url = body.avatar_url ?? null;
     if ("seller_state" in body) profileUpdate.seller_state = String(body.seller_state ?? "").trim().toUpperCase() || null;
+    if ("shipping_address" in body) profileUpdate.shipping_address = body.shipping_address && typeof body.shipping_address === "object" ? body.shipping_address : null;
     const { error } = await (admin.from("profiles") as any).update(profileUpdate).eq("id", user.id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ success: true });

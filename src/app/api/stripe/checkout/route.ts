@@ -172,9 +172,11 @@ export async function POST(request: Request) {
   const shipping = Number(body.shippingAmount ?? 0);
   const shippingService = typeof body.shippingService === "string" ? body.shippingService.trim() : "USPS Ground Advantage";
   const { data: sellerProfile } = await admin.from("profiles").select("seller_state").eq("id", listing.seller_id).maybeSingle<{ seller_state: string | null }>();
+  const { data: buyerProfile } = await admin.from("profiles").select("shipping_address").eq("id", user.id).maybeSingle<{ shipping_address: unknown }>();
   const sellerState = sellerProfile?.seller_state ?? null;
+  const buyerAddress = body.shippingAddress ?? buyerProfile?.shipping_address ?? null;
   const checkoutLocation = resolveCheckoutLocation({
-    shippingAddress: body.shippingAddress ?? null,
+    shippingAddress: buyerAddress,
     geo: body.geo ?? null,
   });
   const { tax: salesTax } = calculateSalesTax(itemSubtotal + shipping, {
@@ -269,6 +271,7 @@ export async function POST(request: Request) {
     seller_tier_name: fees.tierName,
     status: "pending" as const,
     stripe_checkout_session_id: checkoutSession.id,
+    buyer_address: buyerAddress,
     escrow_status: "held" as const,
     escrow_held_at: new Date().toISOString(),
   };
