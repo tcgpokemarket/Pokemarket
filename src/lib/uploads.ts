@@ -56,13 +56,29 @@ export function normalizeListingImageUrls(images: unknown[]) {
   const seen = new Set<string>();
   const normalized: string[] = [];
   for (const value of images) {
-    if (typeof value !== "string") continue;
-    const trimmed = value.trim();
+    const rawUrl =
+      typeof value === "string"
+        ? value
+        : value && typeof value === "object"
+          ? typeof (value as { public_url?: unknown }).public_url === "string"
+            ? (value as { public_url: string }).public_url
+            : typeof (value as { publicUrl?: unknown }).publicUrl === "string"
+              ? (value as { publicUrl: string }).publicUrl
+              : typeof (value as { url?: unknown }).url === "string"
+                ? (value as { url: string }).url
+                : null
+          : null;
+    if (!rawUrl) continue;
+    const trimmed = rawUrl.trim();
     if (!trimmed || seen.has(trimmed)) continue;
     seen.add(trimmed);
     normalized.push(trimmed);
   }
   return normalized;
+}
+
+export function normalizeListingImageRecords(images: unknown[]) {
+  return normalizeListingImageUrls(images).map((publicUrl, index) => toListingImageRecord(publicUrl, index, "listing"));
 }
 
 export function getListingImagesInDisplayOrder(images: unknown[]) {
