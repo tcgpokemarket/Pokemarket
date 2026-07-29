@@ -57,69 +57,86 @@ export default function SellerVerificationPage() {
   });
 
   useEffect(() => {
+    let active = true;
+
     const init = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/auth?redirectTo=/sell/verification");
-        return;
-      }
-
-      setCurrentUser(user);
-      if (getAppRole(user) === "admin" || getAppRole(user) === "super_admin") {
-        setStatus("approved");
-      }
-
-      const [{ data: verification }, { data: profileData }] = await Promise.all([
-        supabase.from("seller_verifications").select("*").eq("user_id", user.id).maybeSingle(),
-        supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
-      ]);
-      const profile = profileData as { full_name?: string | null } | null;
-
-      const currentVerification = verification as {
-        id: string;
-        status: SellerVerificationStatus;
-        legal_name: string | null;
-        date_of_birth: string | null;
-        residential_address: string | null;
-        phone_number: string | null;
-        rejection_reason: string | null;
-        more_information_request: string | null;
-        verified_at: string | null;
-      } | null;
-
-      if (currentVerification) {
-        setVerificationId(currentVerification.id);
-        setStatus(currentVerification.status);
-        setForm((current) => ({
-          ...current,
-          legal_name: currentVerification.legal_name ?? profile?.full_name ?? "",
-          date_of_birth: currentVerification.date_of_birth ?? "",
-          residential_address: currentVerification.residential_address ?? "",
-          phone_number: currentVerification.phone_number ?? "",
-          rejectionReason: currentVerification.rejection_reason,
-          moreInfo: currentVerification.more_information_request,
-          verifiedAt: currentVerification.verified_at,
-        }));
-
-        const { data: docs } = await supabase
-          .from("seller_verification_documents")
-          .select("document_type, storage_path")
-          .eq("verification_id", currentVerification.id);
-        const verificationDocs = (docs ?? []) as Array<{ document_type: UploadField; storage_path: string }>;
-
-        const nextUploads = { ...uploads };
-        for (const doc of verificationDocs) {
-          nextUploads[doc.document_type] = doc.storage_path;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!active) return;
+        if (!user) {
+          setLoading(false);
+          router.push("/auth?redirectTo=/sell/verification");
+          return;
         }
-        setUploads(nextUploads);
-      } else if (profile?.full_name) {
-        setForm((current) => ({ ...current, legal_name: profile.full_name ?? "" }));
-      }
 
-      setLoading(false);
+        setCurrentUser(user);
+        if (getAppRole(user) === "admin" || getAppRole(user) === "super_admin") {
+          setStatus("approved");
+        }
+
+        const [{ data: verification }, { data: profileData }] = await Promise.all([
+          supabase.from("seller_verifications").select("*").eq("user_id", user.id).maybeSingle(),
+          supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+        ]);
+        if (!active) return;
+        const profile = profileData as { full_name?: string | null } | null;
+
+        const currentVerification = verification as {
+          id: string;
+          status: SellerVerificationStatus;
+          legal_name: string | null;
+          date_of_birth: string | null;
+          residential_address: string | null;
+          phone_number: string | null;
+          rejection_reason: string | null;
+          more_information_request: string | null;
+          verified_at: string | null;
+        } | null;
+
+        if (currentVerification) {
+          setVerificationId(currentVerification.id);
+          setStatus(currentVerification.status);
+          setForm((current) => ({
+            ...current,
+            legal_name: currentVerification.legal_name ?? profile?.full_name ?? "",
+            date_of_birth: currentVerification.date_of_birth ?? "",
+            residential_address: currentVerification.residential_address ?? "",
+            phone_number: currentVerification.phone_number ?? "",
+            rejectionReason: currentVerification.rejection_reason,
+            moreInfo: currentVerification.more_information_request,
+            verifiedAt: currentVerification.verified_at,
+          }));
+
+          const { data: docs } = await supabase
+            .from("seller_verification_documents")
+            .select("document_type, storage_path")
+            .eq("verification_id", currentVerification.id);
+          if (!active) return;
+          const verificationDocs = (docs ?? []) as Array<{ document_type: UploadField; storage_path: string }>;
+
+          const nextUploads = { ...uploads };
+          for (const doc of verificationDocs) {
+            nextUploads[doc.document_type] = doc.storage_path;
+          }
+          setUploads(nextUploads);
+        } else if (profile?.full_name) {
+          setForm((current) => ({ ...current, legal_name: profile.full_name ?? "" }));
+        }
+      } catch (error) {
+        if (!active) return;
+        console.error("[verification] Failed to load seller verification", error);
+        setMessage({ type: "error", text: error instanceof Error ? error.message : "Unable to load verification." });
+      } finally {
+        if (!active) return;
+        setLoading(false);
+      }
     };
 
     init();
+
+    return () => {
+      active = false;
+    };
   }, [router, supabase]);
 
   const label = useMemo(() => sellerVerificationLabel(status ?? "not_started"), [status]);

@@ -76,30 +76,49 @@ export default function RewardsPage() {
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    let active = true;
+
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.replace("/auth?redirectTo=/rewards");
-        return;
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!active) return;
+
+        if (!user) {
+          setLoading(false);
+          router.replace("/auth?redirectTo=/rewards");
+          return;
+        }
+
+        const [accountResult, ledgerResult, optionsResult, redemptionsResult] = await Promise.all([
+          supabase.from("rewards_accounts").select("*").eq("user_id", user.id).maybeSingle(),
+          supabase.from("rewards_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
+          supabase.from("rewards_redemption_options").select("*").eq("active", true).order("points_cost", { ascending: true }),
+          supabase.from("rewards_redemptions").select("*, rewards_redemption_options(*)").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
+        ]);
+
+        if (!active) return;
+
+        setSnapshot({
+          account: (accountResult.data as RewardsAccount | null) ?? null,
+          ledger: (ledgerResult.data ?? []) as RewardsLedgerRow[],
+          options: (optionsResult.data ?? []) as RewardsOption[],
+          redemptions: (redemptionsResult.data ?? []) as RewardsRedemptionRow[],
+        });
+      } catch (error) {
+        if (!active) return;
+        console.error("[rewards] Failed to load rewards dashboard", error);
+        setRedeemError(error instanceof Error ? error.message : "Unable to load rewards.");
+      } finally {
+        if (!active) return;
+        setLoading(false);
       }
-
-      const [accountResult, ledgerResult, optionsResult, redemptionsResult] = await Promise.all([
-        supabase.from("rewards_accounts").select("*").eq("user_id", user.id).maybeSingle(),
-        supabase.from("rewards_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
-        supabase.from("rewards_redemption_options").select("*").eq("active", true).order("points_cost", { ascending: true }),
-        supabase.from("rewards_redemptions").select("*, rewards_redemption_options(*)").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
-      ]);
-
-      setSnapshot({
-        account: (accountResult.data as RewardsAccount | null) ?? null,
-        ledger: (ledgerResult.data ?? []) as RewardsLedgerRow[],
-        options: (optionsResult.data ?? []) as RewardsOption[],
-        redemptions: (redemptionsResult.data ?? []) as RewardsRedemptionRow[],
-      });
-      setLoading(false);
     };
 
     void load();
+
+    return () => {
+      active = false;
+    };
   }, [router, supabase]);
 
   const account = snapshot.account ?? DEFAULT_REWARDS_ACCOUNT;
@@ -176,6 +195,8 @@ export default function RewardsPage() {
 
         {loading ? (
           <div className="mt-8 rounded-3xl border border-white/10 bg-white/5 p-8 text-center text-gray-300">Loading rewards...</div>
+        ) : redeemError && !snapshot.account ? (
+          <div className="mt-8 rounded-3xl border border-red-400/20 bg-red-400/10 p-8 text-center text-red-200">{redeemError}</div>
         ) : (
           <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.9fr]">
             <section className="rounded-3xl border border-white/10 bg-white/5 p-6">

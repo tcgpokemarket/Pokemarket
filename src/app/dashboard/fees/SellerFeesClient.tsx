@@ -81,11 +81,34 @@ export default function SellerFeesClient() {
 
   useEffect(() => {
     let active = true;
-    supabase.from("listings").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(24).then(({ data }) => {
-      if (!active) return;
-      setPromotionListings((data ?? []) as Listing[]);
-      setPromotionTargetId((data?.[0] as Listing | undefined)?.id ?? "");
-    });
+
+    const loadListings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("listings")
+          .select("*")
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(24);
+
+        if (!active) return;
+        if (error) {
+          setStatus("error");
+          setMessage(error.message);
+          return;
+        }
+
+        setPromotionListings((data ?? []) as Listing[]);
+        setPromotionTargetId((data?.[0] as Listing | undefined)?.id ?? "");
+      } catch (error) {
+        if (!active) return;
+        setStatus("error");
+        setMessage(error instanceof Error ? error.message : "Unable to load listings.");
+      }
+    };
+
+    void loadListings();
+
     return () => {
       active = false;
     };

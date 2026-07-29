@@ -420,6 +420,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       if (!alive) return;
       setLoading(false);
       setLoadingError("Dashboard access check timed out after 5 seconds.");
+      console.error("[auth] Dashboard access check timed out");
     }, 5000);
 
     const init = async () => {
@@ -550,6 +551,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       } catch (error) {
         if (!alive) return;
         const message = error instanceof Error ? error.message : "Dashboard validation failed.";
+        console.error("[auth] Dashboard validation failed", error);
         setLoadingError(message);
         setLoading(false);
       } finally {
@@ -812,6 +814,22 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
           <div className="text-xl font-black text-white">Dashboard unavailable</div>
           <p className="text-sm text-gray-400">The seller dashboard could not start on this device. Please reload or sign in again.</p>
           <a href="/auth?redirectTo=/dashboard" className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Sign in again</a>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadingError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-6 text-center text-gray-300">
+        <div className="max-w-md space-y-4 rounded-3xl border border-red-400/20 bg-red-400/10 p-6 shadow-2xl shadow-black/20">
+          <div className="text-xl font-black text-white">Dashboard unavailable</div>
+          <p className="text-sm text-gray-300">{loadingError}</p>
+          <p className="text-xs uppercase tracking-[0.25em] text-gray-500">{authStep}</p>
+          <div className="flex flex-wrap justify-center gap-3 pt-2">
+            <button type="button" onClick={() => router.refresh()} className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Try again</button>
+            <a href="/auth?redirectTo=/dashboard" className="inline-flex rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Sign in again</a>
+          </div>
         </div>
       </div>
     );
