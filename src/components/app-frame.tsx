@@ -77,14 +77,19 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname() ?? "/";
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [authState, setAuthState] = useState<"loading" | "ready" | "redirecting">("loading");
-
   const isAuthPage = isAuthPath(pathname);
   const isPublicPage = isPublicPath(pathname);
   const isProtectedPage = !isPublicPage && !isAuthPage;
   const requestedPath = useMemo(() => getRequestedPath(pathname, searchParams), [pathname, searchParams]);
+  const [authState, setAuthState] = useState<"loading" | "ready" | "redirecting">(isProtectedPage ? "loading" : "ready");
 
   useEffect(() => {
+    setAuthState(isProtectedPage ? "loading" : "ready");
+  }, [isProtectedPage, pathname]);
+
+  useEffect(() => {
+    if (!isProtectedPage) return;
+
     let alive = true;
     const client = createClient();
 
@@ -95,34 +100,19 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     };
 
     const fallback = window.setTimeout(() => {
-      if (!alive || authState !== "loading") return;
-      if (isProtectedPage || isAuthPage) {
-        setAuthState("redirecting");
+      if (!alive) return;
+      setAuthState((current) => {
+        if (current !== "loading") return current;
         sendToAuth("session_expired");
-      } else {
-        setAuthState("ready");
-      }
+        return "redirecting";
+      });
     }, 1200);
 
     const syncSession = async () => {
       const { data: { session } } = await client.auth.getSession();
       if (!alive) return;
 
-      const user = session?.user ?? null;
-      const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
-
-      if (isAuthPage) {
-        if (user) {
-          setAuthState("redirecting");
-          router.replace(getDestination(getAppRole(user), redirectTo));
-          return;
-        }
-
-        setAuthState("ready");
-        return;
-      }
-
-      if (isProtectedPage && !user) {
+      if (!session?.user) {
         setAuthState("redirecting");
         sendToAuth("session_expired");
         return;
@@ -135,18 +125,8 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
       if (!alive) return;
 
       if (!session?.user) {
-        if (isProtectedPage || isAuthPage) {
-          setAuthState("redirecting");
-          sendToAuth(event === "SIGNED_OUT" ? "signed_out" : "session_expired");
-        } else {
-          setAuthState("ready");
-        }
-        return;
-      }
-
-      if (isAuthPage) {
         setAuthState("redirecting");
-        router.replace(getDestination(getAppRole(session.user), getSafeRedirect(searchParams.get("redirectTo"))));
+        sendToAuth(event === "SIGNED_OUT" ? "signed_out" : "session_expired");
         return;
       }
 
@@ -155,12 +135,8 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
 
     syncSession().catch(() => {
       if (!alive) return;
-      if (isProtectedPage || isAuthPage) {
-        setAuthState("redirecting");
-        sendToAuth("session_expired");
-      } else {
-        setAuthState("ready");
-      }
+      setAuthState("redirecting");
+      sendToAuth("session_expired");
     });
 
     return () => {
@@ -168,10 +144,10 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
       window.clearTimeout(fallback);
       subscription.unsubscribe();
     };
-  }, [authState, isAuthPage, isProtectedPage, pathname, requestedPath, router, searchParams]);
+  }, [isProtectedPage, requestedPath, router]);
 
-  if (authState !== "ready") {
-    return <FullPageLoader label={isAuthPage ? "Opening your account" : "Checking access"} />;
+  if (authState !== "ready" && isProtectedPage) {
+    return <FullPageLoader label="Checking access" />;
   }
 
   if (isAuthPage) {

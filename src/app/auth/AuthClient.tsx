@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -57,18 +57,6 @@ export default function AuthClient() {
         ? { type: "success", text: "You have been logged out successfully." }
         : null
   );
-  const bootstrapHandled = useRef(false);
-
-  useEffect(() => {
-    if (bootstrapHandled.current) return;
-    bootstrapHandled.current = true;
-
-    const client = createClient({ rememberSession: rememberMe });
-    client.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      router.replace(getDestination((user.app_metadata?.role ?? user.user_metadata?.role) as string | null, redirectTo, preserveRedirect));
-    });
-  }, [preserveRedirect, rememberMe, redirectTo, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -25,12 +25,6 @@ function Spinner() {
   return <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />;
 }
 
-function getSafeRedirect(value: string | null) {
-  if (!value || !value.startsWith("/")) return "/dashboard";
-  if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/dashboard";
-  return value;
-}
-
 function getPasswordStrength(password: string) {
   let score = 0;
   if (password.length >= 8) score += 1;
@@ -63,12 +57,11 @@ function SpinnerButton({ label }: { label: string }) {
 }
 
 export default function SignupWizard() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const referralCode = useMemo(() => searchParams.get("ref") ?? searchParams.get("referral_code") ?? "", [searchParams]);
-  const redirectTo = useMemo(() => getSafeRedirect(searchParams.get("redirectTo")), [searchParams]);
   const [step, setStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [progress, setProgress] = useState("Ready to create your account");
@@ -92,15 +85,6 @@ export default function SignupWizard() {
       setForm((current) => (current.referralCode === referralSource ? current : { ...current, referralCode: referralSource }));
     });
   }, [form.referralCode, referralSource]);
-
-  useEffect(() => {
-    const client = createClient();
-    client.auth.getUser().then(({ data: { user } }) => {
-      if (!user) return;
-      const role = (user.app_metadata?.role ?? user.user_metadata?.role) as string | null;
-      router.replace(role === "seller" ? "/sell" : redirectTo);
-    });
-  }, [redirectTo, router]);
 
   const passwordStrength = useMemo(() => getPasswordStrength(form.password), [form.password]);
   const strength = getStrengthLabel(passwordStrength);
