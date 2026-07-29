@@ -62,7 +62,7 @@ function getDestination(userRole: ReturnType<typeof getAppRole>, redirectTo: str
 
 function FullPageLoader({ label }: { label: string }) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-4 text-center text-gray-200">
+    <div className="flex min-h-dvh items-start justify-center bg-[#0f0f1a] px-4 pt-10 text-center text-gray-200 sm:items-center sm:pt-0">
       <div className="max-w-sm rounded-3xl border border-white/10 bg-white/5 px-6 py-8 shadow-2xl shadow-black/20 backdrop-blur">
         <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-yellow-400/25 border-t-yellow-400" />
         <p className="mt-4 text-sm font-semibold uppercase tracking-[0.3em] text-yellow-400">TCG Poke Market</p>
