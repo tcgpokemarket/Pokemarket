@@ -102,8 +102,32 @@ function adjustRecognitionConfidence(result: CardIngestionAIResult) {
   if (hasUncertaintyLanguage(result.notes) || hasUncertaintyLanguage(result.description)) confidence -= 10;
   if (result.ocr_text && /\b(unknown|unclear|not sure|maybe|possibly|appears to be)\b/i.test(result.ocr_text)) confidence -= 10;
   if (hasMeaningfulLabel(result.card_name) && hasMeaningfulLabel(result.set_name) && result.card_number?.trim()) confidence += 8;
+  if (/\b(card not found|unable to identify|could not identify|failed to identify)\b/i.test(`${result.notes} ${result.description} ${result.ocr_text}`)) confidence -= 20;
 
   return clampConfidence(confidence);
+}
+
+function mergeRecognitionFallback(result: CardIngestionAIResult, matches: ManualCardMatch[]) {
+  if (!matches.length) return result;
+  const [primary] = matches;
+  const enrichedSetName = hasMeaningfulLabel(result.set_name) ? result.set_name : primary.setName ?? result.set_name;
+  const enrichedCardName = hasMeaningfulLabel(result.card_name) ? result.card_name : primary.name;
+  const enrichedCardNumber = result.card_number ?? primary.number ?? null;
+  const enrichedRarity = result.rarity ?? primary.rarity ?? null;
+  const enrichedVariant = result.variant ?? null;
+  const duplicateSignals = [...result.duplicate_signals, `fallback:${primary.source}`].filter((value, index, values) => values.indexOf(value) === index);
+
+  return {
+    ...result,
+    card_name: enrichedCardName,
+    set_name: enrichedSetName,
+    card_number: enrichedCardNumber,
+    rarity: enrichedRarity,
+    variant: enrichedVariant,
+    confidence: clampConfidence(Math.max(result.confidence, 55)),
+    duplicate_signals: duplicateSignals,
+    notes: [result.notes, `Fallback matched ${primary.name}${primary.setName ? ` (${primary.setName})` : ""}.`].filter(Boolean).join(" "),
+  };
 }
 
 function hasValidPrice(result: CardIngestionAIResult) {
@@ -286,16 +310,19 @@ async function openAiAnalyzeImage(imageDataUrl: string, fileName: string) {
 
 export async function analyzeCardImage(params: { imageDataUrl: string; fileName: string }) {
   const ai = await openAiAnalyzeImage(params.imageDataUrl, params.fileName);
-  const price = hasValidPrice(ai) ? null : await fetchCardPrice(ai.card_name, ai.set_name).catch(() => null);
   const confidence = adjustRecognitionConfidence(ai);
+  const shouldFallback = confidence < 70 || !hasMeaningfulLabel(ai.card_name) || !hasMeaningfulLabel(ai.set_name) || !ai.card_number?.trim();
+  const fallbackMatches = shouldFallback ? await findManualCardMatches({ cardName: ai.card_name || ai.ocr_text || params.fileName, setName: ai.set_name, limit: 1 }).catch(() => []) : [];
+  const enriched = mergeRecognitionFallback(ai, fallbackMatches);
+  const price = hasValidPrice(enriched) ? null : await fetchCardPrice(enriched.card_name, enriched.set_name).catch(() => null);
   return {
-    ...ai,
-    confidence,
+    ...enriched,
+    confidence: enriched.confidence,
     pricing: {
-      estimated_price: ai.pricing.estimated_price ?? price?.marketPrice ?? null,
-      low_price: ai.pricing.low_price ?? price?.lowPrice ?? null,
-      high_price: ai.pricing.high_price ?? price?.highPrice ?? null,
-      source: ai.pricing.source || price?.source || "OpenAI estimate",
+      estimated_price: enriched.pricing.estimated_price ?? price?.marketPrice ?? null,
+      low_price: enriched.pricing.low_price ?? price?.lowPrice ?? null,
+      high_price: enriched.pricing.high_price ?? price?.highPrice ?? null,
+      source: enriched.pricing.source || price?.source || "OpenAI estimate",
     },
   } satisfies CardIngestionAIResult;
 }
