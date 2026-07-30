@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getSavedCards, removeSavedCard, type SavedCardRecord } from "@/lib/card-storage";
@@ -20,14 +20,14 @@ export default function CollectionPage() {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
     let alive = true;
+    const client = createClient();
 
     const init = async () => {
       try {
-        const { data: { user }, error } = await supabase.auth.getUser();
+        const { data: { user }, error } = await client.auth.getUser();
         if (!alive) return;
 
         if (error) throw error;
@@ -49,7 +49,7 @@ export default function CollectionPage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = client.auth.onAuthStateChange((_event, session) => {
       if (!session?.user) {
         setIsSignedIn(false);
         setReady(false);
@@ -69,7 +69,7 @@ export default function CollectionPage() {
       alive = false;
       subscription.unsubscribe();
     };
-  }, [router, supabase]);
+  }, [router]);
 
   useEffect(() => {
     if (!isSignedIn) return;

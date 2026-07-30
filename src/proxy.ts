@@ -10,8 +10,6 @@ const PUBLIC_PATHS = [
   "/auth/signin",
   "/auth/callback",
   "/auth/reset-password",
-  "/login",
-  "/signup",
   "/about",
   "/cards",
   "/help",
@@ -58,9 +56,7 @@ function getSafeRedirect(value: string | null) {
   if (
     value.startsWith("/auth") ||
     value.startsWith("/api") ||
-    value.startsWith("//") ||
-    value === "/login" ||
-    value === "/signup"
+    value.startsWith("//")
   ) {
     return "/";
   }
@@ -70,13 +66,13 @@ function getSafeRedirect(value: string | null) {
 function getDestination(role: AppRole | null, redirectTo: string | null) {
   if (redirectTo) return redirectTo;
   if (role === "admin" || role === "super_admin") return "/admin";
-  if (role === "seller") return "/sell";
+  if (role === "seller") return "/dashboard";
   return "/";
 }
 
 export async function proxy(request: NextRequest) {
   const { pathname, searchParams } = request.nextUrl;
-  const isAuthPage = isPathMatch(pathname, "/auth") || pathname === "/login" || pathname === "/signup";
+  const isAuthPage = isPathMatch(pathname, "/auth");
   const isPublicPage = isPublicPath(pathname);
   const isProtectedPage = !isPublicPage && !isAuthPage && !isApiPath(pathname);
   const isProtectedApi = isApiPath(pathname) && !isPublicApiPath(pathname);

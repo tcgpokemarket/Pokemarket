@@ -15,7 +15,7 @@ export default async function ReferralDashboardPage() {
   const adminClient = createAdminClient();
   const { data: profile } = await (adminClient as any).from("profiles").select("username, referral_code").eq("id", user.id).maybeSingle();
   const code = profile?.referral_code ?? "";
-  const link = code ? `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/signup?ref=${encodeURIComponent(code)}` : "";
+  const link = code ? `${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/auth?mode=signup&ref=${encodeURIComponent(code)}` : "";
 
   const { data: statsRow } = await (adminClient as any).from("referral_dashboard_stats").select("*").eq("referrer_id", user.id).maybeSingle();
   const stats = (statsRow ?? null) as ReferralDashboardStats | null;

@@ -9,9 +9,7 @@ function getSafeRedirect(value: string | null) {
   if (
     value.startsWith("/auth") ||
     value.startsWith("/api") ||
-    value.startsWith("//") ||
-    value === "/login" ||
-    value === "/signup"
+    value.startsWith("//")
   ) {
     return "/";
   }
@@ -47,7 +45,7 @@ export default function AuthCallbackPage() {
           const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
           const reason = searchParams.get("reason") === "session_expired" ? "session_expired" : null;
           const role = (activeUser.app_metadata?.role ?? activeUser.user_metadata?.role) as string | null;
-          const defaultDestination = role === "admin" || role === "super_admin" ? "/admin" : role === "seller" ? "/sell" : "/";
+          const defaultDestination = role === "admin" || role === "super_admin" ? "/admin" : role === "seller" ? "/dashboard" : "/";
           const destination = redirectTo ?? defaultDestination;
           router.replace(reason ? `${destination}?reason=${encodeURIComponent(reason)}` : destination);
           return;

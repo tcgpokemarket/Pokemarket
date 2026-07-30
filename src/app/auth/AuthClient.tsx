@@ -10,24 +10,19 @@ function Spinner() {
 
 function safeRedirect(value: string | null) {
   if (!value || !value.startsWith("/")) return "/";
-  if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/";
+  if (value.startsWith("/auth")) return "/";
   return value;
 }
 
 function defaultDestination(role: string | null) {
   if (role === "admin" || role === "super_admin") return "/admin";
-  if (role === "seller") return "/sell";
+  if (role === "seller") return "/dashboard";
   return "/";
-}
-
-function accountDestination(role: string | null) {
-  if (role === "seller") return "/sell";
-  return defaultDestination(role);
 }
 
 function getDestination(role: string | null, redirectTo: string, preserveRedirect: boolean) {
   if (preserveRedirect) return redirectTo;
-  return accountDestination(role);
+  return defaultDestination(role);
 }
 
 function formatAuthError(error: unknown, fallback: string) {

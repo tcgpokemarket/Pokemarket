@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 
 function safeRedirect(value: string | null) {
   if (!value || !value.startsWith("/")) return "/";
-  if (value.startsWith("/auth") || value === "/login" || value === "/signup") return "/";
+  if (value.startsWith("/auth")) return "/";
   return value;
 }
 

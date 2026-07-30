@@ -33,7 +33,7 @@ export async function GET(): Promise<NextResponse<ReferralLinkResponse | { error
 
   const baseUrl =
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.tcgpoke.app";
-  const link = `${baseUrl}/signup?ref=${encodeURIComponent(profile.referral_code)}`;
+  const link = `${baseUrl}/auth?mode=signup&ref=${encodeURIComponent(profile.referral_code)}`;
 
   return NextResponse.json({
     code: profile.referral_code,

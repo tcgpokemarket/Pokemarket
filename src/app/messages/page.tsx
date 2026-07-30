@@ -9,11 +9,13 @@ export default async function MessagesPage({ searchParams }: { searchParams?: { 
   let conversations: Awaited<ReturnType<typeof listUserConversations>> = [];
 
   try {
-    const supabase = await createClient();
-    const authResult = await supabase.auth.getUser();
-    user = authResult.data.user;
-    results = user && query ? await searchMessages(user.id, query) : [];
-    conversations = user ? await listUserConversations(user.id) : [];
+    if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+      const supabase = await createClient();
+      const authResult = await supabase.auth.getUser();
+      user = authResult.data.user;
+      results = user && query ? await searchMessages(user.id, query) : [];
+      conversations = user ? await listUserConversations(user.id) : [];
+    }
   } catch (error) {
     console.error("[messages] Failed to load inbox", error);
     user = null;

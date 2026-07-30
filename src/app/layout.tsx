@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import "./globals.css";
-import AppFrame from "@/components/app-frame";
 import { formatEnvironmentAudit } from "@/lib/env";
 
 const BASE_URL = "https://tcg-poke-market.sintra.site";
@@ -91,9 +89,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body style={{ fontFamily: "'Inter', sans-serif" }}>
-        <Suspense fallback={null}>
-          <AppFrame>{children}</AppFrame>
-        </Suspense>
+        {children}
       </body>
     </html>
   );

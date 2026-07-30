@@ -134,7 +134,11 @@ function applySelectedMatch(result: ScanResult, match: ScanMatch): ScanResult {
 
 export default function ScanCardPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+
+  useEffect(() => {
+    setSupabase(createClient());
+  }, []);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [loading, setLoading] = useState(false);
@@ -152,6 +156,8 @@ export default function ScanCardPage() {
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!supabase) return;
+
     let alive = true;
     supabase.auth.getUser().then(({ data: { user }, error }) => {
       if (!alive) return;

@@ -68,7 +68,13 @@ function formatDate(value: string | null) {
 
 export default function RewardsPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+
+  useEffect(() => {
+    setSupabase(createClient());
+  }, []);
+
+  const client = supabase;
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<RewardsSnapshot>({ account: null, ledger: [], options: [], redemptions: [] });
   const [redeeming, setRedeeming] = useState<string | null>(null);
@@ -76,11 +82,13 @@ export default function RewardsPage() {
   const [redeemSuccess, setRedeemSuccess] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!client) return;
+
     let active = true;
 
     const load = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await client.auth.getUser();
         if (!active) return;
 
         if (!user) {
@@ -90,10 +98,10 @@ export default function RewardsPage() {
         }
 
         const [accountResult, ledgerResult, optionsResult, redemptionsResult] = await Promise.all([
-          supabase.from("rewards_accounts").select("*").eq("user_id", user.id).maybeSingle(),
-          supabase.from("rewards_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
-          supabase.from("rewards_redemption_options").select("*").eq("active", true).order("points_cost", { ascending: true }),
-          supabase.from("rewards_redemptions").select("*, rewards_redemption_options(*)").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
+          client.from("rewards_accounts").select("*").eq("user_id", user.id).maybeSingle(),
+          client.from("rewards_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
+          client.from("rewards_redemption_options").select("*").eq("active", true).order("points_cost", { ascending: true }),
+          client.from("rewards_redemptions").select("*, rewards_redemption_options(*)").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
         ]);
 
         if (!active) return;
@@ -144,12 +152,13 @@ export default function RewardsPage() {
       setRedeemSuccess(`"${optionName}" redeemed! Your reward will be processed shortly.`);
 
       // Reload snapshot to reflect updated balances and new redemption row
-      const { data: { user } } = await supabase.auth.getUser();
+      if (!client) return;
+      const { data: { user } } = await client.auth.getUser();
       if (user) {
         const [accountResult, ledgerResult, redemptionsResult] = await Promise.all([
-          supabase.from("rewards_accounts").select("*").eq("user_id", user.id).maybeSingle(),
-          supabase.from("rewards_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
-          supabase.from("rewards_redemptions").select("*, rewards_redemption_options(*)").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
+          client.from("rewards_accounts").select("*").eq("user_id", user.id).maybeSingle(),
+          client.from("rewards_ledger").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(25),
+          client.from("rewards_redemptions").select("*, rewards_redemption_options(*)").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
         ]);
         setSnapshot((prev) => ({
           ...prev,

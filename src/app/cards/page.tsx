@@ -28,17 +28,17 @@ export default function CardsPage() {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [saveTarget, setSaveTarget] = useState<SaveTarget>("collection");
   const [isSignedIn, setIsSignedIn] = useState(false);
-  const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setIsSignedIn(Boolean(user)));
+    const client = createClient();
+    client.auth.getUser().then(({ data: { user } }) => setIsSignedIn(Boolean(user)));
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => setIsSignedIn(Boolean(session?.user)));
+    } = client.auth.onAuthStateChange((_event, session) => setIsSignedIn(Boolean(session?.user)));
 
     return () => subscription.unsubscribe();
-  }, [supabase]);
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -66,8 +66,8 @@ export default function CardsPage() {
   useEffect(() => {
     if (!cardName.trim()) return;
 
-    if (!supabase) return;
-    void supabase
+    const client = createClient();
+    void client
       .from("price_history")
       .select("*")
       .eq("card_name", cardName.trim())
@@ -80,7 +80,7 @@ export default function CardsPage() {
         }
         setHistory((data ?? []) as PriceHistory[]);
       });
-  }, [cardName, supabase]);
+  }, [cardName]);
 
   const visibleHistory = cardName.trim() ? history : [];
   const hasHistory = visibleHistory.length > 0;
@@ -102,15 +102,14 @@ export default function CardsPage() {
       setPrice(result);
       setCardName(result.cardName);
       setSetName(result.setName);
-      if (supabase) {
-        const { data } = await supabase
-          .from("price_history")
-          .select("*")
-          .eq("card_name", result.cardName)
-          .order("recorded_at", { ascending: false })
-          .limit(5);
-        setHistory((data ?? []) as PriceHistory[]);
-      }
+      const client = createClient();
+      const { data } = await client
+        .from("price_history")
+        .select("*")
+        .eq("card_name", result.cardName)
+        .order("recorded_at", { ascending: false })
+        .limit(5);
+      setHistory((data ?? []) as PriceHistory[]);
     } catch {
       setError("Unable to load card pricing right now.");
     } finally {

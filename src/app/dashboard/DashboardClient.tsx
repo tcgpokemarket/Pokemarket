@@ -1,364 +1,57 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import type { Listing, Order, Profile, SellerWallet } from "@/lib/supabase/types";
 import { createClient } from "@/lib/supabase/client";
 import { ensureProfileForUser } from "@/lib/auth-bootstrap";
 import { getAppRole } from "@/lib/security";
-import SellerVerificationStatusCard from "@/components/seller/verification-status-card";
-import { getEffectiveSellerVerificationStatus, isAdminVerifiedUser, isSellerVerificationApproved, type SellerVerificationStatus } from "@/lib/seller-verification";
-import { buildSellerFeeConfig, calculateFeeBreakdown, formatPercent, summarizeSellerEarnings } from "@/lib/seller-fees";
-import { getOrderEscrowStatusLabel, isEscrowBlockingPayout } from "@/lib/escrow";
-import { calculateLiveShowInsights, createLiveShowSnapshot, getLiveShow } from "@/lib/live-commerce";
-import type { LiveShowDirectoryItem } from "@/lib/live-shows-client";
-import { listLiveShowsBySeller } from "@/lib/live-shows-client";
-import { recordAuditEvent, recordSecurityEvent } from "@/lib/audit-log";
-import { recordDeviceSession } from "@/lib/device-security";
-import { deleteUploadedFile, getListingPrimaryImage, getProfessionalFallbackImage, parsePublicStorageUrl, uploadImageFile } from "@/lib/uploads";
-import SupportInlineCard from "@/components/support/support-inline-card";
 
-
-type BrandAssetField = "profileAvatar" | "storeLogo" | "storeBanner";
-type PrivacyVisibility = "public" | "followers_only" | "friends_only" | "private";
-type MessageVisibility = "everyone" | "followers_only" | "friends_only" | "no_one";
-type FollowVisibility = "everyone" | "followers_only" | "no_one";
-
-type PrivacySettingsRow = {
-  profile_visibility?: PrivacyVisibility | null;
-  collection_visibility?: PrivacyVisibility | null;
-  activity_visibility?: PrivacyVisibility | null;
-  message_visibility?: MessageVisibility | null;
-  who_can_follow?: FollowVisibility | null;
-  who_can_friend_request?: FollowVisibility | null;
-};
-
-type PrivacySettingsState = {
-  profileVisibility: PrivacyVisibility;
-  collectionVisibility: PrivacyVisibility;
-  activityVisibility: PrivacyVisibility;
-  messageVisibility: MessageVisibility;
-  whoCanFollow: FollowVisibility;
-  whoCanFriendRequest: FollowVisibility;
-};
-
-type ShippingAddressState = {
-  firstName: string;
-  lastName: string;
-  streetAddress: string;
-  city: string;
-  state: string;
-  zipCode: string;
-};
-
-function normalizeShippingAddress(value: unknown): ShippingAddressState {
-  const record = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  return {
-    firstName: String(record.firstName ?? record.first_name ?? "").trim(),
-    lastName: String(record.lastName ?? record.last_name ?? "").trim(),
-    streetAddress: String(record.streetAddress ?? record.address1 ?? record.address ?? "").trim(),
-    city: String(record.city ?? "").trim(),
-    state: String(record.state ?? "").trim().toUpperCase(),
-    zipCode: String(record.ZIPCode ?? record.zipCode ?? record.zip ?? record.postalCode ?? "").trim(),
-  };
-}
-
-function shippingAddressToPayload(address: ShippingAddressState) {
-  return {
-    firstName: address.firstName.trim(),
-    lastName: address.lastName.trim(),
-    streetAddress: address.streetAddress.trim(),
-    city: address.city.trim(),
-    state: address.state.trim().toUpperCase(),
-    ZIPCode: address.zipCode.trim(),
-  };
-}
-
-function hasCompleteShippingAddress(address: ShippingAddressState) {
-  return Boolean(address.firstName && address.lastName && address.streetAddress && address.city && address.state && address.zipCode);
-}
-
-const DEFAULT_PRIVACY_SETTINGS: PrivacySettingsState = {
-  profileVisibility: "public",
-  collectionVisibility: "public",
-  activityVisibility: "public",
-  messageVisibility: "everyone",
-  whoCanFollow: "everyone",
-  whoCanFriendRequest: "everyone",
-};
-
-const PRIVACY_VISIBILITY_OPTIONS: Array<{ value: PrivacyVisibility; label: string }> = [
-  { value: "public", label: "Public" },
-  { value: "followers_only", label: "Followers only" },
-  { value: "friends_only", label: "Friends only" },
-  { value: "private", label: "Private" },
-];
-
-const MESSAGE_VISIBILITY_OPTIONS: Array<{ value: MessageVisibility; label: string }> = [
-  { value: "everyone", label: "Everyone" },
-  { value: "followers_only", label: "Followers only" },
-  { value: "friends_only", label: "Friends only" },
-  { value: "no_one", label: "No one" },
-];
-
-const FOLLOW_VISIBILITY_OPTIONS: Array<{ value: FollowVisibility; label: string }> = [
-  { value: "everyone", label: "Everyone" },
-  { value: "followers_only", label: "Followers only" },
-  { value: "no_one", label: "No one" },
-];
-
-function normalizePrivacySettings(row: PrivacySettingsRow | null | undefined): PrivacySettingsState {
-  return {
-    profileVisibility: row?.profile_visibility ?? DEFAULT_PRIVACY_SETTINGS.profileVisibility,
-    collectionVisibility: row?.collection_visibility ?? DEFAULT_PRIVACY_SETTINGS.collectionVisibility,
-    activityVisibility: row?.activity_visibility ?? DEFAULT_PRIVACY_SETTINGS.activityVisibility,
-    messageVisibility: row?.message_visibility ?? DEFAULT_PRIVACY_SETTINGS.messageVisibility,
-    whoCanFollow: row?.who_can_follow ?? DEFAULT_PRIVACY_SETTINGS.whoCanFollow,
-    whoCanFriendRequest: row?.who_can_friend_request ?? DEFAULT_PRIVACY_SETTINGS.whoCanFriendRequest,
-  };
-}
-
-function hasPrivacySettingsChanged(current: PrivacySettingsState, stored: PrivacySettingsRow | null) {
-  const baseline = normalizePrivacySettings(stored);
-  return (
-    current.profileVisibility !== baseline.profileVisibility ||
-    current.collectionVisibility !== baseline.collectionVisibility ||
-    current.activityVisibility !== baseline.activityVisibility ||
-    current.messageVisibility !== baseline.messageVisibility ||
-    current.whoCanFollow !== baseline.whoCanFollow ||
-    current.whoCanFriendRequest !== baseline.whoCanFriendRequest
-  );
-}
-
-function privacySelectClassName() {
-  return "w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none";
-}
-
-function privacyOptionLabel(value: string) {
-  return value === "public" ? "Public" : value === "followers_only" ? "Followers only" : value === "friends_only" ? "Friends only" : value === "private" ? "Private" : value === "everyone" ? "Everyone" : value === "no_one" ? "No one" : value;
-}
-
-type BrandAssetDraft = {
-  field: BrandAssetField;
-  label: string;
-  value: string | null;
-  previewUrl: string | null;
-  saving: boolean;
-  error: string | null;
-  success: string | null;
-  originalUrl: string | null;
-  currentPath: string | null;
-  fileName: string | null;
-  inputKey: number;
-  file: File | null;
-};
-
-function createBrandAssetDraft(field: BrandAssetField, label: string, value: string | null): BrandAssetDraft {
-  return {
-    field,
-    label,
-    value,
-    previewUrl: value,
-    saving: false,
-    error: null,
-    success: null,
-    originalUrl: value,
-    currentPath: null,
-    fileName: null,
-    inputKey: 0,
-    file: null,
-  };
-}
-
-function createBrandAssetsState(profileRow: Profile | null, storeRecord: StoreRow | null) {
-  return {
-    profileAvatar: createBrandAssetDraft("profileAvatar", "Profile avatar", profileRow?.avatar_url ?? null),
-    storeLogo: createBrandAssetDraft("storeLogo", "Store logo", storeRecord?.logo_url ?? null),
-    storeBanner: createBrandAssetDraft("storeBanner", "Store banner", storeRecord?.banner_url ?? null),
-  } satisfies Record<BrandAssetField, BrandAssetDraft>;
-}
-
-function brandAssetPrefix(field: BrandAssetField) {
-  return field === "profileAvatar" ? "profile-avatar" : field === "storeLogo" ? "store-logo" : "store-banner";
-}
-
-function isImageFile(file: File) {
-  return file.type.startsWith("image/");
-}
-
-function toUploadFields() {
-  return ["profileAvatar", "storeLogo", "storeBanner"] as const;
-}
-
-function hasPendingBrandChanges(assets: Record<BrandAssetField, BrandAssetDraft>) {
-  return Object.values(assets).some((asset) => Boolean(asset.file));
-}
-
-function brandAssetPath(url: string | null) {
-  return parsePublicStorageUrl(url ?? "")?.path ?? null;
-}
-
-function clearStoragePath(url: string | null) {
-  return brandAssetPath(url);
-}
-
-function compareBrandAssetUrls(left: string | null, right: string | null) {
-  return (left ?? null) === (right ?? null);
-}
-
-type SellerRow = {
-  avatar_url?: string | null;
-  banner_url?: string | null;
-};
-
-type StoreTheme = {
-  accent?: string | null;
-  secondary?: string | null;
-  highlight?: string | null;
-  social_links?: {
-    instagram?: string | null;
-    facebook?: string | null;
-    youtube?: string | null;
-    tiktok?: string | null;
-    x?: string | null;
-    website?: string | null;
-  } | null;
-};
-
-type StoreRow = {
-  name?: string | null;
-  slug?: string | null;
-  description?: string | null;
-  logo_url?: string | null;
-  banner_url?: string | null;
-  theme?: StoreTheme | null;
-};
-
-const BRAND_ASSET_FIELDS: Array<Pick<BrandAssetDraft, "field" | "label">> = [
-  { field: "profileAvatar", label: "Profile avatar" },
-  { field: "storeLogo", label: "Store logo" },
-  { field: "storeBanner", label: "Store banner" },
-];
-
-const BRAND_SAVE_SUCCESS = "Profile updated successfully";
-const BRAND_IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/gif";
-
-function makeBrandAssetDraft(field: BrandAssetField, label: string, value: string | null): BrandAssetDraft {
-  return {
-    field,
-    label,
-    value,
-    previewUrl: value,
-    saving: false,
-    error: null,
-    success: null,
-    originalUrl: value,
-    currentPath: null,
-    fileName: null,
-    inputKey: 0,
-    file: null,
-  };
-}
-
-function brandAssetUrlForField(field: BrandAssetField, sellerRecord: SellerRow | null, storeRecord: StoreRow | null) {
-  if (field === "profileAvatar") return sellerRecord?.avatar_url ?? null;
-  if (field === "storeLogo") return storeRecord?.logo_url ?? null;
-  return storeRecord?.banner_url ?? null;
-}
-
-function fieldToTarget(field: BrandAssetField) {
-  if (field === "profileAvatar") return "profile" as const;
-  return "store" as const;
-}
-
-function fieldToBodyKey(field: BrandAssetField) {
-  if (field === "profileAvatar") return "avatar_url" as const;
-  if (field === "storeLogo") return "logo_url" as const;
-  return "banner_url" as const;
-}
-
-function fieldToUploadPrefix(field: BrandAssetField) {
-  if (field === "profileAvatar") return "profile-avatar";
-  if (field === "storeLogo") return "store-logo";
-  return "store-banner";
-}
-
-function fieldToPreviewStyles(field: BrandAssetField) {
-  if (field === "profileAvatar") return "aspect-square rounded-2xl";
-  if (field === "storeLogo") return "aspect-square rounded-2xl";
-  return "aspect-[16/9] rounded-3xl";
-}
-
-function getBrandAssetAlt(field: BrandAssetField, label: string) {
-  if (field === "profileAvatar") return `${label} preview`;
-  if (field === "storeLogo") return `${label} preview`;
-  return `${label} preview`;
-}
-
-
-type VerificationRow = {
-  status?: SellerVerificationStatus | null;
-  rejection_reason?: string | null;
-  more_information_request?: string | null;
-  verified_at?: string | null;
-};
-
-const SUPPORT_CARD = (
-  <SupportInlineCard title="Need seller support?" description="Get help with listings, fees, payouts, live shows, or seller tools." href="/support" />
-);
-
-type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live" | "admin";
-
-function parseDashboardTab(value: string | null): Tab {
-  if (value === "listings" || value === "purchases" || value === "sales" || value === "fees" || value === "live" || value === "admin") {
-    return value;
-  }
-  return "overview";
-}
+type Tab = "overview" | "listings" | "purchases" | "sales" | "fees";
 
 type DashboardOrder = Order & {
   listings?: { card_name?: string; images?: string[] } | null;
-  profiles?: { username?: string | null } | null;
 };
 
-function formatTimeRemaining(deadline: string) {
-  const diff = new Date(deadline).getTime() - Date.now();
-  if (diff <= 0) return "00:00";
-  const minutes = Math.floor(diff / 60000);
-  const seconds = Math.floor((diff % 60000) / 1000);
-  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+function parseTab(value: string | null): Tab {
+  if (value === "listings" || value === "purchases" || value === "sales" || value === "fees") return value;
+  return "overview";
 }
 
-function paymentStatusLabel(status: string) {
-  if (status === "paid") return "🟢 Paid — Ready to Ship";
-  if (status === "expired") return "🔴 Payment Failed";
-  if (status === "failed") return "🔴 Payment Failed";
-  if (status === "cancelled") return "⚪ Cancelled";
-  return "🟡 Awaiting Payment";
+function money(value: number | null | undefined) {
+  return `$${(value ?? 0).toFixed(2)}`;
 }
 
-function groupByTracking(orders: DashboardOrder[]) {
-  const groups = new Map<string, DashboardOrder[]>();
-  for (const order of orders) {
-    const key = order.tracking_number ? `tracking:${order.tracking_number}` : `order:${order.id}`;
-    const current = groups.get(key) ?? [];
-    current.push(order);
-    groups.set(key, current);
-  }
-  return Array.from(groups.entries()).map(([key, items]) => ({ key, items }));
+function Card({ title, value, description }: { title: string; value: string; description?: string }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+      <div className="text-xs uppercase tracking-[0.25em] text-gray-500">{title}</div>
+      <div className="mt-2 text-2xl font-black text-white">{value}</div>
+      {description && <div className="mt-2 text-sm text-gray-400">{description}</div>}
+    </div>
+  );
 }
 
-function formatGroupTitle(items: DashboardOrder[]) {
-  const count = items.length;
-  const total = items.reduce((sum, item) => sum + (item.total_amount ?? 0), 0);
-  return `${count} order${count === 1 ? "" : "s"} · $${total.toFixed(2)}`;
+function EmptyState({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
+  return (
+    <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-center">
+      <div className="text-xl font-black text-white">{title}</div>
+      <p className="mt-2 text-sm text-gray-400">{description}</p>
+      {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
+    </div>
+  );
 }
 
 export default function DashboardClient({ orderSuccess }: { orderSuccess: boolean }) {
+  const router = useRouter();
+  const pathname = usePathname() ?? "/dashboard";
   const searchParams = useSearchParams();
-  const orderTab = searchParams.get("tab");
-
+  const currentTab = parseTab(searchParams.get("tab"));
+  const currentPath = useMemo(() => {
+    const query = searchParams.toString();
+    return `${pathname}${query ? `?${query}` : ""}`;
+  }, [pathname, searchParams]);
   const [supabase] = useState(() => {
     try {
       return createClient();
@@ -366,111 +59,48 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
       return null;
     }
   });
-
-  const router = useRouter();
-  const pathname = usePathname() ?? "/dashboard";
-  const currentPath = useMemo(() => {
-    const query = searchParams.toString();
-    return `${pathname}${query ? `?${query}` : ""}`;
-  }, [pathname, searchParams]);
-  const [tab, setTab] = useState<Tab>(() => parseDashboardTab(orderTab));
-
-  useEffect(() => {
-    setTab(parseDashboardTab(orderTab));
-  }, [orderTab]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
-  const [verificationDetails, setVerificationDetails] = useState<VerificationRow | null>(null);
-  const [sellerRecord, setSellerRecord] = useState<SellerRow | null>(null);
-  const [storeRecord, setStoreRecord] = useState<StoreRow | null>(null);
-  const [brandAssets, setBrandAssets] = useState<Record<BrandAssetField, BrandAssetDraft>>({
-    profileAvatar: createBrandAssetDraft("profileAvatar", "Profile avatar", null),
-    storeLogo: createBrandAssetDraft("storeLogo", "Store logo", null),
-    storeBanner: createBrandAssetDraft("storeBanner", "Store banner", null),
-  });
-  const [brandSaveStatus, setBrandSaveStatus] = useState<string | null>(null);
-  const [brandSaveError, setBrandSaveError] = useState<string | null>(null);
-  const [brandSavePending, setBrandSavePending] = useState(false);
-  const [storeName, setStoreName] = useState("");
-  const [storeSlug, setStoreSlug] = useState("");
-  const [storeDescription, setStoreDescription] = useState("");
-  const [storeAccent, setStoreAccent] = useState("#e22400");
-  const [storeSecondary, setStoreSecondary] = useState("#ffab01");
-  const [storeHighlight, setStoreHighlight] = useState("#fefb41");
-  const [storeInstagram, setStoreInstagram] = useState("");
-  const [storeFacebook, setStoreFacebook] = useState("");
-  const [storeYouTube, setStoreYouTube] = useState("");
-  const [storeTikTok, setStoreTikTok] = useState("");
-  const [storeX, setStoreX] = useState("");
-  const [storeWebsite, setStoreWebsite] = useState("");
-  const [storeSettingsLoaded, setStoreSettingsLoaded] = useState(false);
-  const [privacySettingsLoaded, setPrivacySettingsLoaded] = useState(false);
-  const [privacySettings, setPrivacySettings] = useState<PrivacySettingsState>(DEFAULT_PRIVACY_SETTINGS);
-  const [privacyRecord, setPrivacyRecord] = useState<PrivacySettingsRow | null>(null);
-  const [privacySaveStatus, setPrivacySaveStatus] = useState<string | null>(null);
-  const [privacySaveError, setPrivacySaveError] = useState<string | null>(null);
-  const [privacySavePending, setPrivacySavePending] = useState(false);
-  const [shippingAddress, setShippingAddress] = useState<ShippingAddressState>({ firstName: "", lastName: "", streetAddress: "", city: "", state: "", zipCode: "" });
-  const [shippingAddressLoaded, setShippingAddressLoaded] = useState(false);
-  const [shippingSaveStatus, setShippingSaveStatus] = useState<string | null>(null);
-  const [shippingSaveError, setShippingSaveError] = useState<string | null>(null);
-  const [shippingSavePending, setShippingSavePending] = useState(false);
-  const [brandAssetBusy, setBrandAssetBusy] = useState<BrandAssetField | null>(null);
   const [wallet, setWallet] = useState<SellerWallet | null>(null);
   const [listings, setListings] = useState<Listing[]>([]);
   const [purchases, setPurchases] = useState<DashboardOrder[]>([]);
   const [sales, setSales] = useState<DashboardOrder[]>([]);
-  const [sellerLiveShows, setSellerLiveShows] = useState<LiveShowDirectoryItem[]>([]);
-  const liveShowCount = sellerLiveShows.length;
-  const notificationCount = liveShowCount;
-  const [loading, setLoading] = useState(true);
-  const [loadingError, setLoadingError] = useState<string | null>(null);
-  const [authStep, setAuthStep] = useState("Starting dashboard...");
-  const [brainCopied, setBrainCopied] = useState(false);
-  const [isAdminAccount, setIsAdminAccount] = useState(false);
+  const [activeTab, setActiveTab] = useState<Tab>(currentTab);
+
+  useEffect(() => {
+    setActiveTab(currentTab);
+  }, [currentTab]);
 
   useEffect(() => {
     let alive = true;
     const timeout = window.setTimeout(() => {
       if (!alive) return;
+      setError("Dashboard access check timed out.");
       setLoading(false);
-      setLoadingError("Dashboard access check timed out after 5 seconds.");
-      console.error("[auth] Dashboard access check timed out");
     }, 5000);
 
-    const init = async () => {
+    const run = async () => {
       if (!supabase) {
+        setError("Dashboard is unavailable right now.");
         setLoading(false);
-        setLoadingError("Supabase is not available on this device.");
         return;
       }
 
       try {
-        setAuthStep("Checking session...");
-        const [sessionResult, userResult] = await Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]);
-        const session = sessionResult.data.session ?? null;
-        const user = userResult.data.user ?? session?.user ?? null;
+        const [{ data: sessionData }, { data: userData }] = await Promise.all([supabase.auth.getSession(), supabase.auth.getUser()]);
+        const session = sessionData.session ?? null;
+        const user = userData.user ?? session?.user ?? null;
 
-        if (!alive) return;
-
-        if (session) console.info("[auth] Session found", { userId: session.user.id });
-        if (user) console.info("[auth] User loaded", { userId: user.id });
-
-        if (!session || !user) {
-          setLoading(false);
-          setLoadingError("No active session was found. Please sign in again.");
+        if (!user || !session) {
           router.replace(`/auth?reason=session_expired&redirectTo=${encodeURIComponent(currentPath)}`);
           return;
         }
 
-        setAuthStep("Checking profile...");
-        const { data: profileData, error: profileError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
-        if (!alive) return;
-        if (profileError) throw new Error(profileError.message);
+        const { data: profileRow } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+        let loadedProfile = profileRow as Profile | null;
 
-        let profileRow = profileData as Profile | null;
-        if (!profileRow) {
-          setAuthStep("Creating profile...");
+        if (!loadedProfile) {
           await ensureProfileForUser({
             userId: user.id,
             email: user.email,
@@ -480,1687 +110,217 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             shippingAddress: null,
             accountType: getAppRole(user) === "seller" ? "seller" : "buyer",
           });
-
-          const { data: createdProfile, error: reloadError } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
-          if (!alive) return;
-          if (reloadError) throw new Error(reloadError.message);
-          profileRow = createdProfile as Profile | null;
+          const { data: refreshedProfile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+          loadedProfile = refreshedProfile as Profile | null;
         }
 
-        if (!profileRow) throw new Error("Profile could not be loaded.");
+        if (!loadedProfile) throw new Error("Profile could not be loaded.");
 
-        console.info("[auth] Profile loaded", { userId: user.id, username: profileRow.username });
-        const role = getAppRole(user);
-        console.info("[auth] Role loaded", { userId: user.id, role });
-        setAuthStep("Loading dashboard data...");
-
-        const [{ data: shippingData }, { data: walletData }, { data: verificationData }, { data: listingData }, { data: purchaseData }, { data: salesData }, { data: storeData }, { data: privacyData }] = await Promise.all([
-          supabase.from("profiles").select("shipping_address").eq("id", user.id).maybeSingle(),
+        const [walletResult, listingsResult, purchasesResult, salesResult] = await Promise.all([
           supabase.from("seller_wallets").select("*").eq("seller_id", user.id).maybeSingle(),
-          supabase.from("seller_verifications").select("status, rejection_reason, more_information_request, verified_at").eq("user_id", user.id).maybeSingle(),
           supabase.from("listings").select("*").eq("seller_id", user.id).neq("status", "removed").order("created_at", { ascending: false }),
-          supabase.from("orders").select("*, listings(card_name, set_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
-          supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", user.id).order("created_at", { ascending: false }),
-          supabase.from("seller_stores").select("*").eq("seller_id", user.id).maybeSingle(),
-          supabase.from("profile_privacy_settings").select("*").eq("user_id", user.id).maybeSingle(),
+          supabase.from("orders").select("*, listings(card_name, images)").eq("buyer_id", user.id).order("created_at", { ascending: false }),
+          supabase.from("orders").select("*, listings(card_name, images)").eq("seller_id", user.id).order("created_at", { ascending: false }),
         ]);
 
-        const sellerLiveShowsData = await listLiveShowsBySeller(user.id);
         if (!alive) return;
 
-        const shippingRow = shippingData as { shipping_address?: unknown } | null;
-        const storeRow = storeData as StoreRow | null;
-        const verificationRow = verificationData as VerificationRow | null;
-        const privacyRow = privacyData as PrivacySettingsRow | null;
+        if (walletResult.error) throw new Error(walletResult.error.message);
+        if (listingsResult.error) throw new Error(listingsResult.error.message);
+        if (purchasesResult.error) throw new Error(purchasesResult.error.message);
+        if (salesResult.error) throw new Error(salesResult.error.message);
 
-        setProfile(profileRow);
-        setShippingAddress(normalizeShippingAddress(shippingRow?.shipping_address ?? profileRow?.shipping_address ?? null));
-        setShippingAddressLoaded(true);
-        setIsAdminAccount(role === "admin" || role === "super_admin");
-        setVerificationStatus(getEffectiveSellerVerificationStatus(user, verificationRow?.status ?? profileRow?.verification_status ?? "not_started"));
-        setVerificationDetails(verificationRow ? {
-          rejection_reason: verificationRow.rejection_reason,
-          more_information_request: verificationRow.more_information_request,
-          verified_at: verificationRow.verified_at,
-        } : null);
-        setSellerRecord({ avatar_url: profileRow?.avatar_url ?? null, banner_url: null });
-        setStoreRecord(storeRow);
-        setBrandAssets(createBrandAssetsState(profileRow, storeRow));
-        setStoreName(storeRow?.name ?? "");
-        setStoreSlug(storeRow?.slug ?? "");
-        setStoreDescription(storeRow?.description ?? "");
-        setStoreAccent((storeRow?.theme?.accent as string | null | undefined) ?? "#e22400");
-        setStoreSecondary((storeRow?.theme?.secondary as string | null | undefined) ?? "#ffab01");
-        setStoreHighlight((storeRow?.theme?.highlight as string | null | undefined) ?? "#fefb41");
-        setStoreInstagram((storeRow?.theme?.social_links?.instagram as string | null | undefined) ?? "");
-        setStoreFacebook((storeRow?.theme?.social_links?.facebook as string | null | undefined) ?? "");
-        setStoreYouTube((storeRow?.theme?.social_links?.youtube as string | null | undefined) ?? "");
-        setStoreTikTok((storeRow?.theme?.social_links?.tiktok as string | null | undefined) ?? "");
-        setStoreX((storeRow?.theme?.social_links?.x as string | null | undefined) ?? "");
-        setStoreWebsite((storeRow?.theme?.social_links?.website as string | null | undefined) ?? "");
-        setStoreSettingsLoaded(true);
-        setPrivacyRecord(privacyRow);
-        setPrivacySettings(normalizePrivacySettings(privacyRow));
-        setPrivacySettingsLoaded(true);
-        setPrivacySaveStatus(null);
-        setPrivacySaveError(null);
-        setPrivacySavePending(false);
-        setShippingSaveStatus(null);
-        setShippingSaveError(null);
-        setShippingSavePending(false);
-        setBrandSaveStatus(null);
-        setBrandSaveError(null);
-        setBrandSavePending(false);
-        setWallet(walletData ?? null);
-        setListings(listingData ?? []);
-        setPurchases((purchaseData ?? []) as DashboardOrder[]);
-        setSales((salesData ?? []) as DashboardOrder[]);
-        setSellerLiveShows((sellerLiveShowsData ?? []) as LiveShowDirectoryItem[]);
+        setProfile(loadedProfile);
+        setWallet((walletResult.data ?? null) as SellerWallet | null);
+        setListings((listingsResult.data ?? []) as Listing[]);
+        setPurchases((purchasesResult.data ?? []) as DashboardOrder[]);
+        setSales((salesResult.data ?? []) as DashboardOrder[]);
         setLoading(false);
-        console.info("[auth] Dashboard rendered", { userId: user.id });
-        if (!storeRow) {
-          setStoreName(profileRow?.full_name ?? profileRow?.username ?? "");
-          setStoreSlug(profileRow?.username ?? "");
-          setStoreDescription("");
-        }
-      } catch (error) {
+      } catch (caught) {
         if (!alive) return;
-        const message = error instanceof Error ? error.message : "Dashboard validation failed.";
-        console.error("[auth] Dashboard validation failed", error);
-        setLoadingError(message);
+        setError(caught instanceof Error ? caught.message : "Dashboard failed to load.");
         setLoading(false);
       } finally {
         window.clearTimeout(timeout);
       }
     };
 
-    init();
-
-    if (orderSuccess) {
-      setTimeout(() => {
-        const params = new URLSearchParams(searchParams.toString());
-        params.delete("success");
-        const nextUrl = params.toString() ? `/dashboard?${params.toString()}` : "/dashboard";
-        router.replace(nextUrl);
-      }, 100);
-    }
-
+    run();
     return () => {
       alive = false;
       window.clearTimeout(timeout);
     };
-  }, [orderSuccess, router, supabase]);
-
-  const handleSignOut = async () => {
-    if (!supabase) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      recordAuditEvent({
-        event_type: "auth.logout",
-        actor_id: user.id,
-        action: "sign_out",
-        resource_type: "auth",
-        resource_id: user.id,
-        previous_value: null,
-        new_value: null,
-        ip_address: null,
-        user_agent: typeof window === "undefined" ? null : window.navigator.userAgent,
-      });
-      recordSecurityEvent({ event_type: "auth.logout", severity: "low", actor_id: user.id, details: { source: "dashboard" } });
-      recordDeviceSession({
-        user_id: user.id,
-        device_name: "Signed out device",
-        device_hash: typeof window === "undefined" ? null : btoa(`${window.navigator.userAgent}|${window.location.hostname}`).slice(0, 64),
-        ip_address: null,
-        user_agent: typeof window === "undefined" ? null : window.navigator.userAgent,
-        last_seen_at: new Date().toISOString(),
-        active: false,
-      });
-    }
-    await supabase.auth.signOut({ scope: "global" });
-    router.replace("/auth?message=logged_out");
-  };
-
-  const handleDeleteListing = async (id: string, cardName: string) => {
-    const confirmed = typeof window !== "undefined" ? window.confirm(`Delete ${cardName}? This will remove it from your store.`) : false;
-    if (!confirmed) return;
-
-    const res = await fetch(`/api/listings/${id}`, { method: "DELETE" });
-    const payload = await res.json().catch(() => ({} as { error?: string; mode?: string }));
-    if (!res.ok) {
-      alert(payload.error ?? "Failed to remove listing.");
-      return;
-    }
-
-    setListings((current) => current.filter((listing) => listing.id !== id));
-    setSales((current) => current.filter((order) => order.listing_id !== id));
-    window.dispatchEvent(new Event("tcg-listings-updated"));
-    router.refresh();
-  };
-
-  const [labelStatus, setLabelStatus] = useState<string | null>(null);
-  const [manualReferralLookup, setManualReferralLookup] = useState("");
-  const [referralStatus, setReferralStatus] = useState<string | null>(null);
-  const referralCode = profile?.referral_code ?? null;
-  const referralLink = typeof window === "undefined" || !referralCode ? "" : `${window.location.origin}/auth?mode=signup&ref=${encodeURIComponent(referralCode)}`;
-  const referralQrUrl = referralLink ? `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(referralLink)}` : "";
-
-  const copyReferralValue = async (value: string, label: string) => {
-    if (!value || typeof navigator === "undefined") return;
-    await navigator.clipboard.writeText(value);
-    setReferralStatus(`${label} copied.`);
-  };
-
-  const handleManualReferralConfirm = async () => {
-    if (!supabase || !profile || !manualReferralLookup.trim()) return;
-    const code = manualReferralLookup.trim().toUpperCase();
-    const { data: referrer } = await supabase.from("profiles").select("id, referral_code, referral_locked_at").eq("referral_code", code).maybeSingle() as { data: { id: string; referral_code: string | null; referral_locked_at: string | null } | null };
-    if (!referrer?.id) {
-      setReferralStatus("No referral code matched that entry.");
-      return;
-    }
-    const { error } = await (supabase as any).from("profiles").update({ referral_source_user_id: referrer.id, referral_source: "manual signup", referral_source_code: code, referral_source_confirmed_at: new Date().toISOString(), referral_locked_at: new Date().toISOString() }).eq("id", profile.id).is("referral_source_user_id", null);
-    setReferralStatus(error ? error.message : "Referral source locked.");
-  };
-
-  const handleCreateUSPSLabel = async (orderId: string) => {
-    setLabelStatus(null);
-    const res = await fetch(`/api/orders/${orderId}/label`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ packageWeight: 1, mailClass: "USPS_GROUND_ADVANTAGE" }) });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setLabelStatus(data.error ?? "Unable to create USPS label.");
-      return;
-    }
-    setLabelStatus(data.label?.trackingNumber ? `Label created: ${data.label.trackingNumber}` : "Label created.");
-  };
-
-  const refreshOrders = async () => {
-    if (!supabase || !profile) return;
-    const [{ data: freshSales }, freshAuctionOrders] = await Promise.all([
-      supabase.from("orders").select("*, listings(card_name, set_name, images), profiles!buyer_id(username)").eq("seller_id", profile.id).order("created_at", { ascending: false }),
-      listLiveShowsBySeller(profile.id),
-    ]);
-    setSales((freshSales ?? []) as DashboardOrder[]);
-    setSellerLiveShows((freshAuctionOrders ?? []) as LiveShowDirectoryItem[]);
-  };
-
-  const completedSales = useMemo(() => sales.filter((o) => ["paid", "shipped", "delivered", "completed"].includes(o.status)), [sales]);
-  const feeConfig = useMemo(() => buildSellerFeeConfig({}), []);
-  const sellerSummary = useMemo(() => summarizeSellerEarnings({ orders: completedSales, config: feeConfig }), [completedSales, feeConfig]);
-  const freeSalesUsed = sellerSummary.freeSalesUsed;
-  const freeSalesRemaining = sellerSummary.freeSalesRemaining;
-  const upcomingFeeExample = calculateFeeBreakdown({ itemSubtotal: 100, shipping: 0, salesTax: 0, orders: completedSales, config: feeConfig });
-
-  const liveInsights = calculateLiveShowInsights(createLiveShowSnapshot(getLiveShow()));
-  const [liveShowsLoading, setLiveShowsLoading] = useState(false);
-  const [liveShowTitle, setLiveShowTitle] = useState("New live show");
-  const [liveShowDescription, setLiveShowDescription] = useState("Run a separate live room for this drop.");
-  const [liveShowStatusMessage, setLiveShowStatusMessage] = useState<string | null>(null);
-  const [liveShowStartTime, setLiveShowStartTime] = useState(() => new Date(Date.now() + 1000 * 60 * 30).toISOString().slice(0, 16));
-  const [liveShowFeatured, setLiveShowFeatured] = useState(false);
-  const [liveShowProductsCount, setLiveShowProductsCount] = useState(0);
-  const [liveShowFilter, setLiveShowFilter] = useState("all");
-  const [liveShowSearch, setLiveShowSearch] = useState("");
-  const [activeLiveShowId, setActiveLiveShowId] = useState<string | null>(null);
-  const [liveShowBoost, setLiveShowBoost] = useState(false);
-  const [liveShowModerators, setLiveShowModerators] = useState<string[]>([]);
-  const [liveShowAnalyticsOpen, setLiveShowAnalyticsOpen] = useState(false);
-  const [liveShowQueueMode, setLiveShowQueueMode] = useState("standard");
-  const [liveShowCategory, setLiveShowCategory] = useState("Pokémon");
-  const [liveShowPriceFloor, setLiveShowPriceFloor] = useState(0);
-  const [liveShowPriceCeiling, setLiveShowPriceCeiling] = useState(0);
-  const [liveShowProductType, setLiveShowProductType] = useState("Singles");
-  const [liveShowScheduledOnly, setLiveShowScheduledOnly] = useState(false);
-  const [liveShowAutoModeration, setLiveShowAutoModeration] = useState(true);
-  const [liveShowSummaryText, setLiveShowSummaryText] = useState("");
-  const [liveShowRoomMessage, setLiveShowRoomMessage] = useState<string | null>(null);
-  const [liveShowAnalyticsMode, setLiveShowAnalyticsMode] = useState("viewer_count");
-  const [liveShowThumbnailUrl, setLiveShowThumbnailUrl] = useState<string | null>(null);
-  const [liveShowThumbnailUploading, setLiveShowThumbnailUploading] = useState(false);
-  const [liveShowThumbnailError, setLiveShowThumbnailError] = useState<string | null>(null);
-  const [payoutRequestPending, setPayoutRequestPending] = useState(false);
-  const [payoutRequestStatus, setPayoutRequestStatus] = useState<string | null>(null);
-  const [payoutRequestError, setPayoutRequestError] = useState<string | null>(null);
-
-  const handleRequestInstantPayout = async () => {
-    if (!supabase || !wallet || !instantEligible || payoutRequestPending) return;
-
-    setPayoutRequestPending(true);
-    setPayoutRequestStatus(null);
-    setPayoutRequestError(null);
-
-    try {
-      const response = await fetch("/api/payouts/request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seller_id: wallet.seller_id }),
-      });
-      if (!response.ok && response.status === 409) {
-        throw new Error("A payout request is already in progress or blocked.");
-      }
-      const data = (await response.json().catch(() => ({}))) as { ok?: boolean; error?: string };
-
-      if (!response.ok || !data.ok) {
-        throw new Error(data.error ?? "Unable to request payout right now.");
-      }
-
-      setPayoutRequestStatus("Payout request submitted.");
-      router.refresh();
-    } catch (err) {
-      setPayoutRequestError(err instanceof Error ? err.message : "Unable to request payout right now.");
-    } finally {
-      setPayoutRequestPending(false);
-    }
-  };
-
-  const handleLiveShowThumbnailUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file || !supabase || !profile?.id) return;
-
-    setLiveShowThumbnailUploading(true);
-    setLiveShowThumbnailError(null);
-
-    try {
-      const uploaded = await uploadImageFile({
-        supabase,
-        target: "live-show",
-        ownerId: profile.id,
-        file,
-      });
-      setLiveShowThumbnailUrl(uploaded.publicUrl);
-    } catch (error) {
-      setLiveShowThumbnailError(error instanceof Error ? error.message : "Unable to upload live show thumbnail.");
-    } finally {
-      setLiveShowThumbnailUploading(false);
-    }
-  };
-  const shippingPerformance = useMemo(() => {
-    const shipped = sales.filter((order) => order.status === "shipped").length;
-    const delivered = sales.filter((order) => order.status === "delivered").length;
-    return shipped > 0 ? Math.round((delivered / shipped) * 100) : 100;
-  }, [sales]);
-  const buyerRetention = useMemo(() => {
-    const buyerCounts = new Map<string, number>();
-    for (const order of sales) {
-      buyerCounts.set(order.buyer_id, (buyerCounts.get(order.buyer_id) ?? 0) + 1);
-    }
-    const repeatBuyers = Array.from(buyerCounts.values()).filter((count) => count > 1).length;
-    return sales.length > 0 ? Math.round((repeatBuyers / buyerCounts.size) * 100) || 0 : 0;
-  }, [sales]);
-  const avgBidValue = liveInsights.averageBidValue;
-  const revenuePerShow = liveInsights.revenuePerShow;
-  const conversionRate = liveInsights.conversionRate;
-  const earningsBreakdown = sellerSummary.netEarnings;
-  const showTrustScore = 100;
-  const notificationsEnabled = false;
-  const totalLiveShowSales = sellerLiveShows.reduce((sum) => sum, 0);
-  const showQueueSize = sellerLiveShows.length;
-  const auctionHealth = Math.max(0, 100 - Math.max(0, 100 - shippingPerformance));
-  const giveawaySummary = { activeGiveaways: 0, eligibleUsers: 0, claimedWinners: 0, totalCost: 0, platformRevenueProtected: true };
-  const giveaway = null;
-  const giveawaySecondsLeft = 0;
-  const giveawayMinutes = 0;
-  const giveawaySeconds = 0;
-  const giveawayCost = 0;
-  const giveawayProgress = 0;
+  }, [router, supabase]);
 
   useEffect(() => {
-    if (!supabase || !profile?.id) return;
-    let alive = true;
-    Promise.resolve().then(() => setLiveShowsLoading(true));
-    listLiveShowsBySeller(profile.id)
-      .then((rows: LiveShowDirectoryItem[]) => {
-        if (!alive) return;
-        setSellerLiveShows(rows);
-        setActiveLiveShowId((current) => current ?? rows[0]?.id ?? null);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setSellerLiveShows([]);
-      })
-      .finally(() => {
-        if (!alive) return;
-        setLiveShowsLoading(false);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [profile?.id, supabase]);
+    if (!orderSuccess) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("success");
+    router.replace(params.toString() ? `/dashboard?${params.toString()}` : "/dashboard");
+  }, [orderSuccess, router, searchParams]);
+
+  const activeListings = useMemo(() => listings.filter((listing) => listing.status === "active").length, [listings]);
+  const completedSales = useMemo(() => sales.filter((sale) => ["paid", "shipped", "delivered", "completed"].includes(sale.status)), [sales]);
+  const totalRevenue = useMemo(() => completedSales.reduce((sum, sale) => sum + (sale.total_amount ?? 0), 0), [completedSales]);
+  const walletAvailable = wallet?.available_balance ?? 0;
+  const walletPending = wallet?.pending_balance ?? 0;
+  const walletFrozen = wallet?.frozen_balance ?? 0;
+
+  const updateTab = (next: Tab) => {
+    setActiveTab(next);
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "overview") params.delete("tab");
+    else params.set("tab", next);
+    router.replace(params.toString() ? `/dashboard?${params.toString()}` : "/dashboard", { scroll: false });
+  };
 
   if (!supabase) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-6 text-center text-gray-300">
-        <div className="max-w-md space-y-3 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20">
-          <div className="text-xl font-black text-white">Dashboard unavailable</div>
-          <p className="text-sm text-gray-400">The seller dashboard could not start on this device. Please reload or sign in again.</p>
-          <a href={`/auth?redirectTo=${encodeURIComponent(currentPath)}`} className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Sign in again</a>
-        </div>
-      </div>
-    );
-  }
-
-  if (loadingError) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-6 text-center text-gray-300">
-        <div className="max-w-md space-y-4 rounded-3xl border border-red-400/20 bg-red-400/10 p-6 shadow-2xl shadow-black/20">
-          <div className="text-xl font-black text-white">Dashboard unavailable</div>
-          <p className="text-sm text-gray-300">{loadingError}</p>
-          <p className="text-xs uppercase tracking-[0.25em] text-gray-500">{authStep}</p>
-          <div className="flex flex-wrap justify-center gap-3 pt-2">
-            <button type="button" onClick={() => router.refresh()} className="inline-flex rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Try again</button>
-            <a href={`/auth?redirectTo=${encodeURIComponent(currentPath)}`} className="inline-flex rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Sign in again</a>
-          </div>
-        </div>
+      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-6 text-center">
+        <EmptyState title="Dashboard unavailable" description="The dashboard could not initialize on this device." action={<Link href="/auth" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Sign in again</Link>} />
       </div>
     );
   }
 
   if (loading) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] text-gray-400">Loading dashboard...</div>;
+  }
+
+  if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a]">
-        <div className="text-lg animate-pulse text-gray-400">Loading dashboard...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] px-6 text-center text-white">
+        <EmptyState title="Dashboard unavailable" description={error} action={<button type="button" onClick={() => router.refresh()} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Try again</button>} />
       </div>
     );
   }
 
-  const activeListings = listings.filter((l) => l.status === "active").length;
-  const totalRevenue = completedSales.reduce((sum, o) => sum + (o.total_amount ?? 0), 0);
-  const ordersToVerified = Math.max(0, 1000 - (wallet?.completed_orders_count ?? sellerSummary.lifetimeSales));
-  const payoutTier = wallet?.completed_orders_count && wallet.completed_orders_count >= 1000 ? "Verified Seller (Instant Eligible)" : "Standard Payout";
-  const nextPayout = wallet?.next_payout_at ? new Date(wallet.next_payout_at).toLocaleDateString() : "Daily at 12:00 AM PST";
-  const availableBalance = wallet?.available_balance ?? 0;
-  const pendingBalance = wallet?.pending_balance ?? 0;
-  const frozenBalance = (wallet as { frozen_balance?: number | null } | null)?.frozen_balance ?? 0;
-  const escrowBalance = pendingBalance;
-  const instantEligible = Boolean(wallet?.instant_payout_enabled && (wallet?.completed_orders_count ?? 0) >= 1000 && !wallet?.fraud_flag);
-  const payoutStatus = wallet?.fraud_flag ? "Frozen for review" : instantEligible ? "Instant payout enabled" : "Escrow hold active";
-  const payoutProgress = Math.min(100, ((wallet?.completed_orders_count ?? sellerSummary.lifetimeSales) / 1000) * 100);
-  const fraudRiskScore = wallet?.fraud_flag ? 80 : instantEligible ? 0 : 20;
-  const disputeCount = 0;
-  const releaseStatus = pendingBalance > 0 ? "Awaiting escrow release" : "No funds in escrow";
-  const statusSummary = [payoutStatus, releaseStatus].join(" · ");
-  const brainSummary = [
-    `TcgPoké Market dashboard summary for ${profile?.full_name ?? "user"}`,
-    `Active listings: ${activeListings}`,
-    `Total sales: ${profile?.total_sales ?? 0}`,
-    `Revenue: $${totalRevenue.toFixed(2)}`,
-    `Purchases: ${purchases.length}`,
-    `Sales: ${sales.length}`,
-    `Current seller tier: ${sellerSummary.tierName}`,
-  ].join("\n");
-
-  const handleCopyBrainSummary = async () => {
-    try {
-      await navigator.clipboard.writeText(brainSummary);
-      setBrainCopied(true);
-      setTimeout(() => setBrainCopied(false), 2000);
-    } catch {
-      setBrainCopied(false);
-    }
-  };
-
-  const refreshBrandAssets = async () => {
-    if (!supabase || !profile?.id) return;
-    const [{ data: freshProfile }, { data: freshStore }] = await Promise.all([
-      supabase.from("profiles").select("avatar_url").eq("id", profile.id).maybeSingle(),
-      supabase.from("seller_stores").select("name, slug, description, logo_url, banner_url, theme").eq("seller_id", profile.id).maybeSingle(),
-    ]);
-
-    const freshProfileRow = freshProfile as Profile | null;
-    const freshStoreRow = freshStore as StoreRow | null;
-    setProfile((current) => (current ? { ...current, avatar_url: freshProfileRow?.avatar_url ?? current.avatar_url ?? null } : current));
-    setStoreRecord(freshStoreRow ?? null);
-    setBrandAssets(createBrandAssetsState(freshProfileRow ?? profile, freshStoreRow));
-    if (freshStoreRow) {
-      setStoreName(freshStoreRow.name ?? "");
-      setStoreSlug(freshStoreRow.slug ?? "");
-      setStoreDescription(freshStoreRow.description ?? "");
-      setStoreAccent((freshStoreRow.theme?.accent as string | null | undefined) ?? "#e22400");
-      setStoreSecondary((freshStoreRow.theme?.secondary as string | null | undefined) ?? "#ffab01");
-      setStoreHighlight((freshStoreRow.theme?.highlight as string | null | undefined) ?? "#fefb41");
-      setStoreInstagram((freshStoreRow.theme?.social_links?.instagram as string | null | undefined) ?? "");
-      setStoreFacebook((freshStoreRow.theme?.social_links?.facebook as string | null | undefined) ?? "");
-      setStoreYouTube((freshStoreRow.theme?.social_links?.youtube as string | null | undefined) ?? "");
-      setStoreTikTok((freshStoreRow.theme?.social_links?.tiktok as string | null | undefined) ?? "");
-      setStoreX((freshStoreRow.theme?.social_links?.x as string | null | undefined) ?? "");
-      setStoreWebsite((freshStoreRow.theme?.social_links?.website as string | null | undefined) ?? "");
-    }
-  };
-
-
-  const updateBrandAssetDraft = (field: BrandAssetField, next: Partial<BrandAssetDraft>) => {
-    setBrandAssets((current) => ({
-      ...current,
-      [field]: { ...current[field], ...next },
-    }));
-  };
-
-  const handleStoreInput = (setter: (value: string) => void, value: string) => {
-    setter(value);
-    setBrandSaveStatus(null);
-    setBrandSaveError(null);
-  };
-
-  const handleStoreNameInput = (value: string) => handleStoreInput(setStoreName, value);
-  const handleStoreSlugInput = (value: string) => handleStoreInput(setStoreSlug, value);
-  const handleStoreDescriptionInput = (value: string) => handleStoreInput(setStoreDescription, value);
-  const handleStoreAccentInput = (value: string) => handleStoreInput(setStoreAccent, value);
-  const handleStoreSecondaryInput = (value: string) => handleStoreInput(setStoreSecondary, value);
-  const handleStoreHighlightInput = (value: string) => handleStoreInput(setStoreHighlight, value);
-  const handleStoreInstagramInput = (value: string) => handleStoreInput(setStoreInstagram, value);
-  const handleStoreFacebookInput = (value: string) => handleStoreInput(setStoreFacebook, value);
-  const handleStoreYouTubeInput = (value: string) => handleStoreInput(setStoreYouTube, value);
-  const handleStoreTikTokInput = (value: string) => handleStoreInput(setStoreTikTok, value);
-  const handleStoreXInput = (value: string) => handleStoreInput(setStoreX, value);
-  const handleStoreWebsiteInput = (value: string) => handleStoreInput(setStoreWebsite, value);
-
-  const handlePrivacyInput = <K extends keyof PrivacySettingsState>(key: K, value: PrivacySettingsState[K]) => {
-    setPrivacySettings((current) => ({ ...current, [key]: value }));
-    setPrivacySaveStatus(null);
-    setPrivacySaveError(null);
-  };
-
-  const handleShippingInput = <K extends keyof ShippingAddressState>(key: K, value: ShippingAddressState[K]) => {
-    setShippingAddress((current) => ({ ...current, [key]: value }));
-    setShippingSaveStatus(null);
-    setShippingSaveError(null);
-  };
-
-  const saveShippingAddress = async () => {
-    if (!supabase || !profile) return;
-    if (!hasCompleteShippingAddress(shippingAddress)) {
-      setShippingSaveError("Enter your full shipping address.");
-      return;
-    }
-
-    setShippingSavePending(true);
-    setShippingSaveStatus(null);
-    setShippingSaveError(null);
-
-    try {
-      const response = await fetch("/api/profile-assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target: "profile",
-          shipping_address: shippingAddressToPayload(shippingAddress),
-        }),
-      });
-      const payload = await response.json().catch(() => ({} as { error?: string }));
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to save shipping address.");
-      }
-
-      setShippingSaveStatus("Shipping address saved");
-      setShippingAddressLoaded(true);
-    } catch (error) {
-      setShippingSaveError(error instanceof Error ? error.message : "Unable to save shipping address.");
-    } finally {
-      setShippingSavePending(false);
-    }
-  };
-
-  const savePrivacySettings = async () => {
-    if (!supabase || !profile) return;
-    setPrivacySavePending(true);
-    setPrivacySaveStatus(null);
-    setPrivacySaveError(null);
-
-    try {
-      const response = await fetch("/api/profile-assets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target: "privacy",
-          profile_visibility: privacySettings.profileVisibility,
-          collection_visibility: privacySettings.collectionVisibility,
-          activity_visibility: privacySettings.activityVisibility,
-          message_visibility: privacySettings.messageVisibility,
-          who_can_follow: privacySettings.whoCanFollow,
-          who_can_friend_request: privacySettings.whoCanFriendRequest,
-        }),
-      });
-      const payload = await response.json().catch(() => ({} as { error?: string }));
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to save privacy settings.");
-      }
-
-      setPrivacyRecord({
-        profile_visibility: privacySettings.profileVisibility,
-        collection_visibility: privacySettings.collectionVisibility,
-        activity_visibility: privacySettings.activityVisibility,
-        message_visibility: privacySettings.messageVisibility,
-        who_can_follow: privacySettings.whoCanFollow,
-        who_can_friend_request: privacySettings.whoCanFriendRequest,
-      });
-      setPrivacySettingsLoaded(true);
-      setPrivacySaveStatus("Privacy settings saved");
-    } catch (error) {
-      setPrivacySaveError(error instanceof Error ? error.message : "Unable to save privacy settings.");
-    } finally {
-      setPrivacySavePending(false);
-    }
-  };
-
-  const saveBrandAssets = async () => {
-    if (!supabase || !profile) return;
-    setBrandSavePending(true);
-    setBrandSaveStatus(null);
-    setBrandSaveError(null);
-
-    const draftFields = toUploadFields().filter((field) => brandAssets[field].file) as BrandAssetField[];
-    const settingsChanged = brandSettingsChanged || privacySettingsDirty;
-
-    try {
-      const uploadResults: Partial<Record<BrandAssetField, { publicUrl: string; path: string }>> = {};
-      for (const field of draftFields) {
-        updateBrandAssetDraft(field, { saving: true, error: null, success: null });
-        const draft = brandAssets[field];
-        const uploaded = await uploadImageFile({
-          supabase,
-          target: "seller-store",
-          ownerId: profile.id,
-          file: draft.file as File,
-          prefix: brandAssetPrefix(field),
-        });
-        uploadResults[field] = { publicUrl: uploaded.publicUrl, path: uploaded.path };
-      }
-
-      const requests: Promise<Response>[] = [];
-      if (settingsChanged) {
-        requests.push(fetch("/api/profile-assets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            target: "store",
-            name: storeName.trim(),
-            slug: storeSlug.trim(),
-            description: storeDescription.trim(),
-            theme: {
-              accent: storeAccent.trim() || null,
-              secondary: storeSecondary.trim() || null,
-              highlight: storeHighlight.trim() || null,
-              social_links: {
-                instagram: storeInstagram.trim() || null,
-                facebook: storeFacebook.trim() || null,
-                youtube: storeYouTube.trim() || null,
-                tiktok: storeTikTok.trim() || null,
-                x: storeX.trim() || null,
-                website: storeWebsite.trim() || null,
-              },
-            },
-          }),
-        }));
-
-        if (privacySettingsDirty) {
-          requests.push(fetch("/api/profile-assets", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              target: "privacy",
-              profile_visibility: privacySettings.profileVisibility,
-              collection_visibility: privacySettings.collectionVisibility,
-              activity_visibility: privacySettings.activityVisibility,
-              message_visibility: privacySettings.messageVisibility,
-              who_can_follow: privacySettings.whoCanFollow,
-              who_can_friend_request: privacySettings.whoCanFriendRequest,
-            }),
-          }));
-        }
-      }
-
-      const profilePayload: Record<string, string | null> = {};
-      const storePayload: Record<string, string | null> = {};
-      for (const field of toUploadFields()) {
-        const uploaded = uploadResults[field];
-        if (!uploaded) continue;
-        if (field === "profileAvatar") profilePayload.avatar_url = uploaded.publicUrl;
-        if (field === "storeLogo") storePayload.logo_url = uploaded.publicUrl;
-        if (field === "storeBanner") storePayload.banner_url = uploaded.publicUrl;
-      }
-
-      if (Object.keys(profilePayload).length) {
-        requests.push(fetch("/api/profile-assets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ target: "profile", ...profilePayload }),
-        }));
-      }
-      if (Object.keys(storePayload).length) {
-        requests.push(fetch("/api/profile-assets", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ target: "store", ...storePayload }),
-        }));
-      }
-
-      const responses = await Promise.all(requests);
-      for (const response of responses) {
-        if (!response.ok) {
-          const payload = await response.json().catch(() => ({} as { error?: string }));
-          throw new Error(payload.error ?? "Unable to save brand assets.");
-        }
-      }
-
-      await refreshBrandAssets();
-
-      for (const field of draftFields) {
-        const draft = brandAssets[field];
-        if (draft.originalUrl && draft.originalUrl !== draft.previewUrl) {
-          await deleteUploadedFile({ supabase, target: "seller-store", path: clearStoragePath(draft.originalUrl) ?? "" }).catch(() => null);
-        }
-        updateBrandAssetDraft(field, {
-          file: null,
-          saving: false,
-          success: "Saved",
-          originalUrl: uploadResults[field]?.publicUrl ?? draft.previewUrl,
-          previewUrl: uploadResults[field]?.publicUrl ?? draft.previewUrl,
-          currentPath: uploadResults[field]?.path ?? null,
-          fileName: null,
-          inputKey: draft.inputKey + 1,
-        });
-      }
-
-      setBrandSaveStatus(BRAND_SAVE_SUCCESS);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to save brand assets.";
-      setBrandSaveError(message);
-      for (const field of draftFields) updateBrandAssetDraft(field, { saving: false, error: message });
-    } finally {
-      setBrandSavePending(false);
-    }
-  };
-
-  const handleBrandAssetFile = async (field: BrandAssetField, file: File | null) => {
-    if (!file || !isImageFile(file)) return;
-    updateBrandAssetDraft(field, {
-      file,
-      fileName: file.name,
-      previewUrl: URL.createObjectURL(file),
-      error: null,
-      success: null,
-      inputKey: brandAssets[field].inputKey + 1,
-      currentPath: null,
-    });
-  };
-
-  const brandAssetsList = [brandAssets.profileAvatar, brandAssets.storeLogo, brandAssets.storeBanner] as BrandAssetDraft[];
-
-  const brandAssetPreview = (asset: BrandAssetDraft) => asset.previewUrl ?? asset.originalUrl;
-
-  const resetBrandAsset = (field: BrandAssetField) => {
-    const originalUrl = brandAssets[field].originalUrl;
-    updateBrandAssetDraft(field, {
-      file: null,
-      previewUrl: originalUrl,
-      error: null,
-      success: null,
-      fileName: null,
-      currentPath: null,
-      inputKey: brandAssets[field].inputKey + 1,
-    });
-  };
-
-  const renderBrandAssetCard = (field: BrandAssetField) => {
-    const asset = brandAssets[field];
-    const previewUrl = brandAssetPreview(asset);
-    const isBusy = brandAssetBusy === field || asset.saving;
-    return (
-      <div key={field} className="rounded-3xl border border-white/10 bg-[#11111c] p-4 shadow-xl shadow-black/10">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-semibold text-white">{asset.label}</div>
-            <div className="mt-1 text-xs text-gray-400">{asset.file ? asset.file.name : asset.originalUrl ? "Saved image" : "No image uploaded yet"}</div>
-          </div>
-          <button
-            type="button"
-            onClick={() => resetBrandAsset(field)}
-            className="rounded-full border border-white/10 px-3 py-1 text-xs font-semibold text-gray-300 hover:border-white/20 hover:text-white"
-          >
-            Reset
-          </button>
-        </div>
-
-        <div className={`mt-4 overflow-hidden border border-white/10 bg-black/20 ${fieldToPreviewStyles(field)}`}>
-          {previewUrl ? <img src={previewUrl} alt={getBrandAssetAlt(field, asset.label)} className="h-full w-full object-cover" /> : <div className="flex h-full min-h-[180px] items-center justify-center text-sm text-gray-500">Preview will appear here</div>}
-        </div>
-
-        <div className="mt-4 space-y-3">
-          <input
-            key={asset.inputKey}
-            type="file"
-            accept={BRAND_IMAGE_ACCEPT}
-            disabled={isBusy}
-            onChange={(e) => void handleBrandAssetFile(field, e.target.files?.[0] ?? null)}
-            className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300 disabled:opacity-50"
-          />
-          <div className="flex items-center justify-between gap-3 text-xs text-gray-400">
-            <span>{asset.file ? "Ready to save" : "Changes save from the main button"}</span>
-            {asset.success && <span className="font-semibold text-green-400">{BRAND_SAVE_SUCCESS}</span>}
-          </div>
-          {asset.error && <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-200">{asset.error}</div>}
-          {isBusy && <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-3 py-2 text-sm text-yellow-100">Uploading {asset.label.toLowerCase()}...</div>}
-        </div>
-      </div>
-    );
-  };
-
-  const brandDraftCount = brandAssetsList.filter((asset) => asset.file).length;
-  const brandSettingsChanged =
-    storeSettingsLoaded && (
-      storeName.trim() !== (storeRecord?.name ?? "") ||
-      storeSlug.trim() !== (storeRecord?.slug ?? "") ||
-      storeDescription.trim() !== (storeRecord?.description ?? "") ||
-      storeAccent.trim() !== ((storeRecord?.theme?.accent as string | null | undefined) ?? "#e22400") ||
-      storeSecondary.trim() !== ((storeRecord?.theme?.secondary as string | null | undefined) ?? "#ffab01") ||
-      storeHighlight.trim() !== ((storeRecord?.theme?.highlight as string | null | undefined) ?? "#fefb41") ||
-      storeInstagram.trim() !== ((storeRecord?.theme?.social_links?.instagram as string | null | undefined) ?? "") ||
-      storeFacebook.trim() !== ((storeRecord?.theme?.social_links?.facebook as string | null | undefined) ?? "") ||
-      storeYouTube.trim() !== ((storeRecord?.theme?.social_links?.youtube as string | null | undefined) ?? "") ||
-      storeTikTok.trim() !== ((storeRecord?.theme?.social_links?.tiktok as string | null | undefined) ?? "") ||
-      storeX.trim() !== ((storeRecord?.theme?.social_links?.x as string | null | undefined) ?? "") ||
-      storeWebsite.trim() !== ((storeRecord?.theme?.social_links?.website as string | null | undefined) ?? "")
-    );
-  const privacySettingsDirty = privacySettingsLoaded && hasPrivacySettingsChanged(privacySettings, privacyRecord);
-
-  const TABS: { key: Tab; label: string }[] = [
-    { key: "overview", label: "Overview" },
-    { key: "listings", label: `Listings (${listings.length})` },
-    { key: "purchases", label: `Purchases (${purchases.length})` },
-    { key: "sales", label: `Sales (${sales.length})` },
-    { key: "fees", label: "Seller Fees" },
-    { key: "live", label: "Live Studio" },
-    ...(isAdminAccount ? ([{ key: "admin", label: "Admin" }] as const) : []),
-  ];
-
-  const selectTab = (nextTab: Tab) => {
-    setTab(nextTab);
-    const params = new URLSearchParams(searchParams.toString());
-    if (nextTab === "overview") params.delete("tab");
-    else params.set("tab", nextTab);
-    const query = params.toString();
-    router.replace(query ? `/dashboard?${query}` : "/dashboard", { scroll: false });
-  };
-
-
   return (
-    <div className="min-h-screen bg-[#0f0f1a] text-white">
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0f0f1a]/90 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <a href="/" className="flex items-center gap-2 text-xl font-black">
-            <span className="text-2xl">⚡</span>
-            <span className="text-white">TCG</span><span className="text-yellow-400">Poke</span><span className="text-white">Market</span>
-          </a>
-          <div className="flex items-center gap-4">
-            <a href="/listings" className="text-sm text-gray-300 hover:text-white">Browse</a>
-            <a href="/dashboard/fees" className="text-sm text-gray-300 hover:text-white">Fees</a>
-            {isAdminAccount && <a href="/admin" className="text-sm font-semibold text-yellow-400 hover:text-yellow-300">Admin</a>}
-            <a href="/sell/scan" className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-bold text-yellow-300 hover:bg-yellow-400/20">Scan Card</a>
-            <a href="/listings/create" className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">+ New Listing</a>
-            <button onClick={handleSignOut} className="text-sm text-gray-400 hover:text-white">Sign out</button>
-          </div>
-        </div>
-      </nav>
-
-      <div className="mx-auto max-w-6xl px-4 pb-16 pt-24">
-        <div className="mb-8 grid gap-6 lg:grid-cols-[1.05fr_0.95fr] lg:items-start">
-          <div className="space-y-4">
-            <div className="inline-flex items-center gap-3 rounded-full border border-yellow-400/20 bg-yellow-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.3em] text-yellow-400">
-              <span>Seller dashboard</span>
-              <span className="rounded-full bg-yellow-400 px-2 py-0.5 text-[10px] font-black tracking-normal text-black">{notificationCount} pending</span>
+    <main className="min-h-screen bg-[#0f0f1a] px-4 py-8 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-6xl space-y-6">
+        <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.3em] text-yellow-400">Dashboard</p>
+              <h1 className="mt-2 text-3xl font-black sm:text-4xl">{profile?.full_name ?? profile?.username ?? "Account"}</h1>
+              <p className="mt-2 max-w-2xl text-sm text-gray-400">Manage your wallet, listings, purchases, sales, and seller tools from one clean control center.</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-yellow-400/20 text-xl font-black text-yellow-400">
-                {profile?.username?.[0]?.toUpperCase() ?? profile?.full_name?.[0]?.toUpperCase() ?? "?"}
-              </div>
-              <div>
-                <h1 className="text-3xl font-black sm:text-4xl">{profile?.full_name ?? "My Dashboard"}</h1>
-                {profile?.username && <p className="text-sm text-gray-400">@{profile.username}</p>}
-              </div>
-            </div>
-            <p className="max-w-2xl text-lg leading-relaxed text-gray-300">
-              Manage listings, review sales, track seller fees, and keep your live auctions moving with a polished control center.
-            </p>
-            <div className="max-w-2xl">
-              {!isAdminAccount && (
-                <>
-                  <SellerVerificationStatusCard
-                    status={verificationStatus}
-                    rejectionReason={verificationDetails?.rejection_reason}
-                    moreInfo={verificationDetails?.more_information_request}
-                    verifiedAt={verificationDetails?.verified_at}
-                  />
-                  {!isSellerVerificationApproved(verificationStatus) && (
-                    <div className="mt-4 rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
-                      Identity verification is required before you can create listings or start live auctions.
-                    </div>
-                  )}
-                </>
-              )}
+            <div className="flex flex-wrap gap-3">
+              <Link href="/listings/create" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">New listing</Link>
+              <Link href="/sell/verification" className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Verification</Link>
+              <Link href="/sell/scan" className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Scan card</Link>
             </div>
           </div>
+        </section>
 
-          <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-            {SUPPORT_CARD}
-            <div className="text-xs text-gray-500">Support questions can also be sent from orders, live shows, or the help center.</div>
-          </div>
-
-          <div className="space-y-4 rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-widest text-yellow-400">Store Branding</p>
-                <h2 className="mt-2 text-xl font-black">Update your profile avatar and storefront visuals</h2>
-                <p className="mt-2 max-w-2xl text-sm text-gray-400">Choose images, preview them instantly, then save once to update your public profile and store branding.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void saveBrandAssets()}
-                disabled={brandSavePending || privacySavePending || shippingSavePending || (!hasPendingBrandChanges(brandAssets) && !brandSettingsChanged && !privacySettingsDirty && !shippingAddressLoaded)}
-                className="inline-flex items-center justify-center rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition-colors hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {brandSavePending || privacySavePending || shippingSavePending ? "Saving..." : `Save Changes${brandDraftCount > 0 ? ` (${brandDraftCount})` : ""}`}
-              </button>
-            </div>
-
-            <div id="shipping-address" className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">
-              <div className="font-semibold text-white">Shipping address</div>
-              <p className="mt-2 text-gray-400">Save your buyer shipping address once so checkout and labels can reuse it automatically.</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">First name</label>
-                  <input value={shippingAddress.firstName} onChange={(e) => handleShippingInput("firstName", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Last name</label>
-                  <input value={shippingAddress.lastName} onChange={(e) => handleShippingInput("lastName", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Street address</label>
-                  <input value={shippingAddress.streetAddress} onChange={(e) => handleShippingInput("streetAddress", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">City</label>
-                  <input value={shippingAddress.city} onChange={(e) => handleShippingInput("city", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">State</label>
-                  <input value={shippingAddress.state} onChange={(e) => handleShippingInput("state", e.target.value.toUpperCase())} maxLength={2} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">ZIP code</label>
-                  <input value={shippingAddress.zipCode} onChange={(e) => handleShippingInput("zipCode", e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                </div>
-              </div>
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <span className="text-xs text-gray-500">Used for buyer checkout and shipping labels.</span>
-                <button type="button" onClick={() => void saveShippingAddress()} disabled={shippingSavePending} className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50">
-                  {shippingSavePending ? "Saving address..." : "Save shipping address"}
-                </button>
-              </div>
-              {shippingSaveStatus && <div className="mt-3 rounded-xl border border-green-400/20 bg-green-400/10 px-4 py-3 text-sm text-green-300">✓ {shippingSaveStatus}</div>}
-              {shippingSaveError && <div className="mt-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{shippingSaveError}</div>}
-            </div>
-
-            <div className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">
-              <div className="font-semibold text-white">Privacy settings</div>
-              <p className="mt-2 text-gray-400">Control who can see your profile, collections, activity, follows, and friend requests.</p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Profile visibility</label>
-                  <select value={privacySettings.profileVisibility} onChange={(e) => handlePrivacyInput("profileVisibility", e.target.value as PrivacySettingsState["profileVisibility"])} className={privacySelectClassName()}>
-                    {PRIVACY_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Collection visibility</label>
-                  <select value={privacySettings.collectionVisibility} onChange={(e) => handlePrivacyInput("collectionVisibility", e.target.value as PrivacySettingsState["collectionVisibility"])} className={privacySelectClassName()}>
-                    {PRIVACY_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Activity visibility</label>
-                  <select value={privacySettings.activityVisibility} onChange={(e) => handlePrivacyInput("activityVisibility", e.target.value as PrivacySettingsState["activityVisibility"])} className={privacySelectClassName()}>
-                    {PRIVACY_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Message visibility</label>
-                  <select value={privacySettings.messageVisibility} onChange={(e) => handlePrivacyInput("messageVisibility", e.target.value as PrivacySettingsState["messageVisibility"])} className={privacySelectClassName()}>
-                    {MESSAGE_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Who can follow</label>
-                  <select value={privacySettings.whoCanFollow} onChange={(e) => handlePrivacyInput("whoCanFollow", e.target.value as PrivacySettingsState["whoCanFollow"])} className={privacySelectClassName()}>
-                    {FOLLOW_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Friend requests</label>
-                  <select value={privacySettings.whoCanFriendRequest} onChange={(e) => handlePrivacyInput("whoCanFriendRequest", e.target.value as PrivacySettingsState["whoCanFriendRequest"])} className={privacySelectClassName()}>
-                    {FOLLOW_VISIBILITY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-400">
-                <span className="rounded-full border border-white/10 px-3 py-1">Profile: {privacySettings.profileVisibility}</span>
-                <span className="rounded-full border border-white/10 px-3 py-1">Collections: {privacySettings.collectionVisibility}</span>
-                <span className="rounded-full border border-white/10 px-3 py-1">Activity: {privacySettings.activityVisibility}</span>
-                <span className="rounded-full border border-white/10 px-3 py-1">Messages: {privacySettings.messageVisibility}</span>
-              </div>
-              <div className="mt-4 flex items-center justify-between gap-3">
-                <span className="text-xs text-gray-500">Updates save with your branding changes.</span>
-                <button type="button" onClick={() => void savePrivacySettings()} disabled={privacySavePending} className="rounded-xl border border-white/10 bg-black/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50">
-                  {privacySavePending ? "Saving privacy..." : "Save privacy"}
-                </button>
-              </div>
-              {privacySaveStatus && <div className="mt-3 rounded-xl border border-green-400/20 bg-green-400/10 px-4 py-3 text-sm text-green-300">✓ {privacySaveStatus}</div>}
-              {privacySaveError && <div className="mt-3 rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{privacySaveError}</div>}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-[0.95fr_1.05fr]">
-              <div className="space-y-4">
-                {renderBrandAssetCard("profileAvatar")}
-                {renderBrandAssetCard("storeLogo")}
-              </div>
-              <div className="space-y-4">
-                {renderBrandAssetCard("storeBanner")}
-                <div className="rounded-3xl border border-white/10 bg-[#11111c] p-4 text-sm text-gray-300">
-                  <div className="font-semibold text-white">Store settings</div>
-                  <p className="mt-2 text-gray-400">Edit your storefront name, URL, description, theme colors, and social links. Changes save with your branding updates.</p>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Store name</label>
-                      <input value={storeName} onChange={(e) => handleStoreNameInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Store slug</label>
-                      <input value={storeSlug} onChange={(e) => handleStoreSlugInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Description</label>
-                      <textarea value={storeDescription} onChange={(e) => handleStoreDescriptionInput(e.target.value)} rows={3} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Accent color</label>
-                      <input value={storeAccent} onChange={(e) => handleStoreAccentInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Secondary color</label>
-                      <input value={storeSecondary} onChange={(e) => handleStoreSecondaryInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-xs uppercase tracking-widest text-gray-500">Highlight color</label>
-                      <input value={storeHighlight} onChange={(e) => handleStoreHighlightInput(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                    </div>
-                    <div className="sm:col-span-2 grid gap-3 sm:grid-cols-2">
-                      <input value={storeInstagram} onChange={(e) => handleStoreInstagramInput(e.target.value)} placeholder="Instagram URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                      <input value={storeFacebook} onChange={(e) => handleStoreFacebookInput(e.target.value)} placeholder="Facebook URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                      <input value={storeYouTube} onChange={(e) => handleStoreYouTubeInput(e.target.value)} placeholder="YouTube URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                      <input value={storeTikTok} onChange={(e) => handleStoreTikTokInput(e.target.value)} placeholder="TikTok URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                      <input value={storeX} onChange={(e) => handleStoreXInput(e.target.value)} placeholder="X URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                      <input value={storeWebsite} onChange={(e) => handleStoreWebsiteInput(e.target.value)} placeholder="Website URL" className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-                    </div>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-400">
-                    <span className="rounded-full border border-white/10 px-3 py-1">Refreshes after save</span>
-                    <span className="rounded-full border border-white/10 px-3 py-1">Owner-only updates</span>
-                    <span className="rounded-full border border-white/10 px-3 py-1">No placeholder cards</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {brandSaveStatus && <div className="rounded-xl border border-green-400/20 bg-green-400/10 px-4 py-3 text-sm text-green-300">✓ {brandSaveStatus}</div>}
-            {brandSaveError && <div className="rounded-xl border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-300">{brandSaveError}</div>}
-            {brandSavePending && <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">Saving your branding updates...</div>}
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={handleCopyBrainSummary}
-                className="rounded-xl border border-yellow-400/40 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-400 transition-colors hover:bg-yellow-400/20"
-              >
-                {brainCopied ? "Copied" : "Copy dashboard summary"}
-              </button>
-            </div>
-          </div>
-        </div>
-
-
-        <div className="mb-8 flex gap-1 overflow-x-auto rounded-xl border border-white/10 bg-white/5 p-1">
-          {TABS.map((t) => (
+        <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-white/5 p-2">
+          {[
+            ["overview", "Overview"],
+            ["listings", `Listings (${listings.length})`],
+            ["purchases", `Purchases (${purchases.length})`],
+            ["sales", `Sales (${sales.length})`],
+            ["fees", "Fees & payouts"],
+          ].map(([key, label]) => (
             <button
-              key={t.key}
+              key={key}
               type="button"
-              onClick={() => selectTab(t.key)}
-              className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-all ${tab === t.key ? "bg-yellow-400 text-black" : "text-gray-400 hover:text-white"}`}
+              onClick={() => updateTab(key as Tab)}
+              className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition ${activeTab === key ? "bg-yellow-400 text-black" : "text-gray-300 hover:bg-white/5 hover:text-white"}`}
             >
-              {t.label}
+              {label}
             </button>
           ))}
         </div>
 
-        {tab === "overview" && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              {[
-                { label: "Active Listings", value: activeListings, icon: "🃏" },
-                { label: "Total Sales", value: profile?.total_sales ?? 0, icon: "✅" },
-                { label: "Revenue", value: `$${totalRevenue.toFixed(2)}`, icon: "💰" },
-                { label: "Purchases", value: purchases.length, icon: "🛒" },
-                { label: "Live Show Revenue", value: `$${revenuePerShow.toFixed(2)}`, icon: "🎥" },
-                { label: "Conversion Rate", value: `${conversionRate.toFixed(1)}%`, icon: "📈" },
-                { label: "Avg Bid", value: `$${avgBidValue.toFixed(2)}`, icon: "🏷️" },
-                { label: "Buyer Retention", value: `${Math.max(buyerRetention, liveInsights.buyerRetention).toFixed(0)}%`, icon: "🔁" },
-              ].map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/5 p-5 text-center">
-                  <div className="mb-2 text-3xl">{stat.icon}</div>
-                  <div className="text-2xl font-black text-white">{stat.value}</div>
-                  <div className="mt-1 text-sm text-gray-400">{stat.label}</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Payout tier</div>
-                <h3 className="mt-2 text-xl font-black">{payoutTier}</h3>
-                <p className="mt-2 text-sm text-gray-400">Orders completed: {wallet?.completed_orders_count ?? sellerSummary.lifetimeSales} / 1,000</p>
-                <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${payoutProgress}%` }} />
-                </div>
-                <p className="mt-3 text-sm text-gray-400">{instantEligible ? "Instant payout is available." : `Instant payout unlocks in ${ordersToVerified} completed orders.`}</p>
-                <p className="mt-2 text-xs text-gray-500">{statusSummary}</p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Wallet</div>
-                <div className="mt-3 space-y-2 text-sm text-gray-300">
-                  <div className="flex items-center justify-between"><span>Available balance</span><span>${availableBalance.toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Escrow balance</span><span>${escrowBalance.toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Frozen balance</span><span>${frozenBalance.toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Lifetime earnings</span><span>${(wallet?.lifetime_earnings ?? totalRevenue).toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Next payout</span><span>{nextPayout}</span></div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRequestInstantPayout}
-                  className="mt-4 rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-semibold text-yellow-400 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                  disabled={!instantEligible || payoutRequestPending}
-                >
-                  {payoutRequestPending ? "Submitting request..." : instantEligible ? "Request instant payout" : "Instant payout locked"}
-                </button>
-                {payoutRequestStatus ? <p className="mt-2 text-xs text-emerald-400">{payoutRequestStatus}</p> : null}
-                {payoutRequestError ? <p className="mt-2 text-xs text-red-400">{payoutRequestError}</p> : null}
-              </div>
-
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/10 via-red-500/10 to-blue-500/10 p-6">
-                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Seller room summary</div>
-                <h3 className="mt-2 text-xl font-black">{sellerLiveShows.length} rooms in your storefront</h3>
-                <div className="mt-3 grid gap-2 text-sm text-gray-300 sm:grid-cols-2">
-                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Active rooms</span><span>{sellerLiveShows.filter((room) => room.status === "live").length}</span></div>
-                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Scheduled rooms</span><span>{sellerLiveShows.filter((room) => room.status === "scheduled").length}</span></div>
-                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Featured rooms</span><span>{sellerLiveShows.filter((room) => Boolean((room.auction_settings as any)?.featured)).length}</span></div>
-                  <div className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3"><span>Total viewers</span><span>{sellerLiveShows.reduce((sum, room) => sum + (room.viewer_count ?? 0), 0)}</span></div>
-                </div>
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full bg-yellow-400" style={{ width: `${Math.min(100, sellerLiveShows.length * 10)}%` }} />
-                </div>
-                <p className="mt-3 text-sm text-gray-300">Each room keeps its own bids, chat, viewers, and auction queue isolated by seller_id and show_id.</p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <div className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Wallet impact</div>
-                <div className="mt-3 space-y-2 text-sm text-gray-300">
-                  <div className="flex items-center justify-between"><span>Active room revenue</span><span>${totalLiveShowSales.toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Seller balance</span><span>${availableBalance.toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Pending balance</span><span>${pendingBalance.toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Total rooms</span><span>{sellerLiveShows.length}</span></div>
-                  <div className="flex items-center justify-between"><span>Platform fee model</span><span>{sellerSummary.tierName}</span></div>
-                </div>
-                <p className="mt-3 text-sm text-gray-400">Seller payouts, fees, refunds, and disputes are tracked per seller_id instead of one shared owner account.</p>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <h3 className="text-lg font-bold">What to do next</h3>
-                <div className="mt-4 space-y-3 text-sm text-gray-300">
-                  <a href="/sell/scan" className="flex items-center justify-between rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 hover:border-yellow-400/50">
-                    <span>Scan a card</span>
-                    <span className="text-yellow-400">→</span>
-                  </a>
-                  <a href="/listings/create" className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 hover:border-white/20">
-                    <span>Add a new listing</span>
-                    <span className="text-yellow-400">→</span>
-                  </a>
-                  <a href="/dashboard/fees" className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 hover:border-yellow-400/40">
-                    <span>Review fee settings</span>
-                    <span className="text-yellow-400">→</span>
-                  </a>
-                  <a href="/live" className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 hover:border-yellow-400/40">
-                    <span>Check live show tools</span>
-                    <span className="text-yellow-400">→</span>
-                  </a>
-                  <a href="/dashboard/live-auctions/create" className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3 hover:border-yellow-400/40">
-                    <span>Create auction</span>
-                    <span className="text-yellow-400">→</span>
-                  </a>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <h3 className="text-lg font-bold">Show earnings breakdown</h3>
-                <div className="mt-3 space-y-2 text-sm text-gray-300">
-                  <div className="flex items-center justify-between"><span>Revenue per show</span><span>${revenuePerShow.toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Average bid value</span><span>${avgBidValue.toFixed(2)}</span></div>
-                  <div className="flex items-center justify-between"><span>Buyer retention</span><span>{Math.max(buyerRetention, liveInsights.buyerRetention).toFixed(0)}%</span></div>
-                  <div className="flex items-center justify-between"><span>Earnings breakdown</span><span>${earningsBreakdown.toFixed(2)}</span></div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-                <h3 className="text-lg font-bold">Shipping performance</h3>
-                <div className="mt-3 space-y-2 text-sm text-gray-300">
-                  <div className="flex items-center justify-between"><span>Delivered / shipped</span><span>{shippingPerformance}%</span></div>
-                  <div className="flex items-center justify-between"><span>Auto label readiness</span><span>{liveInsights.shippingPerformance}%</span></div>
-                  <div className="flex items-center justify-between"><span>Combined shipping</span><span>Enabled</span></div>
-                  <div className="flex items-center justify-between"><span>Fraud/trust monitoring</span><span>{showTrustScore >= 80 ? "Healthy" : "Watch"}</span></div>
-                </div>
-              </div>
-            </div>
-          </div>
+        {activeTab === "overview" && (
+          <section className="grid gap-4 md:grid-cols-4">
+            <Card title="Active listings" value={String(activeListings)} />
+            <Card title="Available balance" value={money(walletAvailable)} description="Ready to withdraw when eligible." />
+            <Card title="Pending balance" value={money(walletPending)} description="Funds in escrow or awaiting release." />
+            <Card title="Frozen balance" value={money(walletFrozen)} description="Held for review if applicable." />
+          </section>
         )}
 
-        {tab === "fees" && (
-          <div className="space-y-6">
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                <div>
-                  <div className="mb-2 text-sm font-semibold uppercase tracking-widest text-yellow-400">Fees & Earnings</div>
-                  <h2 className="text-2xl font-black">Your seller fee summary</h2>
-                  <p className="mt-2 text-sm text-gray-400">The first {sellerSummary.freeSalesRemaining > 0 ? freeSalesUsed + freeSalesRemaining : sellerSummary.lifetimeSales} completed sales are tracked automatically and fee tiers update as you grow.</p>
-                </div>
-                <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-400">
-                  Current tier: <span className="font-bold">{sellerSummary.tierName}</span>
-                </div>
-              </div>
-
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
-                {[
-                  { label: "Current marketplace fee", value: formatPercent(sellerSummary.marketplaceFeePercent) },
-                  { label: "Free sales remaining", value: sellerSummary.freeSalesRemaining.toString() },
-                  { label: "Lifetime sales", value: sellerSummary.lifetimeSales.toString() },
-                  { label: "Monthly sales", value: sellerSummary.monthlySales.toString() },
-                  { label: "Gross revenue", value: `$${sellerSummary.grossRevenue.toFixed(2)}` },
-                  { label: "Marketplace fees paid", value: `$${sellerSummary.marketplaceFeesPaid.toFixed(2)}` },
-                  { label: "Payment processing fees", value: `$${sellerSummary.paymentProcessingFees.toFixed(2)}` },
-                  { label: "Net earnings", value: `$${sellerSummary.netEarnings.toFixed(2)}` },
-                  { label: "Upcoming payouts", value: `$${sellerSummary.upcomingPayouts.toFixed(2)}` },
-                ].map((metric) => (
-                  <div key={metric.label} className="rounded-2xl border border-white/10 bg-[#13131f] p-4">
-                    <div className="text-xs uppercase tracking-widest text-gray-500">{metric.label}</div>
-                    <div className="mt-2 text-xl font-black">{metric.value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-lg font-bold">Free sales progress</h3>
-                  <p className="text-sm text-gray-400">X of 1,000 free sales used</p>
-                </div>
-                <div className="text-right text-sm text-gray-300">
-                  {freeSalesUsed} of {feeConfig.freeSalesLimit} free sales used
-                </div>
-              </div>
-              <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/10">
-                <div
-                  className="h-full rounded-full bg-yellow-400"
-                  style={{ width: `${Math.min(100, feeConfig.freeSalesLimit > 0 ? (freeSalesUsed / feeConfig.freeSalesLimit) * 100 : 0)}%` }}
-                />
-              </div>
-              <p className="mt-3 text-sm text-gray-400">
-                Marketplace fee: 0% for the first {feeConfig.freeSalesLimit} completed sales, then {feeConfig.standardMarketplaceFeePercent}% unless a power seller tier applies.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-6">
-              <h3 className="text-lg font-bold">Checkout fee preview</h3>
-              <p className="mt-1 text-sm text-gray-400">Example on a $100 item sale.</p>
-              <div className="mt-4 space-y-2 text-sm">
-                {[
-                  ["Item subtotal", `$${upcomingFeeExample.itemSubtotal.toFixed(2)}`],
-                  ["Shipping", `$${upcomingFeeExample.shipping.toFixed(2)}`],
-                  ["Sales tax", `$${upcomingFeeExample.salesTax.toFixed(2)}`],
-                  ["Payment processing fee", `$${upcomingFeeExample.paymentProcessingFee.toFixed(2)}`],
-                  ["Marketplace fee", `$${upcomingFeeExample.marketplaceFee.toFixed(2)}`],
-                  ["Seller payout", `$${upcomingFeeExample.sellerPayout.toFixed(2)}`],
-                ].map(([label, value]) => (
-                  <div key={label} className="flex items-center justify-between rounded-xl border border-white/10 bg-[#13131f] px-4 py-3">
-                    <span className="text-gray-400">{label}</span>
-                    <span className="font-semibold">{value}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+        {activeTab === "overview" && (
+          <section className="grid gap-4 md:grid-cols-3">
+            <Card title="Total sales" value={String(completedSales.length)} />
+            <Card title="Revenue" value={money(totalRevenue)} />
+            <Card title="Wallet total" value={money((wallet?.available_balance ?? 0) + (wallet?.pending_balance ?? 0) + (wallet?.frozen_balance ?? 0))} />
+          </section>
         )}
 
-        {tab === "listings" && (
-          <div>
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-bold">My Listings</h2>
-              <div className="flex gap-2">
-                <a href="/sell/scan" className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-2 text-sm font-bold text-yellow-300 hover:bg-yellow-400/20">Scan Card</a>
-                <a href="/listings/create" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">+ New Listing</a>
-              </div>
-            </div>
+        {activeTab === "listings" && (
+          <section className="space-y-4">
             {listings.length === 0 ? (
-              <div className="py-16 text-center text-gray-400">
-                <div className="mb-3 text-5xl">🃏</div>
-                <p>No listings yet. <a href="/sell/scan" className="text-yellow-400 hover:underline">Scan a card</a> or <a href="/listings/create" className="text-yellow-400 hover:underline">create your first one</a>.</p>
-              </div>
+              <EmptyState title="No listings yet" description="Create your first listing to start selling." action={<Link href="/listings/create" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Create listing</Link>} />
             ) : (
-              <div className="space-y-3">
-                {listings.map((l) => (
-                  <div key={l.id} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/10 text-2xl">
-                      {getListingPrimaryImage(l.images ?? []) ? <img src={getListingPrimaryImage(l.images ?? []) ?? ""} alt="" className="h-full w-full rounded-xl object-cover" /> : <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full rounded-xl object-cover" />}
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {listings.map((listing) => (
+                  <Link key={listing.id} href={`/listings/${listing.id}`} className="rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:border-yellow-400/40 hover:bg-white/10">
+                    <div className="text-sm font-bold text-white">{listing.card_name}</div>
+                    <div className="mt-1 text-xs text-gray-400">{listing.set_name}</div>
+                    <div className="mt-4 flex items-center justify-between text-sm text-gray-300">
+                      <span>{listing.status}</span>
+                      <span className="font-bold text-yellow-400">{money(listing.price)}</span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold">{l.card_name}</p>
-                      <p className="text-xs text-gray-400">{l.set_name} · {l.condition}</p>
-                    </div>
-                    <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{l.status}</span>
-                    <span className="font-black text-white">${l.price.toFixed(2)}</span>
-                    <div className="flex gap-2">
-                      <a href={`/listings/${l.id}`} className="rounded-lg border border-white/20 px-3 py-1.5 text-xs text-gray-400 transition-colors hover:text-white">View</a>
-                      <button onClick={() => handleDeleteListing(l.id, l.card_name)} className="rounded-lg border border-red-400/30 px-3 py-1.5 text-xs text-red-400 transition-colors hover:text-red-300">Remove</button>
-                    </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
-          </div>
+          </section>
         )}
 
-        {tab === "purchases" && (
-          <div>
-            <h2 className="mb-5 text-xl font-bold">My Purchases</h2>
+        {activeTab === "purchases" && (
+          <section className="space-y-4">
             {purchases.length === 0 ? (
-              <div className="py-16 text-center text-gray-400">
-                <div className="mb-3 text-5xl">🛒</div>
-                <p>No purchases yet. <a href="/listings" className="text-yellow-400 hover:underline">Browse listings.</a></p>
-              </div>
+              <EmptyState title="No purchases yet" description="Browse the marketplace to place your first order." action={<Link href="/listings" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Browse listings</Link>} />
             ) : (
               <div className="space-y-3">
-                {purchases.map((o) => (
-                  <div key={o.id} className="flex items-center gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold">{o.listings?.card_name ?? "Card"}</p>
-                      <p className="text-xs text-gray-400">{new Date(o.created_at).toLocaleDateString()}</p>
-                      {o.tracking_number && <p className="mt-1 text-xs text-blue-400">Tracking: {o.tracking_number}</p>}
-                      <p className="mt-1 text-xs text-gray-400">Escrow: {getOrderEscrowStatusLabel(o.escrow_status)}</p>
-                    </div>
-                    <div className="flex flex-col items-end gap-1">
-                      <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{o.status}</span>
-                      <span className={`rounded-lg border px-2 py-1 text-xs font-medium ${isEscrowBlockingPayout(o.escrow_status) ? "border-amber-400/30 text-amber-300" : "border-emerald-400/30 text-emerald-300"}`}>{getOrderEscrowStatusLabel(o.escrow_status)}</span>
-                      <span className="font-black">${o.total_amount.toFixed(2)}</span>
+                {purchases.map((order) => (
+                  <div key={order.id} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-white">{order.listings?.card_name ?? "Order"}</div>
+                        <div className="text-xs text-gray-400">Status: {order.status}</div>
+                      </div>
+                      <div className="text-sm font-bold text-yellow-400">{money(order.total_amount)}</div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </section>
         )}
 
-        {tab === "sales" && (
-          <div className="space-y-8">
-            <div>
-              <h2 className="mb-5 text-xl font-bold">Live Shows ({liveShowCount})</h2>
-              {sellerLiveShows.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-gray-400">
-                  <div className="mb-3 text-4xl">🔔</div>
-                  <p>No live shows right now.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {sellerLiveShows.map((show) => (
-                    <div key={show.id} className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-black text-white">{show.title}</p>
-                          <p className="text-xs text-yellow-100">Status: {show.status}</p>
-                          <p className="mt-1 text-xs text-yellow-100">Viewers: {show.viewer_count ?? 0}</p>
-                          <p className="text-xs text-yellow-100">Show ID: {show.id}</p>
-                        </div>
-                        <div className="flex flex-wrap gap-2 lg:justify-end">
-                          <button className="rounded-xl bg-yellow-400 px-4 py-2 font-bold text-black" onClick={() => router.push(`/live/${show.id}`)}>
-                            Open Room
-                          </button>
-                          <button className="rounded-xl border border-white/20 px-4 py-2 font-semibold text-white" onClick={() => router.push(`/messages`)}>
-                            Message Team
-                          </button>
-                          <button className="rounded-xl border border-red-400/30 px-4 py-2 font-semibold text-red-200" onClick={() => router.push(`/support`)}>
-                            Report Issue
-                          </button>
-                        </div>
+        {activeTab === "sales" && (
+          <section className="space-y-4">
+            {sales.length === 0 ? (
+              <EmptyState title="No sales yet" description="List an item to start receiving orders." action={<Link href="/listings/create" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Create listing</Link>} />
+            ) : (
+              <div className="space-y-3">
+                {sales.map((order) => (
+                  <div key={order.id} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-white">{order.listings?.card_name ?? "Sale"}</div>
+                        <div className="text-xs text-gray-400">Status: {order.status}</div>
                       </div>
+                      <div className="text-sm font-bold text-yellow-400">{money(order.total_amount)}</div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <h2 className="mb-5 text-xl font-bold">My Sales</h2>
-              {sales.length === 0 ? (
-                <div className="py-16 text-center text-gray-400">
-                  <div className="mb-3 text-5xl">💰</div>
-                  <p>No sales yet. <a href="/listings/create" className="text-yellow-400 hover:underline">Create a listing.</a></p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {groupByTracking(sales).map((group) => {
-                    const first = group.items[0];
-                    const total = group.items.reduce((sum, item) => sum + (item.total_amount ?? 0), 0);
-                    const tracking = first.tracking_number;
-                    return (
-                      <div key={group.key} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-semibold">{formatGroupTitle(group.items)}</p>
-                            <p className="text-xs text-gray-400">
-                              {first.profiles?.username ? `Buyer @${first.profiles.username}` : "Buyer"} · {new Date(first.created_at).toLocaleDateString()}
-                            </p>
-                            {tracking && <p className="mt-1 text-xs text-blue-400">Tracking: {tracking}</p>}
-                          </div>
-                          <div className="text-right">
-                            <div className="flex flex-wrap justify-end gap-2">
-                              <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>{first.status}</span>
-                              <span className={`rounded-lg border px-2 py-1 text-xs font-medium capitalize`}>payout {first.payout_status ?? "pending"}</span>
-                              <span className={`rounded-lg border px-2 py-1 text-xs font-medium ${isEscrowBlockingPayout(first.escrow_status) ? "border-amber-400/30 text-amber-300" : "border-emerald-400/30 text-emerald-300"}`}>{getOrderEscrowStatusLabel(first.escrow_status)}</span>
-                            </div>
-                            <div className="mt-2 font-black text-green-400">+${total.toFixed(2)}</div>
-                          </div>
-                        </div>
-                        <div className="mt-4 grid gap-3 md:grid-cols-2">
-                          {group.items.map((item) => (
-                            <div key={item.id} className="rounded-xl border border-white/10 bg-[#13131f] p-3">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-lg bg-white/10 text-lg">
-                                  {getListingPrimaryImage(item.listings?.images ?? []) ? (
-                                    <img src={getListingPrimaryImage(item.listings?.images ?? []) ?? ""} alt="" className="h-full w-full rounded-lg object-cover" />
-                                  ) : (
-                                    <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full rounded-lg object-cover" />
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate text-sm font-semibold">{item.listings?.card_name ?? "Card"}</p>
-                                  <p className="text-xs text-gray-400">${item.total_amount.toFixed(2)}</p>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                          <span>Shipping, payout, and fulfillment actions are handled through the operations team.</span>
-                          <button type="button" onClick={() => void handleCreateUSPSLabel(first.id)} className="rounded-full border border-yellow-400/40 px-3 py-1.5 font-semibold text-yellow-300 transition hover:bg-yellow-400/10 hover:text-yellow-200">
-                            Create USPS label
-                          </button>
-                          <button type="button" onClick={() => void refreshOrders()} className="rounded-full border border-white/10 px-3 py-1.5 font-semibold text-gray-300 transition hover:bg-white/5 hover:text-white">
-                            Refresh
-                          </button>
-                        </div>
-                        {labelStatus && <div className="mt-2 text-xs text-gray-400">{labelStatus}</div>}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div>
-              <h2 className="mb-5 text-xl font-bold">Live Show Status</h2>
-              <div className="grid gap-3 md:grid-cols-3">
-                {sellerLiveShows.slice(0, 3).map((show) => (
-                  <div key={show.id} className="rounded-2xl border border-green-400/20 bg-green-400/10 p-4 text-sm text-green-100">
-                    <div className="font-black">{show.title}</div>
-                    <div>{show.status}</div>
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
+            )}
+          </section>
         )}
 
-        {tab === "live" && (
-          <div className="space-y-6 rounded-3xl border border-white/10 bg-[#13131f] p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-widest text-yellow-400">Seller live shows</p>
-                <h2 className="mt-1 text-2xl font-black">Manage your live show</h2>
-                <p className="mt-2 text-sm text-gray-400">Your live show includes its own room, bids, chat, product queue, and viewers.</p>
-              </div>
-              <a href="/dashboard/live-auctions/create" className="inline-flex rounded-xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black hover:bg-yellow-300">
-                Create Auction
-              </a>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-[1.05fr_0.95fr]">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="sm:col-span-2 rounded-2xl border border-white/10 bg-black/20 p-4">
-                    <label className="mb-2 block text-sm text-gray-300">Room thumbnail</label>
-                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={handleLiveShowThumbnailUpload} className="block w-full text-sm text-gray-300 file:mr-4 file:rounded-lg file:border-0 file:bg-yellow-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-black hover:file:bg-yellow-300" />
-                    <div className="mt-3 aspect-[16/9] overflow-hidden rounded-2xl border border-white/10 bg-[#0f0f1a]">
-                      {liveShowThumbnailUrl ? (
-                                      <img src={liveShowThumbnailUrl} alt="Live show thumbnail preview" className="h-full w-full object-cover" />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-sm text-gray-500">Upload a thumbnail to show in the room preview</div>
-                      )}
-                    </div>
-                    {liveShowThumbnailUploading && <p className="mt-2 text-xs text-gray-500">Uploading thumbnail...</p>}
-                    {liveShowThumbnailError && <p className="mt-2 text-xs text-red-400">{liveShowThumbnailError}</p>}
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm text-gray-300">Show title</label>
-                    <input value={liveShowTitle} onChange={(e) => setLiveShowTitle(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
-                  </div>
-                  <div>
-                    <label className="mb-2 block text-sm text-gray-300">Start time</label>
-                    <input type="datetime-local" value={liveShowStartTime} onChange={(e) => setLiveShowStartTime(e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="mb-2 block text-sm text-gray-300">Description</label>
-                    <textarea value={liveShowDescription} onChange={(e) => setLiveShowDescription(e.target.value)} rows={3} className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" />
-                  </div>
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3 text-sm">
-                  <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-gray-300"><input type="checkbox" checked={liveShowFeatured} onChange={(e) => setLiveShowFeatured(e.target.checked)} /> Feature room</label>
-                  <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-gray-300"><input type="checkbox" checked={liveShowAutoModeration} onChange={(e) => setLiveShowAutoModeration(e.target.checked)} /> Auto moderation</label>
-                  <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-gray-300"><input type="checkbox" checked={liveShowScheduledOnly} onChange={(e) => setLiveShowScheduledOnly(e.target.checked)} /> Scheduled only</label>
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                  <input value={liveShowCategory} onChange={(e) => setLiveShowCategory(e.target.value)} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Category" />
-                  <input value={liveShowProductType} onChange={(e) => setLiveShowProductType(e.target.value)} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Product type" />
-                  <input type="number" min="0" value={liveShowProductsCount} onChange={(e) => setLiveShowProductsCount(Number(e.target.value))} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Products" />
-                </div>
-
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <input type="number" min="0" value={liveShowPriceFloor} onChange={(e) => setLiveShowPriceFloor(Number(e.target.value))} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Price floor" />
-                  <input type="number" min="0" value={liveShowPriceCeiling} onChange={(e) => setLiveShowPriceCeiling(Number(e.target.value))} className="rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-white outline-none" placeholder="Price ceiling" />
-                </div>
-
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!supabase || !profile || !isSellerVerificationApproved(verificationStatus)) return;
-                      const payload = {
-                        seller_id: profile.id,
-                        title: liveShowTitle,
-                        description: liveShowDescription,
-                        status: liveShowScheduledOnly ? "scheduled" : "live",
-                        auction_state: liveShowScheduledOnly ? "upcoming" : "live",
-                        scheduled_start: new Date(liveShowStartTime).toISOString(),
-                        viewer_count: 0,
-                        host_permissions: ["host", "moderate_chat", "start_auction", "end_auction"],
-                        thumbnail: liveShowThumbnailUrl,
-                        auction_settings: {
-                          category: liveShowCategory,
-                          product_type: liveShowProductType,
-                          price_floor: liveShowPriceFloor,
-                          price_ceiling: liveShowPriceCeiling,
-                          featured: liveShowFeatured,
-                          auto_moderation: liveShowAutoModeration,
-                          queue_mode: liveShowQueueMode,
-                          boost: liveShowBoost,
-                        },
-                      };
-                      const { data, error } = await supabase.from("live_shows").insert(payload as any).select("*").single();
-                      const createdRoom = data as { id: string; title: string } | null;
-                      if (error) {
-                        setLiveShowStatusMessage(error.message);
-                        return;
-                      }
-                      setLiveShowStatusMessage(`Created ${createdRoom?.title ?? "live room"}`);
-                      const rows = await listLiveShowsBySeller(profile.id);
-                      setSellerLiveShows(rows);
-                      setActiveLiveShowId(createdRoom?.id ?? rows[0]?.id ?? null);
-                    }}
-                    disabled={!isSellerVerificationApproved(verificationStatus)}
-                    className="rounded-xl bg-yellow-400 px-4 py-3 font-bold text-black disabled:opacity-50"
-                  >
-                    {isSellerVerificationApproved(verificationStatus) ? "Create live room" : "Verification required"}
-                  </button>
-                  <button type="button" onClick={() => setLiveShowStatusMessage("Seller rooms load independently by show_id.")} className="rounded-xl border border-white/20 px-4 py-3 text-gray-300 hover:bg-white/5">
-                    Room isolation note
-                  </button>
-                </div>
-
-                {liveShowStatusMessage && <div className="mt-4 rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">{liveShowStatusMessage}</div>}
-              </div>
-
-              <div className="space-y-4 rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <div className="text-sm uppercase tracking-widest text-gray-500">Your rooms</div>
-                    <div className="text-lg font-black">{sellerLiveShows.length} total</div>
-                  </div>
-                  <div className="text-xs text-gray-500">{liveShowsLoading ? "Refreshing..." : "Realtime-ready"}</div>
-                </div>
-
-                <input value={liveShowSearch} onChange={(e) => setLiveShowSearch(e.target.value)} placeholder="Search rooms" className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none" />
-
-                <div className="flex flex-wrap gap-2 text-xs">
-                  {["all", "live", "scheduled", "ended"].map((state) => (
-                    <button key={state} type="button" onClick={() => setLiveShowFilter(state)} className={`rounded-full border px-3 py-1 ${liveShowFilter === state ? "border-yellow-400 bg-yellow-400/10 text-yellow-400" : "border-white/10 bg-white/5 text-gray-300"}`}>
-                      {state}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="max-h-[520px] space-y-3 overflow-auto pr-1">
-                  {sellerLiveShows
-                    .filter((room) => (liveShowFilter === "all" ? true : room.status === liveShowFilter))
-                    .filter((room) => !liveShowSearch || room.title.toLowerCase().includes(liveShowSearch.toLowerCase()) || (room.description ?? "").toLowerCase().includes(liveShowSearch.toLowerCase()))
-                    .map((room) => (
-                      <div key={room.id} className={`rounded-2xl border p-4 ${activeLiveShowId === room.id ? "border-yellow-400/40 bg-yellow-400/10" : "border-white/10 bg-[#13131f]"}`}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="font-semibold">{room.title}</div>
-                            <div className="text-xs text-gray-400">{room.description ?? "No description"}</div>
-                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500">
-                              <span>{room.status}</span>
-                              <span>•</span>
-                              <span>{room.viewer_count} viewers</span>
-                              <span>•</span>
-                              <span>Peak {room.viewer_count ?? 0}</span>
-                            </div>
-                          </div>
-                          <a href={`/live/${room.id}`} className="rounded-lg border border-white/15 px-3 py-2 text-xs font-semibold text-white hover:bg-white/5">Open room</a>
-                        </div>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                          <button type="button" onClick={() => setActiveLiveShowId(room.id)} className="rounded-xl border border-white/10 px-3 py-2 text-xs hover:bg-white/5">Select</button>
-                          <button type="button" onClick={() => setLiveShowRoomMessage(`Room ${room.id} is isolated by show_id and does not share bids, chat, or viewers.`)} className="rounded-xl border border-white/10 px-3 py-2 text-xs hover:bg-white/5">Verify isolation</button>
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
-                <div className="font-bold text-white">Room analytics</div>
-                <div className="mt-2 space-y-2">
-                  <div>Mode: {liveShowAnalyticsMode}</div>
-                  <div>Featured rooms: {sellerLiveShows.filter((room) => Boolean((room.auction_settings as any)?.featured)).length}</div>
-                  <div>Scheduled rooms: {sellerLiveShows.filter((room) => room.status === "scheduled").length}</div>
-                  <div>Live rooms: {sellerLiveShows.filter((room) => room.status === "live").length}</div>
-                </div>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
-                <div className="font-bold text-white">Moderator management</div>
-                <div className="mt-2 space-y-2">
-                  <div>Moderators assigned: {liveShowModerators.length}</div>
-                  <div>Queue mode: {liveShowQueueMode}</div>
-                  <div>Boost enabled: {liveShowBoost ? "Yes" : "No"}</div>
-                  <div>Auto moderation: {liveShowAutoModeration ? "On" : "Off"}</div>
-                </div>
-              </div>
-            </div>
-
-            {liveShowRoomMessage && <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/10 px-4 py-3 text-sm text-yellow-100">{liveShowRoomMessage}</div>}
-          </div>
-        )}
-
-        {tab === "admin" && isAdminAccount && (
-          <div className="space-y-6 rounded-3xl border border-yellow-400/20 bg-gradient-to-br from-yellow-400/10 via-white/5 to-red-500/10 p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-widest text-yellow-400">Admin console</p>
-                <h2 className="mt-1 text-2xl font-black">Marketplace operations</h2>
-                <p className="mt-2 max-w-2xl text-sm text-gray-300">Fast access to the protected admin modules that already run on live data, without exposing anything to buyers or sellers.</p>
-              </div>
-              <a href="/admin" className="inline-flex rounded-xl border border-yellow-400/40 bg-yellow-400/10 px-4 py-3 text-sm font-bold text-yellow-300 hover:bg-yellow-400/20">
-                Open full admin area
-              </a>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {[
-                { title: "Platform overview", href: "/admin", description: "Operations, trust, and marketplace health" },
-                { title: "User management", href: "/admin", description: "Profiles, seller status, and access review" },
-                { title: "Seller verification", href: "/admin/verification", description: "Approve identity checks and storefront setup" },
-                { title: "Listing management", href: "/admin/card-ingestion", description: "Ingestion queues and publish workflows" },
-                { title: "Order management", href: "/admin/unpaid-auctions", description: "Auction orders, payment follow-up, and overrides" },
-                { title: "Support tickets", href: "/admin/support", description: "Customer support and escalations" },
-                { title: "Disputes & escrow", href: "/admin/compliance", description: "Moderation, disputes, and access controls" },
-                { title: "Wallet & finance", href: "/dashboard/fees", description: "Earnings, fees, and payout state" },
-                { title: "Referral tools", href: "/admin/referrals", description: "Referral rewards, fraud flags, and settings" },
-                { title: "Live auction management", href: "/live", description: "Shows, moderation, and host controls" },
-                { title: "Notifications", href: "/admin/email", description: "Email queue and delivery logs" },
-                { title: "Audit / system health", href: "/admin/reports", description: "Audit trails and live operational signals" }
-              ].map((module) => (
-                <a key={module.title} href={module.href} className="rounded-2xl border border-white/10 bg-[#13131f] p-5 transition-colors hover:border-yellow-400/40 hover:bg-[#171724]">
-                  <h3 className="font-bold text-white">{module.title}</h3>
-                  <p className="mt-2 text-sm text-gray-400">{module.description}</p>
-                </a>
-              ))}
-            </div>
-          </div>
+        {activeTab === "fees" && (
+          <section className="grid gap-4 md:grid-cols-3">
+            <Card title="Available" value={money(walletAvailable)} />
+            <Card title="Pending" value={money(walletPending)} />
+            <Card title="Escrow hold" value={money(walletFrozen)} />
+          </section>
         )}
       </div>
-    </div>
+    </main>
   );
 }

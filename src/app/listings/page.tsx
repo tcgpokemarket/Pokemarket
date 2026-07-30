@@ -12,11 +12,17 @@ export default function ListingsPage() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [condition, setCondition] = useState("all");
-  const supabase = useMemo(() => createClient(), []);
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
   const searchParams = useSearchParams();
   const sellerFilter = searchParams.get("seller") ?? "";
 
   useEffect(() => {
+    setSupabase(createClient());
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+
     let active = true;
 
     const loadListings = async () => {

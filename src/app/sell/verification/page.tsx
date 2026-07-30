@@ -30,7 +30,11 @@ const DOCUMENT_FIELDS: Array<{ key: UploadField; label: string; helper: string; 
 
 export default function SellerVerificationPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+
+  useEffect(() => {
+    setSupabase(createClient());
+  }, []);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [uploadingField, setUploadingField] = useState<UploadField | null>(null);
@@ -57,6 +61,8 @@ export default function SellerVerificationPage() {
   });
 
   useEffect(() => {
+    if (!supabase) return;
+
     let active = true;
 
     const init = async () => {

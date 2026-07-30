@@ -149,7 +149,7 @@ function compressListingImage(file: File) {
 
 export default function ListingWizard({ copy, redirectTo, scannerHref, scannerLabel = "Scan Card" }: ListingWizardProps) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
+  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
@@ -179,6 +179,12 @@ export default function ListingWizard({ copy, redirectTo, scannerHref, scannerLa
   const preview = buildPreviewState(form, imageUrls, coverImageIndex);
 
   useEffect(() => {
+    setSupabase(createClient());
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+
     let active = true;
 
     supabase.auth.getUser().then(async ({ data: { user } }) => {
