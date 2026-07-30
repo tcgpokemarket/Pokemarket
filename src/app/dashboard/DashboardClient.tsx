@@ -52,13 +52,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
     const query = searchParams.toString();
     return `${pathname}${query ? `?${query}` : ""}`;
   }, [pathname, searchParams]);
-  const [supabase] = useState(() => {
-    try {
-      return createClient();
-    } catch {
-      return null;
-    }
-  });
+  const supabase = useMemo(() => createClient(), []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -66,12 +60,8 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [listings, setListings] = useState<Listing[]>([]);
   const [purchases, setPurchases] = useState<DashboardOrder[]>([]);
   const [sales, setSales] = useState<DashboardOrder[]>([]);
-  const [activeTab, setActiveTab] = useState<Tab>(currentTab);
 
-  useEffect(() => {
-    setActiveTab(currentTab);
-  }, [currentTab]);
-
+  const activeTab = currentTab;
   useEffect(() => {
     let alive = true;
     const timeout = window.setTimeout(() => {
@@ -167,7 +157,6 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const walletFrozen = wallet?.frozen_balance ?? 0;
 
   const updateTab = (next: Tab) => {
-    setActiveTab(next);
     const params = new URLSearchParams(searchParams.toString());
     if (next === "overview") params.delete("tab");
     else params.set("tab", next);

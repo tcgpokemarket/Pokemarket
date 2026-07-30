@@ -27,33 +27,32 @@ function formatCount(value: number | null | undefined) {
 }
 
 export default async function AdminReportsPage() {
-  try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user || !isAdminUser(user)) {
-      notFound();
-    }
+  if (!user || !isAdminUser(user)) {
+    notFound();
+  }
 
-    const admin = createAdminClient();
-    const [supportStats, queueResult, logsResult, referralStatsResult, activeBatchResult, failedBatchResult, duplicateResult, unresolvedReportsResult] = await Promise.all([
-      getSupportStats(),
-      admin.from("email_queue").select("id", { count: "exact", head: true }),
-      admin.from("email_logs").select("id", { count: "exact", head: true }).eq("status", "failed"),
-      admin.from("referral_dashboard_stats").select("total_referrals, qualified_referrals, pending_rewards, paid_rewards"),
-      admin.from("card_ingestion_batches").select("id", { count: "exact", head: true }).in("status", ["uploaded", "processing", "in_review", "ready", "partial"]),
-      admin.from("card_ingestion_batches").select("id", { count: "exact", head: true }).eq("status", "failed"),
-      admin.from("listings").select("id", { count: "exact", head: true }).eq("status", "duplicate"),
-      admin.from("message_reports").select("id", { count: "exact", head: true }).eq("status", "open"),
-    ]);
+  const admin = createAdminClient();
+  const [supportStats, queueResult, logsResult, referralStatsResult, activeBatchResult, failedBatchResult, duplicateResult, unresolvedReportsResult] = await Promise.all([
+    getSupportStats(),
+    admin.from("email_queue").select("id", { count: "exact", head: true }),
+    admin.from("email_logs").select("id", { count: "exact", head: true }).eq("status", "failed"),
+    admin.from("referral_dashboard_stats").select("total_referrals, qualified_referrals, pending_rewards, paid_rewards"),
+    admin.from("card_ingestion_batches").select("id", { count: "exact", head: true }).in("status", ["uploaded", "processing", "in_review", "ready", "partial"]),
+    admin.from("card_ingestion_batches").select("id", { count: "exact", head: true }).eq("status", "failed"),
+    admin.from("listings").select("id", { count: "exact", head: true }).eq("status", "duplicate"),
+    admin.from("message_reports").select("id", { count: "exact", head: true }).eq("status", "open"),
+  ]);
 
-    if ((queueResult as any).error) throw new Error((queueResult as any).error.message);
-    if ((logsResult as any).error) throw new Error((logsResult as any).error.message);
-    if ((referralStatsResult as any).error) throw new Error((referralStatsResult as any).error.message);
-    if ((activeBatchResult as any).error) throw new Error((activeBatchResult as any).error.message);
-    if ((failedBatchResult as any).error) throw new Error((failedBatchResult as any).error.message);
-    if ((duplicateResult as any).error) throw new Error((duplicateResult as any).error.message);
-    if ((unresolvedReportsResult as any).error) throw new Error((unresolvedReportsResult as any).error.message);
+  if ((queueResult as any).error) throw new Error((queueResult as any).error.message);
+  if ((logsResult as any).error) throw new Error((logsResult as any).error.message);
+  if ((referralStatsResult as any).error) throw new Error((referralStatsResult as any).error.message);
+  if ((activeBatchResult as any).error) throw new Error((activeBatchResult as any).error.message);
+  if ((failedBatchResult as any).error) throw new Error((failedBatchResult as any).error.message);
+  if ((duplicateResult as any).error) throw new Error((duplicateResult as any).error.message);
+  if ((unresolvedReportsResult as any).error) throw new Error((unresolvedReportsResult as any).error.message);
 
   const referralRows = (referralStatsResult.data ?? []) as Array<{ total_referrals: number | null; qualified_referrals: number | null; pending_rewards: number | null; paid_rewards: number | null }>;
   const referralTotals = referralRows.reduce(
@@ -123,8 +122,4 @@ export default async function AdminReportsPage() {
       </main>
     </div>
   );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load reports.";
-    return <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white"><div className="mx-auto max-w-4xl rounded-3xl border border-red-400/20 bg-red-400/10 p-8 text-red-100">{message}</div></div>;
-  }
 }

@@ -134,10 +134,13 @@ function applySelectedMatch(result: ScanResult, match: ScanMatch): ScanResult {
 
 export default function ScanCardPage() {
   const router = useRouter();
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
-
-  useEffect(() => {
-    setSupabase(createClient());
+  const supabase = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return createClient();
+    } catch {
+      return null;
+    }
   }, []);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);

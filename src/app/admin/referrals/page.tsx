@@ -38,22 +38,21 @@ function StatCard({
 }
 
 export default async function AdminReferralsPage() {
-  try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-    if (!user || !isAdminUser(user)) {
-      redirect("/dashboard");
-    }
+  if (!user || !isAdminUser(user)) {
+    redirect("/dashboard");
+  }
 
-    const adminClient = createAdminClient();
+  const adminClient = createAdminClient();
 
-    const { data: statsRows, error: statsError } = await (adminClient as any)
-      .from("referral_dashboard_stats")
-      .select("total_referrals, qualified_referrals, pending_rewards, paid_rewards");
-    if (statsError) throw new Error(statsError.message);
+  const { data: statsRows, error: statsError } = await (adminClient as any)
+    .from("referral_dashboard_stats")
+    .select("total_referrals, qualified_referrals, pending_rewards, paid_rewards");
+  if (statsError) throw new Error(statsError.message);
 
   const totalReferrals = (statsRows ?? []).reduce(
     (sum: number, r: Record<string, unknown>) => sum + Number(r.total_referrals ?? 0),
@@ -72,13 +71,11 @@ export default async function AdminReferralsPage() {
     0,
   );
 
-  // ── Fraud flags count ─────────────────────────────────────────
   const { count: fraudCount } = await (adminClient as any)
     .from("referral_fraud_flags")
     .select("id", { count: "exact", head: true })
     .eq("resolved", false);
 
-  // ── Top referrers ─────────────────────────────────────────────
   const { data: topRaw } = await (adminClient as any)
     .from("referral_dashboard_stats")
     .select("referrer_id, total_referrals, qualified_referrals, paid_rewards")
@@ -110,7 +107,6 @@ export default async function AdminReferralsPage() {
     };
   });
 
-  // ── Pending rewards ───────────────────────────────────────────
   const { data: rewardsRaw } = await (adminClient as any)
     .from("referral_rewards")
     .select(
@@ -156,7 +152,6 @@ export default async function AdminReferralsPage() {
     };
   });
 
-  // ── Open fraud flags ──────────────────────────────────────────
   const { data: flagsRaw } = await (adminClient as any)
     .from("referral_fraud_flags")
     .select("*")
@@ -169,7 +164,6 @@ export default async function AdminReferralsPage() {
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
       <div className="mx-auto max-w-7xl space-y-8">
-        {/* Header */}
         <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/5 p-8 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="text-sm uppercase tracking-widest text-yellow-400">Admin</p>
@@ -194,7 +188,6 @@ export default async function AdminReferralsPage() {
           </div>
         </div>
 
-        {/* Summary stat cards */}
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <StatCard label="Total referrals" value={totalReferrals} />
           <StatCard label="Qualified" value={qualifiedReferrals} accent="blue" />
@@ -203,7 +196,6 @@ export default async function AdminReferralsPage() {
           <StatCard label="Fraud flags" value={fraudCount ?? 0} accent="red" />
         </div>
 
-        {/* Top referrers */}
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
           <h2 className="text-lg font-bold text-white">Top referrers</h2>
           {topReferrers.length === 0 ? (
@@ -223,7 +215,7 @@ export default async function AdminReferralsPage() {
                   {topReferrers.map((ref) => (
                     <tr key={ref.referrer_id}>
                       <td className="py-3 pr-4 font-medium text-white">
-                        {ref.referrer_username ?? ref.referrer_full_name ?? ref.referrer_id.slice(0, 8) + "…"}
+                        {ref.referrer_username ?? ref.referrer_full_name ?? `${ref.referrer_id.slice(0, 8)}…`}
                       </td>
                       <td className="py-3 pr-4 text-gray-300">{ref.total_referrals}</td>
                       <td className="py-3 pr-4 text-blue-400">{ref.qualified_referrals}</td>
@@ -236,13 +228,8 @@ export default async function AdminReferralsPage() {
           )}
         </div>
 
-        {/* Pending rewards + fraud flags (client) */}
         <AdminReferralsClient pendingRewards={pendingRewards} fraudFlags={fraudFlags} />
       </div>
     </div>
   );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load referral admin.";
-    return <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white"><div className="mx-auto max-w-4xl rounded-3xl border border-red-400/20 bg-red-400/10 p-8 text-red-100">{message}</div></div>;
-  }
 }

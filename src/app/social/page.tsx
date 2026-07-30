@@ -9,20 +9,19 @@ export default async function SocialFeedPage() {
 
   if (!user) redirect("/auth?redirectTo=/social");
 
-  try {
-    const [{ data: notifications, error: notificationsError }, { data: follows, error: followsError }, { data: friendships, error: friendshipsError }] = await Promise.all([
-      supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
-      supabase.from("follows").select("*").eq("follower_id", user.id).order("created_at", { ascending: false }).limit(50),
-      supabase.from("friendships").select("*").or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`).order("created_at", { ascending: false }).limit(50),
-    ]);
+  const [{ data: notifications, error: notificationsError }, { data: follows, error: followsError }, { data: friendships, error: friendshipsError }] = await Promise.all([
+    supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(50),
+    supabase.from("follows").select("*").eq("follower_id", user.id).order("created_at", { ascending: false }).limit(50),
+    supabase.from("friendships").select("*").or(`requester_id.eq.${user.id},receiver_id.eq.${user.id}`).order("created_at", { ascending: false }).limit(50),
+  ]);
 
-    if (notificationsError) throw new Error(notificationsError.message);
-    if (followsError) throw new Error(followsError.message);
-    if (friendshipsError) throw new Error(friendshipsError.message);
+  if (notificationsError) throw new Error(notificationsError.message);
+  if (followsError) throw new Error(followsError.message);
+  if (friendshipsError) throw new Error(friendshipsError.message);
 
-    const notificationRows = (notifications ?? []) as Array<{ id: string; type: string; related_content: Record<string, unknown> | null }>;
+  const notificationRows = (notifications ?? []) as Array<{ id: string; type: string; related_content: Record<string, unknown> | null }>;
 
-    return (
+  return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-10 text-white">
       <main className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.3fr_0.7fr]">
         <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
@@ -58,8 +57,4 @@ export default async function SocialFeedPage() {
       </main>
     </div>
   );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to load social activity.";
-    return <div className="min-h-screen bg-[#0f0f1a] px-4 py-10 text-white"><div className="mx-auto max-w-4xl rounded-3xl border border-red-400/20 bg-red-400/10 p-8 text-red-100">{message}</div></div>;
-  }
 }

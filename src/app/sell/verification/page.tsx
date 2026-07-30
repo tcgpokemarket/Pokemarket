@@ -30,10 +30,13 @@ const DOCUMENT_FIELDS: Array<{ key: UploadField; label: string; helper: string; 
 
 export default function SellerVerificationPage() {
   const router = useRouter();
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
-
-  useEffect(() => {
-    setSupabase(createClient());
+  const supabase = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return createClient();
+    } catch {
+      return null;
+    }
   }, []);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);

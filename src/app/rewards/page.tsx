@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { Database } from "@/lib/supabase/types";
@@ -68,13 +68,14 @@ function formatDate(value: string | null) {
 
 export default function RewardsPage() {
   const router = useRouter();
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
-
-  useEffect(() => {
-    setSupabase(createClient());
+  const client = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return createClient();
+    } catch {
+      return null;
+    }
   }, []);
-
-  const client = supabase;
   const [loading, setLoading] = useState(true);
   const [snapshot, setSnapshot] = useState<RewardsSnapshot>({ account: null, ledger: [], options: [], redemptions: [] });
   const [redeeming, setRedeeming] = useState<string | null>(null);
@@ -127,7 +128,7 @@ export default function RewardsPage() {
     return () => {
       active = false;
     };
-  }, [router, supabase]);
+  }, [router, client]);
 
   const account = snapshot.account ?? DEFAULT_REWARDS_ACCOUNT;
 

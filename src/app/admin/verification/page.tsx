@@ -1,9 +1,10 @@
-"use client";
-
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { getAppRole } from "@/lib/security";
 import { sellerVerificationLabel } from "@/lib/seller-verification";
+
+export const dynamic = "force-dynamic";
 
 type VerificationRow = {
   id: string;
@@ -26,44 +27,42 @@ type ProfileRow = {
   full_name: string | null;
 };
 
-export default function AdminVerificationPage() {
-  const supabase = useMemo(() => createClient(), []);
-  const [loading, setLoading] = useState(true);
-  const [verifications, setVerifications] = useState<VerificationRow[]>([]);
-  const [profiles, setProfiles] = useState<ProfileRow[]>([]);
+export default async function AdminVerificationPage() {
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return (
+      <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
+        <div className="mx-auto max-w-7xl">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-gray-300">
+            Verification review is unavailable.
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    let active = true;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-    const load = async () => {
-      const [{ data: verificationData }, { data: profileData }] = await Promise.all([
-        supabase
-          .from("seller_verifications")
-          .select("id, user_id, legal_name, date_of_birth, residential_address, phone_number, status, submitted_at, admin_notes, rejection_reason, more_information_request, suspension_reason")
-          .order("submitted_at", { ascending: false, nullsFirst: false })
-          .limit(25)
-          .returns<VerificationRow[]>(),
-        supabase
-          .from("profiles")
-          .select("id, username, full_name")
-          .limit(100)
-          .returns<ProfileRow[]>(),
-      ]);
+  if (!user) redirect("/auth?redirectTo=/admin/verification");
+  if (getAppRole(user) !== "admin" && getAppRole(user) !== "super_admin") redirect("/dashboard");
 
-      if (!active) return;
-      setVerifications(verificationData ?? []);
-      setProfiles(profileData ?? []);
-      setLoading(false);
-    };
+  const [{ data: verificationData }, { data: profileData }] = await Promise.all([
+    supabase
+      .from("seller_verifications")
+      .select("id, user_id, legal_name, date_of_birth, residential_address, phone_number, status, submitted_at, admin_notes, rejection_reason, more_information_request, suspension_reason")
+      .order("submitted_at", { ascending: false, nullsFirst: false })
+      .limit(25)
+      .returns<VerificationRow[]>(),
+    supabase
+      .from("profiles")
+      .select("id, username, full_name")
+      .limit(100)
+      .returns<ProfileRow[]>(),
+  ]);
 
-    void load();
-
-    return () => {
-      active = false;
-    };
-  }, [supabase]);
-
-  const profileMap = useMemo(() => new Map(profiles.map((profile) => [profile.id, profile] as const)), [profiles]);
+  const verifications = verificationData ?? [];
+  const profiles = profileData ?? [];
+  const profileMap = new Map(profiles.map((profile) => [profile.id, profile] as const));
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-white">
@@ -74,9 +73,7 @@ export default function AdminVerificationPage() {
           <p className="mt-2 max-w-3xl text-sm text-gray-400">Review seller identity documents, add notes, and approve or reject access to selling tools, live auctions, and payouts.</p>
 
           <div className="mt-8 space-y-4">
-            {loading ? (
-              <div className="rounded-3xl border border-white/10 bg-[#13131f] p-8 text-center text-gray-400">Loading verification requests...</div>
-            ) : verifications.length ? verifications.map((verification) => {
+            {verifications.length ? verifications.map((verification) => {
               const profile = profileMap.get(verification.user_id);
               return (
                 <div key={verification.id} className="rounded-3xl border border-white/10 bg-[#13131f] p-5">

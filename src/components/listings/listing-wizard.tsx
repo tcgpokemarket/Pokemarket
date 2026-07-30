@@ -149,7 +149,14 @@ function compressListingImage(file: File) {
 
 export default function ListingWizard({ copy, redirectTo, scannerHref, scannerLabel = "Scan Card" }: ListingWizardProps) {
   const router = useRouter();
-  const [supabase, setSupabase] = useState<ReturnType<typeof createClient> | null>(null);
+  const supabase = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      return createClient();
+    } catch {
+      return null;
+    }
+  }, []);
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
@@ -177,10 +184,6 @@ export default function ListingWizard({ copy, redirectTo, scannerHref, scannerLa
   const hideVerificationUi = isAdmin;
   const blockSelling = !canSell;
   const preview = buildPreviewState(form, imageUrls, coverImageIndex);
-
-  useEffect(() => {
-    setSupabase(createClient());
-  }, []);
 
   useEffect(() => {
     if (!supabase) return;
@@ -243,11 +246,13 @@ export default function ListingWizard({ copy, redirectTo, scannerHref, scannerLa
 
     try {
       const parsed = JSON.parse(raw) as Partial<DraftState>;
-      if (parsed.form) setForm((current) => ({ ...current, ...parsed.form }));
-      if (Array.isArray(parsed.imageUrls)) setImageUrls(parsed.imageUrls.filter((value): value is string => typeof value === "string"));
-      if (typeof parsed.coverImageIndex === "number") setCoverImageIndex(parsed.coverImageIndex);
-      setDraftSavedAt(new Date().toLocaleString());
-      setAutosaveStatus("Scan draft loaded.");
+      queueMicrotask(() => {
+        if (parsed.form) setForm((current) => ({ ...current, ...parsed.form }));
+        if (Array.isArray(parsed.imageUrls)) setImageUrls(parsed.imageUrls.filter((value): value is string => typeof value === "string"));
+        if (typeof parsed.coverImageIndex === "number") setCoverImageIndex(parsed.coverImageIndex);
+        setDraftSavedAt(new Date().toLocaleString());
+        setAutosaveStatus("Scan draft loaded.");
+      });
     } catch {
       window.localStorage.removeItem(SCAN_DRAFT_STORAGE_KEY);
     } finally {
@@ -262,8 +267,7 @@ export default function ListingWizard({ copy, redirectTo, scannerHref, scannerLa
     queueMicrotask(() => {
       setDraftSavedAt(new Date().toLocaleString());
       setAutosaveStatus("Draft saved.");
-      const timer = window.setTimeout(() => setAutosaveStatus(null), 1600);
-      return () => window.clearTimeout(timer);
+      window.setTimeout(() => setAutosaveStatus(null), 1600);
     });
   }, [coverImageIndex, draftLoaded, form, imageUrls, redirectTo, userId]);
 
