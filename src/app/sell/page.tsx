@@ -8,11 +8,11 @@ export default function SellPage() {
       copy={{
         title: "Create a listing",
         eyebrow: "Sell",
-        description: "Build a polished listing with guided steps, photo ordering, price checks, and draft autosave.",
+        description: "Add details, photos, and price.",
         backHref: "/dashboard",
         backLabel: "Dashboard",
         actionLabel: "Publish",
-        actionHint: "Your draft saves locally as you work, and you can save it to the marketplace anytime before publishing.",
+        actionHint: "Draft saves locally",
       }}
       redirectTo="/sell"
     />

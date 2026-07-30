@@ -43,11 +43,11 @@ const routeLabels: Record<string, string> = {
   "/sell": "Sell",
   "/dashboard": "Wallet",
   "/messages": "Messages",
-  "/social": "Community",
+  "/social": "Social",
   "/help": "Help Center",
   "/support": "Help Center",
   "/profile": "Profile",
-  "/sellers": "Community",
+  "/sellers": "Social",
   "/account": "Settings",
   "/auth": "Account",
   "/cart": "Cart",
@@ -89,8 +89,8 @@ function getBreadcrumbs(pathname: string) {
   if (pathname.startsWith("/listings/")) return ["Home", "Browse", "Listing"];
   if (pathname.startsWith("/live/")) return ["Home", "Live", "Room"];
   if (pathname.startsWith("/messages/")) return ["Home", "Messages", "Conversation"];
-  if (pathname.startsWith("/profile/")) return ["Home", "Community", "Profile"];
-  if (pathname.startsWith("/sellers/")) return ["Home", "Community", "Seller Store"];
+  if (pathname.startsWith("/profile/")) return ["Home", "Social", "Profile"];
+  if (pathname.startsWith("/sellers/")) return ["Home", "Social", "Seller Store"];
   if (pathname.startsWith("/dashboard/fees")) return ["Home", "Wallet", "Fees"];
   const base = `/${pathname.split("/")[1]}`;
   const label = routeLabels[base] ?? "Page";

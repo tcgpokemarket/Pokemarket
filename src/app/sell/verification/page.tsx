@@ -241,7 +241,7 @@ export default function SellerVerificationPage() {
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 sm:p-8">
           <p className="text-sm uppercase tracking-widest text-yellow-400">Seller identity verification</p>
           <h1 className="mt-3 text-3xl font-black">Seller verification</h1>
-          <p className="mt-2 max-w-2xl text-sm text-gray-400">Submit the required details to access seller tools.</p>
+          <p className="mt-2 max-w-2xl text-sm text-gray-400">Submit your details to access seller tools.</p>
 
           {!isAdmin && (
             <div className="mt-6">

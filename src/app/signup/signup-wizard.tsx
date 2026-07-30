@@ -86,7 +86,7 @@ export default function SignupWizard() {
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [progress, setProgress] = useState("Ready to create your account");
+  const [progress, setProgress] = useState("Ready");
   const [form, setForm] = useState<FormState>(() => ({
     fullName: "",
     email: "",
@@ -174,7 +174,7 @@ export default function SignupWizard() {
     } catch (error) {
       setFieldErrors({ auth: error instanceof Error ? error.message : "Google sign-in failed. Please try again." });
       setGoogleLoading(false);
-      setProgress("Ready to create your account");
+      setProgress("Ready");
     }
   };
 
@@ -303,9 +303,9 @@ export default function SignupWizard() {
 
       setProgress(`Account created successfully. Redirecting to your ${form.accountType === "seller" ? "seller" : "buyer"} dashboard...`);
     } catch (error) {
-      setFieldErrors({ submit: error instanceof Error ? error.message : "We could not create your account right now." });
+      setFieldErrors({ submit: error instanceof Error ? error.message : "Unable to create account." });
       setSubmitting(false);
-      setProgress("Ready to create your account");
+      setProgress("Ready");
     }
   };
 
@@ -462,7 +462,7 @@ export default function SignupWizard() {
 
             {step === 1 && (
               <div className="space-y-3">
-                <div className="text-sm text-gray-300">Choose account type.</div>
+                <div className="text-sm text-gray-300">Account type</div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {(["buyer", "seller"] as AccountType[]).map((type) => (
                     <button
@@ -546,13 +546,13 @@ export default function SignupWizard() {
                     onChange={(e) => setValue("agreeToTerms", e.target.checked)}
                     className="mt-1 h-4 w-4 rounded border-white/20 bg-transparent text-yellow-400 focus:ring-yellow-400"
                   />
-                  <span>I agree to the marketplace terms, privacy policy, and seller rules if I choose to sell.</span>
+                  <span>I agree to the marketplace terms and privacy policy. Seller rules apply if I sell.</span>
                 </label>
                 {fieldErrors.agreeToTerms && <div className="text-xs text-red-300">{fieldErrors.agreeToTerms}</div>}
               </div>
             )}
 
-            {step === 2 && form.accountType === "seller" && !form.sellerState && <p className="text-xs text-gray-500">Seller state is required before you can continue.</p>}
+            {step === 2 && form.accountType === "seller" && !form.sellerState && <p className="text-xs text-gray-500">Seller state required.</p>}
 
             <div className="flex items-center gap-3 pt-2">
               {step > 0 ? (
@@ -560,7 +560,7 @@ export default function SignupWizard() {
                   Back
                 </button>
               ) : (
-                <div className="rounded-2xl border border-white/10 px-4 py-3 text-sm text-gray-400">Step 1 starts here</div>
+                <div className="rounded-2xl border border-white/10 px-4 py-3 text-sm text-gray-400">Step 1</div>
               )}
 
               <button

@@ -89,10 +89,10 @@ export default function SignIn() {
             {isSignUp ? "Create account" : "Sign in"}
           </div>
           <h1 className="max-w-2xl text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
-            {isSignUp ? "Create an account." : "Sign in."}
+            {isSignUp ? "Create account." : "Sign in."}
           </h1>
           <p className="max-w-2xl text-lg leading-relaxed text-gray-300">
-            Use email or Google.
+            Email or Google.
           </p>
         </div>
 
@@ -100,7 +100,7 @@ export default function SignIn() {
           <div className="mb-6 flex items-center justify-between gap-4">
             <div>
               <p className="text-sm uppercase tracking-widest text-yellow-400">Account access</p>
-              <h2 className="mt-2 text-2xl font-black">{isSignUp ? "Create your account" : "Welcome back"}</h2>
+              <h2 className="mt-2 text-2xl font-black">{isSignUp ? "Create account" : "Sign in"}</h2>
             </div>
             <button
               type="button"

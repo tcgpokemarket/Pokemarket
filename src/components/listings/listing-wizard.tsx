@@ -952,7 +952,7 @@ export default function ListingWizard({ copy, redirectTo }: { copy: WizardCopy; 
                   <div className="text-xs font-semibold uppercase tracking-widest text-yellow-400">Step {activeStep} of 3</div>
                   <h2 className="mt-2 text-2xl font-black">{activeStep === 1 ? "Details" : activeStep === 2 ? "Photos" : "Review"}</h2>
                 </div>
-                <div className="text-sm text-gray-400">{validation.errors.length} issue{validation.errors.length === 1 ? "" : "s"} to clear before publish</div>
+                <div className="text-sm text-gray-400">{validation.errors.length} issue{validation.errors.length === 1 ? "" : "s"}</div>
               </div>
 
               <div className="mb-6 h-2 overflow-hidden rounded-full bg-white/10">
@@ -1025,7 +1025,7 @@ export default function ListingWizard({ copy, redirectTo }: { copy: WizardCopy; 
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                       <div>
                         <h3 className="text-lg font-bold">Photos</h3>
-                        <p className="mt-1 text-sm leading-6 text-gray-400">Add images and reorder them before publish.</p>
+                        <p className="mt-1 text-sm leading-6 text-gray-400">Add and reorder images.</p>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button type="button" onClick={() => setScannerOpen(true)} className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-bold text-yellow-300 hover:bg-yellow-400/20">Scan Card</button>
@@ -1065,7 +1065,7 @@ export default function ListingWizard({ copy, redirectTo }: { copy: WizardCopy; 
                             <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-gray-300">
                               <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Confidence</div>
                               <div className="mt-1 text-2xl font-black text-white">{scannerConfidence !== null ? `${scannerConfidence}%` : "—"}</div>
-                              <div className="mt-2 text-xs leading-5 text-gray-500">Suggestions appear here.</div>
+                              <div className="mt-2 text-xs leading-5 text-gray-500">Suggestions show here.</div>
                             </div>
                             {scannerMatches.length > 0 ? scannerMatches.map((match, index) => (
                               <button key={match.id} type="button" onClick={() => chooseScannerMatch(match)} className={`w-full rounded-2xl border p-4 text-left transition ${index === 0 ? "border-yellow-400 bg-yellow-400/10" : "border-white/10 bg-[#13131f] hover:border-white/20"}`}>
@@ -1119,7 +1119,7 @@ export default function ListingWizard({ copy, redirectTo }: { copy: WizardCopy; 
 
                     {!imageUrls.length && (
                       <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-gray-400">
-                        Upload at least one photo.
+                        Add at least one photo.
                       </div>
                     )}
 
@@ -1153,7 +1153,7 @@ export default function ListingWizard({ copy, redirectTo }: { copy: WizardCopy; 
                       <div className="mb-1.5 flex items-center justify-between gap-3">
                         <label className="block text-sm font-medium text-gray-300">Description</label>
                         <button type="button" onClick={fetchPriceGuide} disabled={priceGuideLoading || !form.card_name.trim() || !form.set_name.trim()} className="rounded-lg border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-xs font-semibold text-yellow-400 hover:bg-yellow-400/20 disabled:opacity-50">
-                          {priceGuideLoading ? "Loading…" : "Get price guide"}
+                          {priceGuideLoading ? "Loading…" : "Guide"}
                         </button>
                       </div>
                       <textarea value={form.description} onChange={(e) => updateField("description", e.target.value)} rows={8} placeholder="" className="w-full resize-none rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3 text-sm text-white placeholder-gray-500 outline-none transition focus:border-yellow-400" />
@@ -1181,7 +1181,7 @@ export default function ListingWizard({ copy, redirectTo }: { copy: WizardCopy; 
 
                     {validation.errors.length > 0 && (
                       <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4 text-sm text-red-100">
-                        <div className="font-semibold">Fix before publishing</div>
+                        <div className="font-semibold">Issues</div>
                         <ul className="mt-2 space-y-1 text-xs leading-5">
                           {validation.errors.map((error) => <li key={error}>• {error}</li>)}
                         </ul>
@@ -1190,7 +1190,7 @@ export default function ListingWizard({ copy, redirectTo }: { copy: WizardCopy; 
 
                     {validation.warnings.length > 0 && (
                       <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-4 text-sm text-yellow-100">
-                        <div className="font-semibold">Note</div>
+                        <div className="font-semibold">Warnings</div>
                         <ul className="mt-2 space-y-1 text-xs leading-5">
                           {validation.warnings.map((warning) => <li key={warning}>• {warning}</li>)}
                         </ul>
@@ -1198,7 +1198,7 @@ export default function ListingWizard({ copy, redirectTo }: { copy: WizardCopy; 
                     )}
 
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-sm font-semibold text-white">Preview summary</div>
+                      <div className="text-sm font-semibold text-white">Preview</div>
                       <div className="mt-3 space-y-2 text-sm text-gray-300">
                         <div className="flex items-center justify-between"><span>Title</span><span className="max-w-[12rem] truncate text-right">{preview.title}</span></div>
                         <div className="flex items-center justify-between"><span>Set</span><span className="max-w-[12rem] truncate text-right">{preview.subtitle || "—"}</span></div>

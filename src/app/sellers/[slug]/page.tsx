@@ -218,11 +218,11 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-black">Shop details</h2>
-                  <p className="text-sm text-gray-400">Store details and status.</p>
+                  <p className="text-sm text-gray-400">Store details.</p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-sm">
                   <Link href={`/messages?shop=${shopSlug}`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Message seller</Link>
-                  <Link href="/social" className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Community</Link>
+                  <Link href="/social" className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Social</Link>
                   <Link href={`/listings?seller=${sellerData.id}`} className="rounded-full bg-yellow-400 px-4 py-2 font-semibold text-black transition hover:bg-yellow-300">Listings</Link>
                 </div>
               </div>
@@ -239,7 +239,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-black">Live auctions</h2>
-                  <p className="text-sm text-gray-400">Upcoming and active live rooms tied to this sellerData.</p>
+                  <p className="text-sm text-gray-400">Live rooms tied to this seller.</p>
                 </div>
                 <Link href="/live" className="rounded-full border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">View all live auctions</Link>
               </div>
@@ -264,7 +264,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-black">Active listings</h2>
-                  <p className="text-sm text-gray-400">Available products from this storefront.</p>
+                  <p className="text-sm text-gray-400">Products from this storefront.</p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-xs">
                   {DEFAULT_CATEGORIES.map((category) => <span key={category} className="rounded-full border border-white/10 bg-[#13131f] px-3 py-1 text-gray-300">{category}</span>)}

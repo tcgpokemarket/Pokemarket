@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { getProfileByUsername, getSocialCounts, getUserFeed } from "@/lib/social-network";
 
 export const metadata: Metadata = {
-  title: "Community",
-  description: "Community activity.",
+  title: "Social",
+  description: "Social activity.",
   alternates: {
     canonical: "https://tcg-poke-market.sintra.site/social",
   },
@@ -30,9 +30,9 @@ export default async function SocialPage() {
         <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-6 shadow-2xl shadow-black/20 sm:p-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.35em] text-yellow-300">Community</div>
-              <h1 className="mt-2 text-4xl font-black sm:text-5xl">Community.</h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-300 sm:text-base">View profiles and recent activity.</p>
+              <div className="text-xs font-semibold uppercase tracking-[0.35em] text-yellow-300">Social</div>
+              <h1 className="mt-2 text-4xl font-black sm:text-5xl">Social.</h1>
+              <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-300 sm:text-base">Profiles and activity.</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <a href="/listings" className="rounded-2xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-400/20">Browse listings</a>
