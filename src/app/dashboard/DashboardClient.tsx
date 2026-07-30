@@ -184,24 +184,52 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   }
 
   return (
-    <main className="min-h-screen bg-[#0f0f1a] px-4 py-8 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-6">
-        <section className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20">
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.3em] text-yellow-400">Dashboard</p>
-              <h1 className="mt-2 text-3xl font-black sm:text-4xl">{profile?.full_name ?? profile?.username ?? "Account"}</h1>
-              <p className="mt-2 max-w-2xl text-sm text-gray-400">Manage your wallet, listings, purchases, sales, and seller tools from one clean control center.</p>
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,171,1,0.12),_transparent_26%),linear-gradient(180deg,#0f0f1a_0%,#090b14_100%)] px-4 py-6 text-white sm:px-6 lg:px-8 lg:py-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/20">
+          <div className="grid gap-6 px-5 py-6 lg:grid-cols-[1.2fr_0.8fr] lg:items-center lg:px-8 lg:py-8">
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-yellow-300">
+                <span className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1">Dashboard</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-gray-300">Collector control center</span>
+              </div>
+              <div>
+                <h1 className="text-4xl font-black leading-tight sm:text-5xl">{profile?.full_name ?? profile?.username ?? "Account"}</h1>
+                <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-300 sm:text-base">Track your wallet, listings, purchases, sales, and seller tools from one cleaner workspace designed for fast daily use.</p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Active</div>
+                  <div className="mt-2 text-2xl font-black text-white">{activeListings}</div>
+                  <div className="mt-1 text-sm text-gray-400">Listings live now</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Sales</div>
+                  <div className="mt-2 text-2xl font-black text-white">{completedSales.length}</div>
+                  <div className="mt-1 text-sm text-gray-400">Completed orders</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Revenue</div>
+                  <div className="mt-2 text-2xl font-black text-white">{money(totalRevenue)}</div>
+                  <div className="mt-1 text-sm text-gray-400">All-time total</div>
+                </div>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Link href="/listings/create" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">New listing</Link>
-              <Link href="/sell/verification" className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Verification</Link>
-              <Link href="/sell/scan" className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Scan card</Link>
+
+            <div className="grid gap-3 rounded-[1.5rem] border border-white/10 bg-[#13131f]/80 p-4">
+              <Link href="/listings/create" className="rounded-2xl bg-yellow-400 px-4 py-3 text-center text-sm font-bold text-black transition hover:bg-yellow-300">New listing</Link>
+              <Link href="/sell/verification" className="rounded-2xl border border-white/15 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/5">Verification</Link>
+              <Link href="/sell/scan" className="rounded-2xl border border-white/15 px-4 py-3 text-center text-sm font-semibold text-white transition hover:bg-white/5">Scan card</Link>
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Wallet available</div>
+                <div className="mt-2 text-3xl font-black text-white">{money(walletAvailable)}</div>
+                <div className="mt-1 text-sm text-gray-400">Ready to withdraw when eligible</div>
+              </div>
             </div>
           </div>
         </section>
 
-        <div className="flex gap-2 overflow-x-auto rounded-2xl border border-white/10 bg-white/5 p-2">
+        <div className="flex gap-2 overflow-x-auto rounded-[1.25rem] border border-white/10 bg-white/5 p-2">
           {[
             ["overview", "Overview"],
             ["listings", `Listings (${listings.length})`],
@@ -221,7 +249,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
         </div>
 
         {activeTab === "overview" && (
-          <section className="grid gap-4 md:grid-cols-4">
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Card title="Active listings" value={String(activeListings)} />
             <Card title="Available balance" value={money(walletAvailable)} description="Ready to withdraw when eligible." />
             <Card title="Pending balance" value={money(walletPending)} description="Funds in escrow or awaiting release." />
@@ -242,14 +270,19 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             {listings.length === 0 ? (
               <EmptyState title="No listings yet" description="Create your first listing to start selling." action={<Link href="/listings/create" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Create listing</Link>} />
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {listings.map((listing) => (
-                  <Link key={listing.id} href={`/listings/${listing.id}`} className="rounded-3xl border border-white/10 bg-white/5 p-4 transition hover:border-yellow-400/40 hover:bg-white/10">
-                    <div className="text-sm font-bold text-white">{listing.card_name}</div>
-                    <div className="mt-1 text-xs text-gray-400">{listing.set_name}</div>
-                    <div className="mt-4 flex items-center justify-between text-sm text-gray-300">
+                  <Link key={listing.id} href={`/listings/${listing.id}`} className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 transition hover:-translate-y-0.5 hover:border-yellow-400/40 hover:bg-white/8">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-bold text-white">{listing.card_name}</div>
+                        <div className="mt-1 text-xs text-gray-400">{listing.set_name}</div>
+                      </div>
+                      <div className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-black text-black">{money(listing.price)}</div>
+                    </div>
+                    <div className="mt-4 flex items-center justify-between text-xs text-gray-400">
                       <span>{listing.status}</span>
-                      <span className="font-bold text-yellow-400">{money(listing.price)}</span>
+                      <span>{listing.condition}</span>
                     </div>
                   </Link>
                 ))}
@@ -263,13 +296,13 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             {purchases.length === 0 ? (
               <EmptyState title="No purchases yet" description="Browse the marketplace to place your first order." action={<Link href="/listings" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Browse listings</Link>} />
             ) : (
-              <div className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {purchases.map((order) => (
-                  <div key={order.id} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                  <div key={order.id} className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-white">{order.listings?.card_name ?? "Order"}</div>
-                        <div className="text-xs text-gray-400">Status: {order.status}</div>
+                        <div className="mt-1 text-xs text-gray-400">Status: {order.status}</div>
                       </div>
                       <div className="text-sm font-bold text-yellow-400">{money(order.total_amount)}</div>
                     </div>
@@ -285,13 +318,13 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
             {sales.length === 0 ? (
               <EmptyState title="No sales yet" description="List an item to start receiving orders." action={<Link href="/listings/create" className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black">Create listing</Link>} />
             ) : (
-              <div className="space-y-3">
+              <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {sales.map((order) => (
-                  <div key={order.id} className="rounded-3xl border border-white/10 bg-white/5 p-4">
+                  <div key={order.id} className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-white">{order.listings?.card_name ?? "Sale"}</div>
-                        <div className="text-xs text-gray-400">Status: {order.status}</div>
+                        <div className="mt-1 text-xs text-gray-400">Status: {order.status}</div>
                       </div>
                       <div className="text-sm font-bold text-yellow-400">{money(order.total_amount)}</div>
                     </div>

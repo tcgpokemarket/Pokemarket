@@ -8,30 +8,27 @@ import { createClient } from "@/lib/supabase/client";
 const primaryNav = [
   { label: "Home", href: "/" },
   { label: "Browse", href: "/listings" },
-  { label: "Live Auctions", href: "/live" },
-  { label: "Marketplace", href: "/collection" },
-  { label: "Categories", href: "/cards" },
+  { label: "Live", href: "/live" },
   { label: "Sell", href: "/sell" },
-  { label: "Scan Card", href: "/sell/scan" },
+  { label: "Scan", href: "/sell/scan" },
   { label: "Wallet", href: "/dashboard?tab=overview" },
   { label: "Messages", href: "/messages" },
-  { label: "Notifications", href: "/dashboard?tab=overview" },
+  { label: "Collection", href: "/collection" },
+  { label: "Cards", href: "/cards" },
   { label: "Community", href: "/social" },
   { label: "Events", href: "/giveaway-rules" },
-  { label: "Help Center", href: "/help" },
+  { label: "Help", href: "/help" },
 ] as const;
 
 const userNav = [
   { label: "Profile", href: "/dashboard" },
-  { label: "My Listings", href: "/dashboard?tab=listings" },
-  { label: "My Purchases", href: "/dashboard?tab=purchases" },
-  { label: "My Sales", href: "/dashboard?tab=sales" },
+  { label: "Listings", href: "/dashboard?tab=listings" },
+  { label: "Purchases", href: "/dashboard?tab=purchases" },
+  { label: "Sales", href: "/dashboard?tab=sales" },
   { label: "Watchlist", href: "/collection?filter=watchlist" },
-  { label: "Saved Searches", href: "/collection?saved=1" },
-  { label: "Orders", href: "/messages" },
+  { label: "Saved searches", href: "/collection?saved=1" },
   { label: "Payouts", href: "/dashboard?tab=fees" },
-  { label: "Settings", href: "/account/email-preferences" },
-  { label: "Identity Verification", href: "/sell/verification" },
+  { label: "Verification", href: "/sell/verification" },
 ] as const;
 
 
@@ -73,6 +70,13 @@ function navClass(active: boolean) {
   return [
     "rounded-full px-3 py-2 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/60",
     active ? "bg-yellow-400 text-black shadow-lg shadow-yellow-400/20" : "text-gray-300 hover:bg-white/5 hover:text-white",
+  ].join(" ");
+}
+
+function mobileNavClass(active: boolean) {
+  return [
+    "rounded-2xl border px-4 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/60",
+    active ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-300" : "border-white/10 bg-white/5 text-gray-200 hover:border-white/20 hover:bg-white/10",
   ].join(" ");
 }
 
@@ -155,6 +159,14 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
 
   const breadcrumbs = useMemo(() => getBreadcrumbs(pathname), [pathname]);
   const authRedirect = useMemo(() => `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`, [pathname, searchParams]);
+  const showQuickActions = pathname !== "/auth" && pathname !== "/auth/signin";
+  const isSellArea = pathname.startsWith("/sell");
+  const mobileQuickLinks = [
+    { label: "Browse", href: "/listings" },
+    { label: "Sell", href: "/sell" },
+    { label: "Wallet", href: "/dashboard?tab=overview" },
+    { label: "Messages", href: "/messages" },
+  ] as const;
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -199,11 +211,21 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
             </form>
 
             <div className="ml-auto hidden items-center gap-2 lg:flex">
+              {showQuickActions && (
+                <>
+                  <Link href="/listings" className="rounded-full border border-white/10 px-3 py-2 text-sm text-gray-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white">
+                    Browse
+                  </Link>
+                  <Link href="/sell" className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-400/20">
+                    Sell
+                  </Link>
+                </>
+              )}
               <Link href="/messages" className="relative rounded-full border border-white/10 px-3 py-2 text-sm text-gray-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white">
                 Messages{badgeCount(messages) ? <span className="ml-2 rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-black text-black">{badgeCount(messages)}</span> : null}
               </Link>
               <Link href="/dashboard" className="relative rounded-full border border-white/10 px-3 py-2 text-sm text-gray-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white">
-                Notifications{badgeCount(notifications) ? <span className="ml-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[11px] font-black text-black">{badgeCount(notifications)}</span> : null}
+                Wallet{badgeCount(notifications) ? <span className="ml-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[11px] font-black text-black">{badgeCount(notifications)}</span> : null}
               </Link>
               {signedIn ? (
                 <div className="relative">
@@ -265,19 +287,35 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </div>
+
+          {showQuickActions && (
+            <div className="grid gap-2 border-t border-white/10 py-3 sm:grid-cols-2 lg:hidden">
+              {mobileQuickLinks.map((item) => (
+                <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={mobileNavClass(isActiveLink(pathname, searchParams, item.href))}>
+                  {item.label}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
       {breadcrumbs.length > 0 && (
         <div className="border-b border-white/5 bg-white/[0.02] px-4 py-3">
-          <div className="mx-auto max-w-7xl text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
-            <span className="text-gray-500">Home</span>
-            {breadcrumbs.slice(1).map((crumb) => (
-              <span key={crumb}>
-                <span className="mx-2 text-gray-600">/</span>
-                <span className="text-gray-300">{crumb}</span>
-              </span>
-            ))}
+          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
+            <div>
+              <span className="text-gray-500">Home</span>
+              {breadcrumbs.slice(1).map((crumb) => (
+                <span key={crumb}>
+                  <span className="mx-2 text-gray-600">/</span>
+                  <span className="text-gray-300">{crumb}</span>
+                </span>
+              ))}
+            </div>
+            <div className="hidden items-center gap-2 sm:flex">
+              <span className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1 text-[10px] tracking-[0.25em] text-yellow-300">Collector-first</span>
+              {isSellArea && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] tracking-[0.25em] text-gray-300">Sell flow</span>}
+            </div>
           </div>
         </div>
       )}
@@ -302,32 +340,37 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
           <nav className="mt-6 space-y-6">
             <div>
               <div className="mb-2 text-xs uppercase tracking-[0.25em] text-gray-500">Primary</div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 {primaryNav.map((item) => (
-                  <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={navClass(isActiveLink(pathname, searchParams, item.href))}>
+                  <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={mobileNavClass(isActiveLink(pathname, searchParams, item.href))}>
                     {item.label}
                   </Link>
                 ))}
               </div>
-              <div className="mt-3 grid gap-2">
-                <Link href="/sell/scan" scroll={false} onClick={() => setOpen(false)} className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-center text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/20">
-                  Scan Card
-                </Link>
-                <Link href="/listings/create" scroll={false} onClick={() => setOpen(false)} className="rounded-full bg-yellow-400 px-3 py-2 text-center text-sm font-bold text-black transition hover:bg-yellow-300">
-                  New Listing
-                </Link>
-              </div>
             </div>
+            {showQuickActions && (
+              <div>
+                <div className="mb-2 text-xs uppercase tracking-[0.25em] text-gray-500">Quick actions</div>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Link href="/sell/scan" scroll={false} onClick={() => setOpen(false)} className="rounded-2xl border border-yellow-400/30 bg-yellow-400/10 px-3 py-3 text-center text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/20">
+                    Scan Card
+                  </Link>
+                  <Link href="/listings/create" scroll={false} onClick={() => setOpen(false)} className="rounded-2xl bg-yellow-400 px-3 py-3 text-center text-sm font-bold text-black transition hover:bg-yellow-300">
+                    New Listing
+                  </Link>
+                </div>
+              </div>
+            )}
             <div>
               <div className="mb-2 text-xs uppercase tracking-[0.25em] text-gray-500">Account</div>
-              <div className="grid gap-2">
+              <div className="grid gap-2 sm:grid-cols-2">
                 {(signedIn ? userNav : [{ label: "Login", href: "/auth/signin" }, { label: "Sign Up", href: "/auth" }]).map((item) => (
-                  <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={navClass(isActiveLink(pathname, searchParams, item.href))}>
+                  <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={mobileNavClass(isActiveLink(pathname, searchParams, item.href))}>
                     {item.label}
                   </Link>
                 ))}
                 {signedIn && (
-                  <button type="button" onClick={handleSignOut} className={navClass(false) + " text-left"}>
+                  <button type="button" onClick={handleSignOut} className={mobileNavClass(false) + " text-left"}>
                     Logout
                   </button>
                 )}

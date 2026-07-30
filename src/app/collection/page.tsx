@@ -85,61 +85,65 @@ export default function CollectionPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] text-white">
-      <div className="mx-auto max-w-6xl px-4 py-16">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-black">Card library</h1>
-            <p className="mt-2 text-gray-400">Keep personal lists for cards you own, want, or are testing in a deck.</p>
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,171,1,0.12),_transparent_28%),linear-gradient(180deg,#0f0f1a_0%,#090b14_100%)] text-white">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+        <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/20">
+          <div className="grid gap-6 px-5 py-6 lg:grid-cols-[1.15fr_0.85fr] lg:items-end lg:px-8 lg:py-8">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.35em] text-yellow-300">
+                <span className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1">Card library</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-gray-300">Personal lists</span>
+              </div>
+              <h1 className="text-4xl font-black sm:text-5xl">Keep personal lists for cards you own, want, or are testing in a deck.</h1>
+              <p className="max-w-2xl text-sm leading-6 text-gray-300 sm:text-base">Use collection, wishlist, and deck views to stay organized while shopping or building your next setup.</p>
+            </div>
+            <div className="flex flex-wrap gap-3 lg:justify-end">
+              <a href="/cards" className="rounded-2xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-400/20">Open lookup</a>
+            </div>
           </div>
-          <a href="/cards" className="rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-semibold text-yellow-400 hover:bg-yellow-400/20">Open lookup</a>
-        </div>
+        </section>
 
-        <div className="mt-8 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/5 p-2">
-          {(Object.keys(LABELS) as ViewKey[]).map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setView(key)}
-              className={`rounded-xl px-4 py-3 text-sm font-semibold transition-colors ${view === key ? "bg-yellow-400 text-black" : "text-gray-300 hover:text-white"}`}
-            >
-              {LABELS[key].title}
-            </button>
-          ))}
+        <div className="mt-6 rounded-[1.25rem] border border-white/10 bg-white/5 p-2">
+          <div className="flex flex-wrap gap-2">
+            {(Object.keys(LABELS) as ViewKey[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key)}
+                className={`rounded-xl px-4 py-3 text-sm font-semibold transition-colors ${view === key ? "bg-yellow-400 text-black" : "text-gray-300 hover:text-white"}`}
+              >
+                {LABELS[key].title}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-4 text-sm text-gray-400">{LABELS[view].hint}</div>
 
         {cards.length ? (
-          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {cards.map((card) => (
-              <div key={card.id} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5">
+              <div key={card.id} className="overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.04] shadow-lg shadow-black/20">
                 <div className="flex h-56 items-center justify-center bg-[#13131f] p-4">
                   {card.image ? <img src={card.image} alt={card.name} className="max-h-full w-full object-contain" /> : <div className="text-5xl">🃏</div>}
                 </div>
                 <div className="p-4">
-                  <div className="text-lg font-bold">{card.name}</div>
+                  <div className="text-lg font-bold text-white">{card.name}</div>
                   <div className="mt-1 text-sm text-gray-400">{card.setName}{card.number ? ` · #${card.number}` : ""}</div>
                   <div className="mt-1 text-xs text-gray-500">{card.rarity ?? "Rarity not listed"}</div>
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <div>
                       <div className="text-xs uppercase tracking-widest text-gray-500">Market</div>
-                      <div className="text-lg font-black text-yellow-400">{card.price !== null ? `$${card.price.toFixed(2)}` : "—"}</div>
+                      <div className="text-lg font-black text-yellow-300">{card.price !== null ? `$${card.price.toFixed(2)}` : "—"}</div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => void removeSavedCard(view, card.id).then(setCards)}
-                      className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-300 hover:border-red-400/40 hover:text-red-300"
-                    >
-                      Remove
-                    </button>
+                    <button type="button" onClick={() => void removeSavedCard(view, card.id).then(setCards)} className="rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-gray-300 transition hover:border-red-400/40 hover:text-red-300">Remove</button>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-10 text-center text-gray-400">
+          <div className="mt-8 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-10 text-center text-gray-400">
             No cards saved in this list yet. Use the lookup page to add your first card.
           </div>
         )}

@@ -125,9 +125,12 @@ export default function AuthClient() {
   };
 
   return (
-    <div className="rounded-[1.75rem] border border-white/10 bg-[#0f1627]/90 p-4 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-7">
+    <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.03] p-4 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-7">
       <div className="mb-5 flex items-center justify-between gap-4">
-        <h2 className="text-2xl font-black text-white">{mode === "signin" ? "Sign in" : "Create account"}</h2>
+        <div>
+          <h2 className="text-2xl font-black text-white">{mode === "signin" ? "Sign in" : "Create account"}</h2>
+          <p className="mt-1 text-sm text-gray-400">Access your account, reset your password, or connect with Google.</p>
+        </div>
         <button
           type="button"
           onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
@@ -141,104 +144,41 @@ export default function AuthClient() {
         {mode === "signup" && (
           <div>
             <label htmlFor="full-name" className="mb-2 block text-sm font-medium text-gray-200">Full name</label>
-            <input
-              id="full-name"
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Your full name"
-              required
-              disabled={loading || resetLoading}
-              className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
-            />
+            <input id="full-name" type="text" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Your full name" required disabled={loading || resetLoading} className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60" />
           </div>
         )}
 
         <div>
           <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-200">Email</label>
-          <input
-            id="email"
-            type="email"
-            inputMode="email"
-            autoCapitalize="none"
-            autoCorrect="off"
-            autoComplete="email"
-            enterKeyHint="next"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            required
-            disabled={loading || resetLoading}
-            className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
-          />
+          <input id="email" type="email" inputMode="email" autoCapitalize="none" autoCorrect="off" autoComplete="email" enterKeyHint="next" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" required disabled={loading || resetLoading} className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60" />
         </div>
 
         <div>
           <div className="mb-2 flex items-center justify-between gap-3">
             <label htmlFor="password" className="block text-sm font-medium text-gray-200">Password</label>
             <div className="flex items-center gap-3">
-              <button type="button" onClick={handlePasswordReset} disabled={loading || resetLoading} className="text-sm font-semibold text-yellow-400 hover:text-yellow-300 disabled:opacity-50">
-                {resetLoading ? "Sending..." : "Forgot Password"}
-              </button>
-              <button type="button" onClick={() => setShowPassword((current) => !current)} disabled={loading || resetLoading} className="text-sm font-semibold text-gray-300 hover:text-white disabled:opacity-50">
-                {showPassword ? "Hide" : "Show"}
-              </button>
+              <button type="button" onClick={handlePasswordReset} disabled={loading || resetLoading} className="text-sm font-semibold text-yellow-400 hover:text-yellow-300 disabled:opacity-50">{resetLoading ? "Sending..." : "Forgot Password"}</button>
+              <button type="button" onClick={() => setShowPassword((current) => !current)} disabled={loading || resetLoading} className="text-sm font-semibold text-gray-300 hover:text-white disabled:opacity-50">{showPassword ? "Hide" : "Show"}</button>
             </div>
           </div>
-          <input
-            id="password"
-            type={showPassword ? "text" : "password"}
-            autoComplete="current-password"
-            enterKeyHint="go"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            minLength={8}
-            disabled={loading || resetLoading}
-            className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
-          />
+          <input id="password" type={showPassword ? "text" : "password"} autoComplete="current-password" enterKeyHint="go" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={8} disabled={loading || resetLoading} className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60" />
         </div>
 
         <div className="grid gap-2 sm:grid-cols-2">
-          <button
-            type="submit"
-            disabled={loading || resetLoading}
-            className="w-full rounded-2xl bg-gradient-to-r from-[#e22400] to-[#ffab01] px-4 py-3 font-bold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {loading ? <span className="inline-flex items-center gap-2"><Spinner /> Loading...</span> : mode === "signin" ? "Sign in" : "Create account"}
-          </button>
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            disabled={loading || resetLoading}
-            className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Continue with Google
-          </button>
+          <button type="submit" disabled={loading || resetLoading} className="w-full rounded-2xl bg-gradient-to-r from-[#e22400] to-[#ffab01] px-4 py-3 font-bold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60">{loading ? <span className="inline-flex items-center gap-2"><Spinner /> Loading...</span> : mode === "signin" ? "Sign in" : "Create account"}</button>
+          <button type="button" onClick={handleGoogleSignIn} disabled={loading || resetLoading} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">Continue with Google</button>
         </div>
 
         <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-200">
-          <input
-            type="checkbox"
-            checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
-            className="h-4 w-4 rounded border-white/20 bg-transparent text-yellow-400 focus:ring-yellow-400"
-          />
+          <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="h-4 w-4 rounded border-white/20 bg-transparent text-yellow-400 focus:ring-yellow-400" />
           Remember me on this device
         </label>
 
-        {message && (
-          <div className={`rounded-2xl border px-4 py-3 text-sm ${message.type === "error" ? "border-red-500/30 bg-red-500/10 text-red-200" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"}`}>
-            {message.text}
-          </div>
-        )}
+        {message && <div className={`rounded-2xl border px-4 py-3 text-sm ${message.type === "error" ? "border-red-500/30 bg-red-500/10 text-red-200" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"}`}>{message.text}</div>}
       </form>
 
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm text-gray-400">
-        <button type="button" onClick={handlePasswordReset} disabled={loading || resetLoading} className="font-semibold text-yellow-400 hover:text-yellow-300 disabled:opacity-50">
-          Forgot Password
-        </button>
+        <button type="button" onClick={handlePasswordReset} disabled={loading || resetLoading} className="font-semibold text-yellow-400 hover:text-yellow-300 disabled:opacity-50">Forgot Password</button>
         <a href="/terms" className="font-semibold text-gray-300 hover:text-white">Terms of Service</a>
         <a href="/privacy" className="font-semibold text-gray-300 hover:text-white">Privacy Policy</a>
       </div>

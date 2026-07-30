@@ -308,43 +308,19 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const selectedImageSrc = listingImages[selectedImage] ?? getListingPrimaryImage(listingImages) ?? getProfessionalFallbackImage();
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] text-white">
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-[#0f0f1a]/90 backdrop-blur-sm">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <a href="/" className="flex items-center gap-2 text-xl font-black">
-            <span className="text-2xl">⚡</span>
-            <span className="text-white">TCG</span><span className="text-yellow-400">Poke</span><span className="text-white">Market</span>
-          </a>
-          <div className="flex items-center gap-4">
-            <a href="/listings" className="text-sm text-gray-300 hover:text-white">← Back to listings</a>
-            <a href={user ? "/dashboard" : "/auth"} className="rounded-lg bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">
-              {user ? "Account" : "Sign In"}
-            </a>
-          </div>
-        </div>
-      </nav>
-
-      <div className="mx-auto max-w-6xl px-4 pb-12 pt-20 sm:px-6 lg:px-8 lg:pt-24">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,171,1,0.12),_transparent_28%),linear-gradient(180deg,#0f0f1a_0%,#090b14_100%)] text-white">
+      <div className="mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:pt-10">
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start">
-          <div className="space-y-3">
-            <div className="flex aspect-[3/4] items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5">
-              <img
-                src={selectedImageSrc}
-                alt={activeListing.card_name}
-                className="h-full w-full object-contain p-3 sm:p-4"
-                onError={(event) => {
-                  event.currentTarget.src = getProfessionalFallbackImage();
-                }}
-              />
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/20">
+              <div className="aspect-[3/4] bg-black/20">
+                <img src={selectedImageSrc} alt={activeListing.card_name} className="h-full w-full object-contain p-3 sm:p-4" onError={(event) => { event.currentTarget.src = getProfessionalFallbackImage(); }} />
+              </div>
             </div>
             {listingImages.length > 1 && (
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {listingImages.map((img, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setSelectedImage(i)}
-                    className={`h-14 w-14 shrink-0 overflow-hidden rounded-xl border transition-colors ${i === selectedImage ? "border-yellow-400" : "border-white/10"}`}
-                  >
+                  <button key={i} onClick={() => setSelectedImage(i)} className={`h-14 w-14 shrink-0 overflow-hidden rounded-xl border transition-colors ${i === selectedImage ? "border-yellow-400" : "border-white/10"}`}>
                     <img src={img} alt="" className="h-full w-full object-cover" />
                   </button>
                 ))}
@@ -354,20 +330,20 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
 
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em]">
-              <span className={conditionColor}>{activeListing.condition}</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-gray-300">{activeListing.condition}</span>
               {activeListing.grade_company && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{activeListing.grade_company} {activeListing.grade_score}</span>}
               {activeListing.promotion_badge && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{activeListing.promotion_badge}</span>}
             </div>
-            {activeListing.promoted_until && <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400">Promoted until {new Date(activeListing.promoted_until).toLocaleString()}</p>}
+            {activeListing.promoted_until && <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-300">Promoted until {new Date(activeListing.promoted_until).toLocaleString()}</p>}
             {activeListing.promotion_tier && <p className="text-xs text-gray-500">Promotion tier: {activeListing.promotion_tier}</p>}
             <div>
-              <h1 className="text-2xl font-black leading-tight sm:text-3xl">{activeListing.card_name}</h1>
+              <h1 className="text-3xl font-black leading-tight sm:text-4xl">{activeListing.card_name}</h1>
               <p className="mt-1 text-sm text-gray-400">{activeListing.set_name}{activeListing.card_number ? ` · #${activeListing.card_number}` : ""}{activeListing.rarity ? ` · ${activeListing.rarity}` : ""}</p>
             </div>
 
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
+            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
               <div className="flex items-end gap-3">
-                <span className="text-3xl font-black sm:text-4xl">${activeListing.price.toFixed(2)}</span>
+                <span className="text-4xl font-black">${activeListing.price.toFixed(2)}</span>
                 {priceDiff !== null && <span className={`pb-1 text-xs font-semibold ${priceDiff > 5 ? "text-red-400" : priceDiff < -5 ? "text-green-400" : "text-gray-400"}`}>{priceDiff > 0 ? "+" : ""}{priceDiff.toFixed(1)}% vs market</span>}
               </div>
               <div className="mt-2 text-sm text-gray-300">{activeListing.quantity} available{marketPrice ? ` · Market avg $${marketPrice.toFixed(2)}` : ""}</div>
@@ -377,18 +353,15 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <button onClick={handleBuy} disabled={buying || activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">{buying ? "Redirecting..." : activeListing.seller_id === user?.id ? "Your listing" : activeListing.status !== "active" ? "Sold" : "Buy Now"}</button>
-              <button onClick={handleAddToCart} disabled={activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Add to Cart</button>
-              <button onClick={openOffer} disabled={activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Make Offer</button>
-              <button onClick={handleShare} disabled={sharing} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">{sharing ? "Sharing..." : shared ? "Link Copied" : "Share Listing"}</button>
-              <button onClick={openReport} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
+              <button onClick={handleAddToCart} disabled={activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Add to Cart</button>
+              <button onClick={openOffer} disabled={activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Make Offer</button>
+              <button onClick={handleShare} disabled={sharing} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">{sharing ? "Sharing..." : shared ? "Link Copied" : "Share Listing"}</button>
+              <button onClick={openReport} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
             </div>
 
             {showOfferForm ? (
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#13131f] p-4 sm:p-5">
-                <div>
-                  <p className="text-sm font-semibold text-white">Make an offer</p>
-                  <p className="mt-1 text-sm text-gray-400">Send the seller a direct offer from this listing.</p>
-                </div>
+              <div className="space-y-3 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+                <div><p className="text-sm font-semibold text-white">Make an offer</p><p className="mt-1 text-sm text-gray-400">Send the seller a direct offer from this listing.</p></div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <input type="number" step="0.01" min="0" value={offerAmount} onChange={(event) => setOfferAmount(event.target.value)} placeholder="Offer amount" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
                   <input value={offerNote} onChange={(event) => setOfferNote(event.target.value)} placeholder="Optional note" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
@@ -402,11 +375,8 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
             ) : null}
 
             {showContactForm ? (
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#13131f] p-4 sm:p-5">
-                <div>
-                  <p className="text-sm font-semibold text-white">Message the seller</p>
-                  <p className="mt-1 text-sm text-gray-400">Ask a question about the card, shipping, or bundle options.</p>
-                </div>
+              <div className="space-y-3 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+                <div><p className="text-sm font-semibold text-white">Message the seller</p><p className="mt-1 text-sm text-gray-400">Ask a question about the card, shipping, or bundle options.</p></div>
                 <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} rows={4} placeholder="Hi, is this still available?" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
                 <div className="flex flex-wrap gap-3">
                   <button onClick={handleContactSeller} disabled={contactingSeller} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50">{contactingSeller ? "Sending..." : "Send Message"}</button>
@@ -417,11 +387,8 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
             ) : null}
 
             {showReportForm ? (
-              <div className="space-y-3 rounded-2xl border border-white/10 bg-[#13131f] p-4 sm:p-5">
-                <div>
-                  <p className="text-sm font-semibold text-white">Report this listing</p>
-                  <p className="mt-1 text-sm text-gray-400">Send this to support for review if something looks off.</p>
-                </div>
+              <div className="space-y-3 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+                <div><p className="text-sm font-semibold text-white">Report this listing</p><p className="mt-1 text-sm text-gray-400">Send this to support for review if something looks off.</p></div>
                 <select value={reportReason} onChange={(event) => setReportReason(event.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none">
                   <option value="">Select a reason</option>
                   <option value="Misleading listing">Misleading listing</option>
@@ -439,14 +406,9 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
               </div>
             ) : null}
 
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 p-4 sm:p-5">
-              <div>
-                <p className="text-sm font-semibold text-white">Seller</p>
-                <p className="text-sm text-gray-400">{activeListing.profiles?.username ?? "Seller"}</p>
-              </div>
-              <div className="text-right text-sm text-gray-400">
-                {activeListing.profiles?.seller_rating ? <div className="text-yellow-400">★ {activeListing.profiles.seller_rating.toFixed(1)}</div> : null}
-              </div>
+            <div className="flex items-center justify-between gap-3 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+              <div><p className="text-sm font-semibold text-white">Seller</p><p className="text-sm text-gray-400">{activeListing.profiles?.username ?? "Seller"}</p></div>
+              <div className="text-right text-sm text-gray-400">{activeListing.profiles?.seller_rating ? <div className="text-yellow-400">★ {activeListing.profiles.seller_rating.toFixed(1)}</div> : null}</div>
             </div>
           </div>
         </div>
