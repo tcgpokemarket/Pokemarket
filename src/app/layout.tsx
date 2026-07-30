@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
-import { formatEnvironmentAudit } from "@/lib/env";
+import AppFrame from "@/components/app-frame";
 
 const BASE_URL = "https://tcg-poke-market.sintra.site";
 const OG_IMAGE = "https://cdn.sintra.ai/img/pGq7RIJGMDuiejauByatqWc9HGCgpqvSJyf9_1fzpMA/f:jpg/rs:fit:800/czM6Ly9zaW50cmEtYnJhaW5haS1tZWRpYS9rbm93bGVkZ2UtcHJvZmlsZXMvZTE4YTEyMGUtMjk0Yy00N2UyLWIyZTctNTBjMzI3ZjY4YjY1L2Fzc2V0cy8wN2FkYmJhOC0xNWY5LTRkYzEtYjk1OS03MzczMmJkNzgzN2QvNDMucG5n";
@@ -75,12 +76,9 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const environmentAudit = formatEnvironmentAudit();
-
   return (
     <html lang="en">
       <head>
-        <meta name="environment-audit" content={environmentAudit} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -89,7 +87,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body style={{ fontFamily: "'Inter', sans-serif" }}>
-        {children}
+        <Suspense fallback={null}>
+          <AppFrame>{children}</AppFrame>
+        </Suspense>
       </body>
     </html>
   );

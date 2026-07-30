@@ -1,12 +1,8 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 import { VerifiedImage } from "@/components/listings/VerifiedImage";
 import type { Listing } from "@/lib/supabase/types";
-import { getSocialCounts } from "@/lib/social-network";
-import { createClient } from "@/lib/supabase/server";
-import { getListingPrimaryImage, getProfessionalFallbackImage } from "@/lib/uploads";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -20,7 +16,6 @@ const DEFAULT_POLICIES = [
 const DEFAULT_CATEGORIES = ["Singles", "Sealed", "Graded", "Accessories"];
 
 type SellerStoreRow = {
-  seller_id: string;
   name: string;
   slug: string;
   description: string | null;
@@ -28,19 +23,7 @@ type SellerStoreRow = {
   logo_url: string | null;
   verified: boolean;
   featured: boolean;
-  promoted_until: string | null;
-  promotion_tier: string | null;
-  promotion_badge: string | null;
   theme: Record<string, string> | null;
-};
-
-
-type SellerStorefrontRow = Pick<SellerStorefront, "storefront_slug">;
-
-type SellerStoreListRow = {
-  seller_id: string;
-  name: string;
-  slug: string | null;
 };
 
 type SellerStorefront = {
@@ -58,9 +41,6 @@ type SellerStorefront = {
   total_listings: number;
   total_live_shows: number;
 };
-
-const BASE_URL = "https://tcg-poke-market.sintra.site";
-
 
 type ProfileRow = {
   username: string | null;
@@ -107,109 +87,70 @@ async function fetchPublicRows<T>(table: string, select: string, filters: Array<
 export const dynamicParams = false;
 
 export async function generateStaticParams(): Promise<Array<{ slug: string }>> {
-  const rows = await fetchPublicRows<SellerStoreListRow>("seller_stores", "seller_id, name, slug", [["slug", "not.is.null"]], 2000);
-  return rows.filter((row) => Boolean(row.slug)).map((row) => ({ slug: row.slug as string }));
+  const rows = await fetchPublicRows<Pick<SellerStoreRow, "slug">>("seller_stores", "slug", [["slug", "not.is.null"]], 2000);
+  const slugs = rows.filter((row): row is { slug: string } => Boolean(row.slug)).map((row) => ({ slug: row.slug }));
+  return slugs.length ? slugs : [{ slug: "preview" }];
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
-  const { slug } = await params;
-  const [sellerRow] = await fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, promoted_until, promotion_tier, promotion_badge, theme", [["slug", `eq.${slug}`]], 1);
-
-  if (!sellerRow) {
-    return {
-      title: "Seller storefront not found",
-      description: "This storefront is no longer available.",
-      robots: { index: false, follow: false },
-    };
-  }
-
-  const title = `${sellerRow.name} | Seller Storefront`;
-  const description = sellerRow.description ?? `${sellerRow.name} on TcgPoké Market.`;
-  const canonical = `${BASE_URL}/sellers/${sellerRow.slug}`;
-
+function getPreviewSeller(slug: string): SellerStorefront {
   return {
-    title,
-    description,
-    alternates: { canonical },
-    openGraph: {
-      title,
-      description,
-      url: canonical,
-      type: "website",
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-    },
+    id: slug,
+    display_name: "Seller Storefront Preview",
+    storefront_slug: slug,
+    bio: null,
+    avatar_url: null,
+    banner_url: null,
+    verified: false,
+    rating: 0,
+    follower_count: 0,
+    sales_count: 0,
+    total_revenue: 0,
+    total_listings: 0,
+    total_live_shows: 0,
   };
 }
-
 
 
 export default async function SellerStorefrontPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const [sellerRow] = await fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, promoted_until, promotion_tier, promotion_badge, theme", [["slug", `eq.${slug}`]], 1);
-  if (!sellerRow) {
-    notFound();
+  const [sellerRow] = await fetchPublicRows<SellerStorefront>("sellers", "*", [["storefront_slug", `eq.${slug}`]], 1);
+  const sellerData = sellerRow ?? getPreviewSeller(slug);
+  if (sellerData.id === slug && slug === "preview") {
+    return (
+      <div className="min-h-screen bg-[#0f0f1a] text-white">
+        <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4 text-center">
+          <h1 className="mt-4 text-3xl font-black">Seller storefront</h1>
+        </main>
+      </div>
+    );
   }
 
-  const sellerData = {
-    id: sellerRow.seller_id,
-    display_name: sellerRow.name,
-    storefront_slug: sellerRow.slug,
-    bio: sellerRow.description,
-    avatar_url: sellerRow.logo_url,
-    banner_url: sellerRow.banner_url,
-    verified: sellerRow.verified,
-    rating: sellerRow.verified ? 5 : 0,
-    total_revenue: 0,
-    total_live_shows: 0,
-  };
 
-  const [activeListingsResult, soldListingsResult, reviewsResult, profileResult, storeResult, liveShowsResult, socialCounts] = await Promise.all([
+  const [listingsResult, reviewsResult, profileResult, storeResult, liveShowsResult] = await Promise.all([
     fetchPublicRows<Listing>("listings", "*", [["seller_id", `eq.${sellerData.id}`], ["status", "eq.active"]], 2000),
-    fetchPublicRows<Listing>("listings", "*", [["seller_id", `eq.${sellerData.id}`], ["status", "eq.sold"]], 50),
     fetchPublicRows<{ id: string; title: string | null; body: string | null; rating: number }>("seller_reviews", "*", [["seller_id", `eq.${sellerData.id}`]], 6),
     fetchPublicRows<ProfileRow>("profiles", "username, full_name, is_seller, avatar_url, seller_rating, total_sales", [["id", `eq.${sellerData.id}`]], 1),
-    fetchPublicRows<SellerStoreRow>("seller_stores", "seller_id, name, slug, description, banner_url, logo_url, verified, featured, theme", [["seller_id", `eq.${sellerData.id}`]], 1),
+    fetchPublicRows<SellerStoreRow>("seller_stores", "*", [["seller_id", `eq.${sellerData.id}`]], 1),
     fetchPublicRows<LiveShowRow>("live_shows", "id, title, description, status, viewer_count, scheduled_start", [["seller_id", `eq.${sellerData.id}`]], 12),
-    getSocialCounts(sellerData.id),
   ]);
 
   const profile = profileResult[0] ?? null;
   const store = storeResult[0] ?? null;
-  const activeListings = activeListingsResult ?? [];
-  const soldListings = soldListingsResult ?? [];
+  const listings = listingsResult ?? [];
   const reviews = reviewsResult ?? [];
   const liveShows = liveShowsResult ?? [];
-  const sellerStorefront = store ?? {
-    seller_id: sellerData.id,
-    name: sellerData.display_name,
-    slug: sellerData.storefront_slug,
-    description: null,
-    banner_url: sellerData.banner_url,
-    logo_url: sellerData.avatar_url,
-    verified: sellerData.verified,
-    featured: false,
-    promoted_until: null,
-    promotion_tier: null,
-    promotion_badge: null,
-    theme: null,
-  };
-  const shopName = sellerStorefront.name;
-  const shopSlug = sellerStorefront.slug;
-  const sellerSales = profile?.total_sales ?? soldListings.length;
+  const shopName = store?.name ?? sellerData.display_name;
+  const shopSlug = store?.slug ?? sellerData.storefront_slug;
+  const sellerSales = profile?.total_sales ?? sellerData.sales_count;
   const sellerRating = profile?.seller_rating ?? sellerData.rating;
   const sellerStatus = profile?.is_seller || sellerData.verified ? "Approved seller" : "Seller not approved";
   const activeLiveShows = liveShows.filter((show) => show.status === "live" || show.status === "scheduled");
-  const soldItems = soldListings.slice(0, 6);
-  const policies = sellerStorefront.description ? [sellerStorefront.description, ...DEFAULT_POLICIES] : DEFAULT_POLICIES;
-  const storeTheme = sellerStorefront.theme ?? null;
+  const soldItems = listings.filter((listing) => listing.status === "sold").slice(0, 6);
+  const policies = store?.description ? [store.description, ...DEFAULT_POLICIES] : DEFAULT_POLICIES;
+  const storeTheme = store?.theme ?? null;
   const accent = storeTheme?.accent ?? "#e22400";
   const secondary = storeTheme?.secondary ?? "#ffab01";
   const highlight = storeTheme?.highlight ?? "#fefb41";
-  const followerCount = socialCounts.followers;
 
   return (
     <div className="min-h-screen bg-[#0f0f1a] text-white">
@@ -224,7 +165,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
           <div className="flex items-center gap-4 text-sm">
             <a href="/listings" className="text-gray-300 hover:text-white">Browse</a>
             <a href="/live" className="text-gray-300 hover:text-white">Live</a>
-            <a href="/sell" className="rounded-lg bg-yellow-400 px-4 py-2 font-bold text-black hover:bg-yellow-300">Sell on TcgPoké Market</a>
+            <a href="/sell" className="rounded-lg bg-yellow-400 px-4 py-2 font-bold text-black hover:bg-yellow-300">Sell</a>
           </div>
         </div>
       </nav>
@@ -243,11 +184,8 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   <div className="mt-2 flex flex-wrap items-center gap-3">
                     <h1 className="text-3xl font-black sm:text-4xl">{sellerData.display_name}</h1>
                     {sellerData.verified && <span className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-300">Verified seller</span>}
-                    {sellerStorefront.promotion_badge && <span className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-300">{sellerStorefront.promotion_badge}</span>}
                   </div>
-                  {sellerStorefront.promoted_until && <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-yellow-400">Promoted until {new Date(sellerStorefront.promoted_until).toLocaleString()}</p>}
-                  {sellerStorefront.promotion_tier && <p className="mt-1 text-xs text-gray-400">Promotion tier: {sellerStorefront.promotion_tier}</p>}
-                  <p className="mt-1 text-sm text-gray-400">@{sellerData.storefront_slug}{profile?.username ? ` · public profile @${profile.username}` : ""}</p>
+                  <p className="mt-1 text-sm text-gray-400">@{sellerData.storefront_slug}{profile?.username ? ` · @{profile.username}` : ""}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3 text-center sm:grid-cols-4">
@@ -256,15 +194,15 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   <div className="text-xs text-gray-400">Rating</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{followerCount}</div>
+                  <div className="text-2xl font-black text-yellow-400">{sellerData.follower_count}</div>
                   <div className="text-xs text-gray-400">Followers</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{sellerSales}</div>
+                  <div className="text-2xl font-black text-yellow-400">{sellerData.sales_count}</div>
                   <div className="text-xs text-gray-400">Sales</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3">
-                  <div className="text-2xl font-black text-yellow-400">{activeListings.length}</div>
+                  <div className="text-2xl font-black text-yellow-400">{sellerData.total_listings}</div>
                   <div className="text-xs text-gray-400">Total listings</div>
                 </div>
               </div>
@@ -280,12 +218,12 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-black">Shop details</h2>
-                  <p className="text-sm text-gray-400">Dedicated storefront URL, verified status, and seller tools.</p>
+                  <p className="text-sm text-gray-400">Store details and status.</p>
                 </div>
                 <div className="flex flex-wrap gap-2 text-sm">
-                  <Link href={`/messages?recipient=${sellerData.id}&contextType=seller_store&contextId=${sellerData.id}&title=${encodeURIComponent(shopName)}`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Message seller</Link>
-                  <Link href={`/profile/${profile?.username ?? shopSlug}`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Follow shop</Link>
-                  <Link href={`/listings?seller=${shopSlug}`} className="rounded-full bg-yellow-400 px-4 py-2 font-semibold text-black transition hover:bg-yellow-300">Browse inventory</Link>
+                  <Link href={`/messages?shop=${shopSlug}`} className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Message seller</Link>
+                  <Link href="/social" className="rounded-full border border-white/10 px-4 py-2 text-white transition hover:bg-white/5">Community</Link>
+                  <Link href={`/listings?seller=${sellerData.id}`} className="rounded-full bg-yellow-400 px-4 py-2 font-semibold text-black transition hover:bg-yellow-300">Listings</Link>
                 </div>
               </div>
 
@@ -301,7 +239,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <h2 className="text-2xl font-black">Live auctions</h2>
-                  <p className="text-sm text-gray-400">Upcoming and active live shows tied to this seller.</p>
+                  <p className="text-sm text-gray-400">Upcoming and active live rooms tied to this sellerData.</p>
                 </div>
                 <Link href="/live" className="rounded-full border border-white/10 px-4 py-2 text-sm text-white transition hover:bg-white/5">View all live auctions</Link>
               </div>
@@ -332,17 +270,15 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                   {DEFAULT_CATEGORIES.map((category) => <span key={category} className="rounded-full border border-white/10 bg-[#13131f] px-3 py-1 text-gray-300">{category}</span>)}
                 </div>
               </div>
-              {!activeListings.length ? (
+              {!listings.length ? (
                 <div className="mt-5 rounded-2xl border border-white/10 bg-white/5 p-10 text-center text-gray-400">No active listings yet.</div>
               ) : (
                 <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                  {activeListings.map((listing) => {
-                    const primaryImage = getListingPrimaryImage(listing.images ?? [])
-                      ? choosePrimaryImage((listing.images ?? []).map((imageUrl) => evaluateImageMatch(
-                          { name: listing.card_name, setName: listing.set_name, cardNumber: listing.card_number },
-                          { imageUrl, source: "seller_unverified", setName: listing.set_name, cardNumber: listing.card_number },
-                        )))
-                      : null;
+                  {listings.map((listing) => {
+                    const primaryImage = choosePrimaryImage((listing.images ?? []).map((imageUrl) => evaluateImageMatch(
+                      { name: listing.card_name, setName: listing.set_name, cardNumber: listing.card_number },
+                      { imageUrl, source: "seller_unverified", setName: listing.set_name, cardNumber: listing.card_number },
+                    )));
 
                     return (
                       <a key={listing.id} href={`/listings/${listing.id}`} className="block overflow-hidden rounded-2xl border border-white/10 bg-[#13131f] transition-all hover:border-yellow-400/40">
@@ -350,7 +286,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
                           {primaryImage ? (
                             <VerifiedImage listing={listing} image={primaryImage} className="h-full w-full" />
                           ) : (
-                            <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full object-cover" />
+                            <span className="text-4xl">🃏</span>
                           )}
                         </div>
                         <div className="p-4">
@@ -406,7 +342,7 @@ export default async function SellerStorefrontPage({ params }: { params: Promise
             <div className="rounded-3xl border border-white/10 bg-white/5 p-6">
               <h3 className="text-lg font-black">Shop search</h3>
               <form action="/listings" method="get" className="mt-4 space-y-3">
-                <input name="seller" defaultValue={shopSlug} type="hidden" />
+                <input name="seller" defaultValue={sellerData.id} type="hidden" />
                 <input name="query" placeholder="Search this shop" className="w-full rounded-2xl border border-white/10 bg-[#13131f] px-4 py-3 text-sm text-white outline-none" />
                 <button className="w-full rounded-2xl bg-yellow-400 px-4 py-3 font-bold text-black">Search shop inventory</button>
               </form>

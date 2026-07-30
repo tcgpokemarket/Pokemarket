@@ -1,3 +1,5 @@
+"use client";
+
 import ListingWizard from "@/components/listings/listing-wizard";
 
 export default function CreateListingPage() {
@@ -10,11 +12,9 @@ export default function CreateListingPage() {
         backHref: "/dashboard",
         backLabel: "Dashboard",
         actionLabel: "Publish Listing",
-        actionHint: "Your draft saves locally as you work, and you can save it to the marketplace anytime before publishing it.",
+        actionHint: "Your draft saves locally as you work, and you can save it to the marketplace anytime before publishing.",
       }}
       redirectTo="/listings/create"
-      scannerHref="/sell/scan"
-      scannerLabel="Scan Card"
     />
   );
 }

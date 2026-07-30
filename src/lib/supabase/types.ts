@@ -10,7 +10,6 @@ export interface Database {
           full_name: string | null
           avatar_url: string | null
           seller_state: string | null
-          shipping_address: Json | null
           is_seller: boolean
           seller_rating: number
           total_sales: number
@@ -37,7 +36,6 @@ export interface Database {
           full_name?: string | null
           avatar_url?: string | null
           seller_state?: string | null
-          shipping_address?: Json | null
           is_seller?: boolean
           seller_rating?: number
           total_sales?: number
@@ -64,7 +62,6 @@ export interface Database {
           full_name?: string | null
           avatar_url?: string | null
           seller_state?: string | null
-          shipping_address?: Json | null
           is_seller?: boolean
           seller_rating?: number
           total_sales?: number
@@ -102,9 +99,6 @@ export interface Database {
           images: string[]
           description: string | null
           category: 'single' | 'sealed' | 'graded' | 'accessory'
-          promotion_badge: string | null
-          promotion_tier: string | null
-          promoted_until: string | null
           status: 'active' | 'sold' | 'draft' | 'removed'
           shipping_profile_id: string | null
           shipping_paid_by: 'buyer' | 'seller' | null
@@ -131,9 +125,6 @@ export interface Database {
           images?: string[]
           description?: string | null
           category: 'single' | 'sealed' | 'graded' | 'accessory'
-          promotion_badge?: string | null
-          promotion_tier?: string | null
-          promoted_until?: string | null
           shipping_profile_id?: string | null
           shipping_paid_by?: 'buyer' | 'seller' | null
           weight_oz?: number | null
@@ -144,31 +135,6 @@ export interface Database {
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['listings']['Insert']>
-      }
-      listing_images: {
-        Row: {
-          id: string
-          listing_id: string
-          bucket: string
-          storage_path: string
-          public_url: string
-          sort_order: number
-          source: string
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          listing_id: string
-          bucket?: string
-          storage_path: string
-          public_url: string
-          sort_order?: number
-          source?: string
-          created_at?: string
-          updated_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['listing_images']['Insert']>
       }
       orders: {
         Row: {
@@ -310,10 +276,6 @@ export interface Database {
           theme: Json
           verified: boolean
           featured: boolean
-          promoted_until: string | null
-          promotion_tier: string | null
-          promotion_badge: string | null
-          promotion_activated_at: string | null
           created_at: string
           updated_at: string
         }
@@ -328,128 +290,10 @@ export interface Database {
           theme?: Json
           verified?: boolean
           featured?: boolean
-          promoted_until?: string | null
-          promotion_tier?: string | null
-          promotion_badge?: string | null
-          promotion_activated_at?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: Partial<Database['public']['Tables']['seller_stores']['Insert']>
-      }
-      promotions: {
-        Row: {
-          id: string
-          seller_id: string
-          target_type: 'listing' | 'auction' | 'store' | 'event'
-          target_id: string
-          tier: 'boost_24h' | 'boost_7d' | 'spotlight_24h' | 'spotlight_3d' | 'spotlight_7d' | 'store_7d' | 'store_30d' | 'event_basic' | 'event_featured' | 'event_premium'
-          title: string
-          status: 'pending' | 'active' | 'scheduled' | 'expired' | 'cancelled' | 'refunded'
-          starts_at: string
-          ends_at: string
-          price: number
-          sale_price_percent: number | null
-          minimum_fee: number | null
-          maximum_fee: number | null
-          visibility_rank: number
-          badge_label: string | null
-          placement_label: string | null
-          stripe_checkout_session_id: string | null
-          stripe_payment_intent_id: string | null
-          wallet_entry_id: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          seller_id: string
-          target_type: 'listing' | 'auction' | 'store' | 'event'
-          target_id: string
-          tier: 'boost_24h' | 'boost_7d' | 'spotlight_24h' | 'spotlight_3d' | 'spotlight_7d' | 'store_7d' | 'store_30d' | 'event_basic' | 'event_featured' | 'event_premium'
-          title: string
-          status?: 'pending' | 'active' | 'scheduled' | 'expired' | 'cancelled' | 'refunded'
-          starts_at: string
-          ends_at: string
-          price: number
-          sale_price_percent?: number | null
-          minimum_fee?: number | null
-          maximum_fee?: number | null
-          visibility_rank?: number
-          badge_label?: string | null
-          placement_label?: string | null
-          stripe_checkout_session_id?: string | null
-          stripe_payment_intent_id?: string | null
-          wallet_entry_id?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['promotions']['Insert']>
-      }
-      promotion_events: {
-        Row: {
-          id: string
-          promotion_id: string
-          seller_id: string
-          event_type: 'created' | 'activated' | 'expired' | 'cancelled' | 'refunded' | 'updated'
-          note: string | null
-          metadata: Json | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          promotion_id: string
-          seller_id: string
-          event_type: 'created' | 'activated' | 'expired' | 'cancelled' | 'refunded' | 'updated'
-          note?: string | null
-          metadata?: Json | null
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['promotion_events']['Insert']>
-      }
-      promotion_ledger: {
-        Row: {
-          id: string
-          promotion_id: string
-          seller_id: string
-          entry_type: 'hold' | 'charge' | 'release' | 'refund' | 'adjustment'
-          amount: number
-          status: 'posted' | 'reversed' | 'pending'
-          reference_id: string | null
-          note: string | null
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          promotion_id: string
-          seller_id: string
-          entry_type: 'hold' | 'charge' | 'release' | 'refund' | 'adjustment'
-          amount: number
-          status?: 'posted' | 'reversed' | 'pending'
-          reference_id?: string | null
-          note?: string | null
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['promotion_ledger']['Insert']>
-      }
-      seller_promotion_settings: {
-        Row: {
-          seller_id: string
-          allow_featured_listings: boolean
-          allow_auction_promotion: boolean
-          allow_store_spotlight: boolean
-          allow_event_promotion: boolean
-          updated_at: string
-        }
-        Insert: {
-          seller_id: string
-          allow_featured_listings?: boolean
-          allow_auction_promotion?: boolean
-          allow_store_spotlight?: boolean
-          allow_event_promotion?: boolean
-          updated_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['seller_promotion_settings']['Insert']>
       }
       seller_followers: {
         Row: {
@@ -670,40 +514,42 @@ export interface Database {
       referral_program_settings: {
         Row: {
           id: string
-          enabled: boolean
-          reward_amount: number
-          required_successful_volume: number
-          max_lifetime_commission_share_percent: number
-          payout_delay_days: number
-          campaign_starts_at: string | null
-          campaign_ends_at: string | null
-          requires_verified_account: boolean
-          requires_first_successful_order: boolean
-          requires_no_open_disputes: boolean
-          requires_no_chargebacks: boolean
-          fraud_score_block_threshold: number
-          fraud_score_review_threshold: number
-          paused: boolean
-          updated_at: string | null
+          buyer_reward_credit: number
+          buyer_first_purchase_threshold: number
+          buyer_credit_expiry_days: number
+          buyer_reward_fee_share_percent: number
+          buyer_reward_max_payout: number
+          seller_reward_fee_share_percent: number
+          seller_reward_max_payout: number
+          creator_tier1_fee_share_percent: number
+          creator_tier1_duration_days: number
+          creator_tier1_max_payout: number
+          creator_tier2_fee_share_percent: number
+          creator_tier2_duration_days: number
+          min_profit_margin_percent: number
+          referral_hold_days: number
+          minimum_withdrawal_amount: number
+          updated_at: string
           created_at: string
         }
         Insert: {
           id?: string
-          enabled?: boolean
-          reward_amount?: number
-          required_successful_volume?: number
-          max_lifetime_commission_share_percent?: number
-          payout_delay_days?: number
-          campaign_starts_at?: string | null
-          campaign_ends_at?: string | null
-          requires_verified_account?: boolean
-          requires_first_successful_order?: boolean
-          requires_no_open_disputes?: boolean
-          requires_no_chargebacks?: boolean
-          fraud_score_block_threshold?: number
-          fraud_score_review_threshold?: number
-          paused?: boolean
-          updated_at?: string | null
+          buyer_reward_credit?: number
+          buyer_first_purchase_threshold?: number
+          buyer_credit_expiry_days?: number
+          buyer_reward_fee_share_percent?: number
+          buyer_reward_max_payout?: number
+          seller_reward_fee_share_percent?: number
+          seller_reward_max_payout?: number
+          creator_tier1_fee_share_percent?: number
+          creator_tier1_duration_days?: number
+          creator_tier1_max_payout?: number
+          creator_tier2_fee_share_percent?: number
+          creator_tier2_duration_days?: number
+          min_profit_margin_percent?: number
+          referral_hold_days?: number
+          minimum_withdrawal_amount?: number
+          updated_at?: string
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['referral_program_settings']['Insert']>
@@ -1026,8 +872,6 @@ export interface Database {
           amount: number
           is_auto_bid: boolean
           created_at: string
-          username?: string | null
-          bidder_username?: string | null
         }
         Insert: {
           id?: string
@@ -1037,7 +881,6 @@ export interface Database {
           amount: number
           is_auto_bid?: boolean
           created_at?: string
-          username?: string | null
         }
         Update: Partial<Database['public']['Tables']['live_bids']['Insert']>
       }
@@ -1086,68 +929,6 @@ export interface Database {
           created_at?: string
         }
         Update: Partial<Database['public']['Tables']['live_chat']['Insert']>
-      }
-      live_show_moderation_actions: {
-        Row: {
-          id: string
-          show_id: string
-          target_user_id: string
-          target_username: string | null
-          action_type: string
-          reason: string | null
-          active: boolean
-          moderator_id: string | null
-          metadata: Json
-          created_at: string
-          updated_at: string
-          restored_at: string | null
-          restored_by: string | null
-        }
-        Insert: {
-          id?: string
-          show_id: string
-          target_user_id: string
-          target_username?: string | null
-          action_type: string
-          reason?: string | null
-          active?: boolean
-          moderator_id?: string | null
-          metadata?: Json
-          created_at?: string
-          updated_at?: string
-          restored_at?: string | null
-          restored_by?: string | null
-        }
-        Update: Partial<Database['public']['Tables']['live_show_moderation_actions']['Insert']>
-      }
-      live_show_moderation_history: {
-        Row: {
-          id: string
-          show_id: string
-          action_id: string | null
-          actor_id: string | null
-          target_user_id: string
-          target_username: string | null
-          action_type: string
-          event_type: string
-          reason: string | null
-          details: Json
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          show_id: string
-          action_id?: string | null
-          actor_id?: string | null
-          target_user_id: string
-          target_username?: string | null
-          action_type: string
-          event_type: string
-          reason?: string | null
-          details?: Json
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['live_show_moderation_history']['Insert']>
       }
       viewers: {
         Row: {
@@ -1458,139 +1239,6 @@ export interface Database {
           recorded_at?: string
         }
         Update: Partial<Database['public']['Tables']['price_history']['Insert']>
-      }
-      card_ingestion_batches: {
-        Row: {
-          id: string
-          created_by: string
-          source: string
-          status: 'uploaded' | 'processing' | 'in_review' | 'ready' | 'partial' | 'published' | 'failed'
-          original_file_count: number
-          processed_count: number
-          draft_count: number
-          published_count: number
-          duplicate_count: number
-          error_count: number
-          notes: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          created_by: string
-          source?: string
-          status?: 'uploaded' | 'processing' | 'in_review' | 'ready' | 'partial' | 'published' | 'failed'
-          original_file_count?: number
-          processed_count?: number
-          draft_count?: number
-          published_count?: number
-          duplicate_count?: number
-          error_count?: number
-          notes?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['card_ingestion_batches']['Insert']>
-      }
-      card_ingestion_items: {
-        Row: {
-          id: string
-          batch_id: string
-          created_by: string
-          source_image_url: string
-          source_image_bucket: string
-          source_image_path: string
-          source_image_hash: string
-          status: 'uploaded' | 'processing' | 'needs_review' | 'ready_to_publish' | 'published' | 'duplicate' | 'rejected' | 'failed'
-          card_name: string | null
-          set_name: string | null
-          card_number: string | null
-          rarity: string | null
-          language: string | null
-          variant: string | null
-          category: 'single' | 'sealed' | 'graded' | 'accessory'
-          ocr_text: string | null
-          title: string | null
-          description: string | null
-          likely_condition: 'Mint' | 'Near Mint' | 'Lightly Played' | 'Moderately Played' | 'Heavily Played' | 'Damaged' | null
-          condition_confidence: number | null
-          condition_notes: string | null
-          estimated_price: number | null
-          low_price: number | null
-          high_price: number | null
-          pricing_source: string | null
-          confidence_score: number | null
-          duplicate_listing_ids: string[]
-          duplicate_summary: string[]
-          ai_payload: Json
-          review_notes: string | null
-          published_listing_id: string | null
-          error_message: string | null
-          processed_at: string | null
-          published_at: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          batch_id: string
-          created_by: string
-          source_image_url: string
-          source_image_bucket: string
-          source_image_path: string
-          source_image_hash: string
-          status?: 'uploaded' | 'processing' | 'needs_review' | 'ready_to_publish' | 'published' | 'duplicate' | 'rejected' | 'failed'
-          card_name?: string | null
-          set_name?: string | null
-          card_number?: string | null
-          rarity?: string | null
-          language?: string | null
-          variant?: string | null
-          category?: 'single' | 'sealed' | 'graded' | 'accessory'
-          ocr_text?: string | null
-          title?: string | null
-          description?: string | null
-          likely_condition?: 'Mint' | 'Near Mint' | 'Lightly Played' | 'Moderately Played' | 'Heavily Played' | 'Damaged' | null
-          condition_confidence?: number | null
-          condition_notes?: string | null
-          estimated_price?: number | null
-          low_price?: number | null
-          high_price?: number | null
-          pricing_source?: string | null
-          confidence_score?: number | null
-          duplicate_listing_ids?: string[]
-          duplicate_summary?: string[]
-          ai_payload?: Json
-          review_notes?: string | null
-          published_listing_id?: string | null
-          error_message?: string | null
-          processed_at?: string | null
-          published_at?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['card_ingestion_items']['Insert']>
-      }
-      card_ingestion_item_images: {
-        Row: {
-          id: string
-          item_id: string
-          bucket: string
-          storage_path: string
-          public_url: string
-          sort_order: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          item_id: string
-          bucket: string
-          storage_path: string
-          public_url: string
-          sort_order?: number
-          created_at?: string
-        }
-        Update: Partial<Database['public']['Tables']['card_ingestion_item_images']['Insert']>
       }
       card_library_items: {
         Row: {
@@ -2125,9 +1773,7 @@ export type LiveShowBid = {
   id: string
   show_id: string
   item_id: string
-  bidder_id: string
   username: string
-  bidder_username?: string | null
   amount: number
   created_at: string
 }

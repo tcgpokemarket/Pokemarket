@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ListingDetailClient from "./ListingDetailClient";
 import type { Listing, Profile } from "@/lib/supabase/types";
-import { getListingPrimaryImage, normalizeListingImageUrls } from "@/lib/uploads";
 
 const BASE_URL = "https://tcg-poke-market.sintra.site";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
@@ -12,9 +11,9 @@ type ListingWithSeller = Listing & {
   profiles?: Pick<Profile, "id" | "username" | "seller_rating" | "total_sales" | "avatar_url"> | null;
 };
 
-export const dynamicParams = false;
+type PublicListing = Pick<Listing, "id">;
 
-function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1) {
+function buildRestUrl(table: string, select: string, filters: Array<[string, string]> = [], limit = 1000) {
   const url = new URL(`${SUPABASE_URL}/rest/v1/${table}`);
   url.searchParams.set("select", select);
   url.searchParams.set("limit", String(limit));
@@ -39,12 +38,15 @@ async function fetchPublicRows<T>(table: string, select: string, filters: Array<
 }
 
 async function fetchListingIds() {
-  const rows = await fetchPublicRows<{ id: string }>("listings", "id", [["status", "eq.active"]], 2000);
+  const rows = await fetchPublicRows<PublicListing>("listings", "id", [["order", "created_at.desc"]], 2000);
   return rows.map((row) => ({ id: row.id }));
 }
 
+export const dynamicParams = false;
+
 export async function generateStaticParams(): Promise<Array<{ id: string }>> {
-  return fetchListingIds();
+  const rows = await fetchListingIds();
+  return rows.length ? rows : [{ id: "preview" }];
 }
 
 function formatListingTitle(listing: ListingWithSeller) {
@@ -65,18 +67,51 @@ async function getListing(id: string) {
   const rows = await fetchPublicRows<ListingWithSeller>(
     "listings",
     "*,profiles:profiles!seller_id(id,username,seller_rating,total_sales,avatar_url)",
-    [["id", `eq.${id}`], ["status", "eq.active"]],
+    [["id", `eq.${id}`]],
   );
   return rows[0] ?? null;
 }
 
-
+function getPreviewListing(): ListingWithSeller {
+  return {
+    id: "preview",
+    seller_id: "preview-seller",
+    card_name: "Sample Pokémon Card",
+    set_name: "Preview Set",
+    card_number: "001",
+    rarity: "Rare",
+    condition: "Near Mint",
+    grade_company: null,
+    grade_score: null,
+    price: 0,
+    quantity: 1,
+    images: [],
+    description: "This preview page keeps the route exportable while the real marketplace listings load from Supabase.",
+    shipping_profile_id: null,
+    shipping_paid_by: null,
+    weight_oz: null,
+    package_type: null,
+    category: "single",
+    status: "active",
+    views: 0,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    profiles: null,
+  };
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
-  const listing = await getListing(id);
+  const listing = (await getListing(id)) ?? getPreviewListing();
 
-  if (!listing) {
+  if (id === "preview") {
+    return {
+      title: "Preview listing",
+      description: "Sample listing data used to keep the export route available.",
+    };
+  }
+
+  if (listing.id === "preview") {
     return {
       title: "Listing not found",
       description: "This Pokémon card listing is no longer available.",
@@ -86,7 +121,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const title = formatListingTitle(listing);
   const description = buildDescription(listing);
   const canonical = `${BASE_URL}/listings/${listing.id}`;
-  const image = getListingPrimaryImage(listing.images ?? []) ?? `${BASE_URL}/og/listing-default.png`;
+  const image = listing.images?.[0] ?? `${BASE_URL}/og/listing-default.png`;
 
   return {
     title,
@@ -110,10 +145,19 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function ListingDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const listing = await getListing(id);
+  const listing = (await getListing(id)) ?? getPreviewListing();
 
-  if (!listing) {
-    notFound();
+  if (listing.id === "preview") {
+    return (
+      <div className="min-h-screen bg-[#0f0f1a] text-white">
+        <div className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center px-4 text-center">
+          <div className="mb-4 text-6xl">🃏</div>
+          <h1 className="text-3xl font-black">Listing not found</h1>
+          <p className="mt-3 text-gray-400">The live listing feed is currently empty, so this route uses a safe placeholder until real marketplace records are available.</p>
+          <a href="/listings" className="mt-6 rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">Back to listings</a>
+        </div>
+      </div>
+    );
   }
 
 
@@ -121,14 +165,14 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   const title = formatListingTitle(listing);
   const description = buildDescription(listing);
   const canonical = `${BASE_URL}/listings/${listing.id}`;
-  const image = getListingPrimaryImage(listing.images ?? []) ?? `${BASE_URL}/og/listing-default.png`;
+  const image = listing.images?.[0] ?? `${BASE_URL}/og/listing-default.png`;
 
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "Product",
     name: title,
     description,
-    image: normalizeListingImageUrls(listing.images ?? []).length ? normalizeListingImageUrls(listing.images ?? []) : [image],
+    image: listing.images?.length ? listing.images : [image],
     sku: listing.card_number ?? listing.id,
     brand: {
       "@type": "Brand",
@@ -154,7 +198,7 @@ export default async function ListingDetailPage({ params }: { params: Promise<{ 
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <ListingDetailClient key={listing.id} id={listing.id} initialListing={listing} />
+      <ListingDetailClient id={listing.id} initialListing={listing} />
     </>
   );
 }

@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getAppRole } from "@/lib/security";
+import type { Database } from "@/lib/supabase/types";
+
 
 const STEP_TITLES = ["Account", "Type", "Profile", "Review"] as const;
 
@@ -21,8 +24,25 @@ type FormState = {
 
 type FieldErrors = Partial<Record<keyof FormState, string>> & { auth?: string; submit?: string };
 
+function GoogleIcon() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5">
+      <path fill="#EA4335" d="M12 9.5v5h6.9c-.3 1.8-2 5.3-6.9 5.3A7.8 7.8 0 1 1 12 4.2c2.2 0 3.7.9 4.6 1.8l3.1-3A11.8 11.8 0 0 0 12 0C5.4 0 .1 5.4.1 12S5.4 24 12 24c6.8 0 11.3-4.7 11.3-11.3 0-.8-.1-1.4-.2-2H12Z" />
+      <path fill="#4285F4" d="M23.3 12.7c0-.7-.1-1.3-.2-2H12v4.1h6.3c-.3 1.5-1.1 2.9-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.7Z" />
+      <path fill="#FBBC05" d="m5.6 14.3-.8.6-3 2.4A12 12 0 0 0 12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4Z" />
+      <path fill="#34A853" d="M12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4l-3.3 2.5C2.7 20.7 7 24 12 24Z" />
+    </svg>
+  );
+}
+
 function Spinner() {
   return <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />;
+}
+
+function getSafeRedirect(value: string | null) {
+  if (!value || !value.startsWith("/")) return "/dashboard";
+  if (value.startsWith("/auth")) return "/dashboard";
+  return value;
 }
 
 function getPasswordStrength(password: string) {
@@ -57,12 +77,14 @@ function SpinnerButton({ label }: { label: string }) {
 }
 
 export default function SignupWizard() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const referralCode = useMemo(() => searchParams.get("ref") ?? searchParams.get("referral_code") ?? "", [searchParams]);
+  const redirectTo = useMemo(() => getSafeRedirect(searchParams.get("redirectTo")), [searchParams]);
   const [step, setStep] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
-  const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [progress, setProgress] = useState("Ready to create your account");
   const [form, setForm] = useState<FormState>(() => ({
@@ -76,7 +98,6 @@ export default function SignupWizard() {
     agreeToTerms: false,
   }));
 
-
   const referralSource = useMemo(() => referralCode, [referralCode]);
 
   useEffect(() => {
@@ -85,6 +106,13 @@ export default function SignupWizard() {
       setForm((current) => (current.referralCode === referralSource ? current : { ...current, referralCode: referralSource }));
     });
   }, [form.referralCode, referralSource]);
+
+  useEffect(() => {
+    const client = createClient();
+    client.auth.getUser().then(({ data: { user } }) => {
+      if (user) router.replace(redirectTo);
+    });
+  }, [redirectTo, router]);
 
   const passwordStrength = useMemo(() => getPasswordStrength(form.password), [form.password]);
   const strength = getStrengthLabel(passwordStrength);
@@ -105,14 +133,18 @@ export default function SignupWizard() {
       else if (form.password.length < 8) errors.password = "Use at least 8 characters.";
     }
 
-    if (currentStep === 1 && !form.accountType) errors.accountType = "Choose buyer or seller.";
+    if (currentStep === 1 && !form.accountType) {
+      errors.accountType = "Choose buyer or seller.";
+    }
 
     if (currentStep === 2) {
       if (!form.username.trim()) errors.username = "Choose a username.";
       if (form.accountType === "seller" && !form.sellerState.trim()) errors.sellerState = "Enter your two-letter state code.";
     }
 
-    if (currentStep === 3 && !form.agreeToTerms) errors.agreeToTerms = "You must agree to continue.";
+    if (currentStep === 3 && !form.agreeToTerms) {
+      errors.agreeToTerms = "You must agree to continue.";
+    }
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -124,8 +156,30 @@ export default function SignupWizard() {
 
   const previousStep = () => setStep((current) => Math.max(current - 1, 0));
 
+  const handleGoogleSignIn = async () => {
+    setFieldErrors({});
+    setGoogleLoading(true);
+    setProgress("Connecting Google account...");
+
+    try {
+      const client = createClient();
+      const { error } = await client.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+          queryParams: { prompt: "select_account" },
+        },
+      });
+      if (error) throw error;
+    } catch (error) {
+      setFieldErrors({ auth: error instanceof Error ? error.message : "Google sign-in failed. Please try again." });
+      setGoogleLoading(false);
+      setProgress("Ready to create your account");
+    }
+  };
+
   const completeSignup = async () => {
-    if (!validateStep(0) || !validateStep(1) || !validateStep(2) || !validateStep(3)) return;
+    if (!validateStep(0) || !validateStep(1) || !validateStep(2)) return;
     setSubmitting(true);
     setFieldErrors({});
     setProgress("Creating your account...");
@@ -152,28 +206,102 @@ export default function SignupWizard() {
       if (!user) throw new Error("Account created, but we could not finish signing you in.");
 
       const username = normalizeUsername(form.username || form.fullName || form.email.split("@")[0]);
-      const provision = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fullName: form.fullName.trim(),
+      const { data: sessionData } = await client.auth.getSession();
+      const currentUser = sessionData.session?.user ?? result.data.user;
+
+      if (!currentUser) throw new Error("We could not finish setting up your account.");
+
+      const role = form.accountType === "seller" ? "seller" : "buyer";
+      const storeSlug = username;
+
+      const profileWrites = [
+        (client.from("profiles") as any).upsert({
+          id: currentUser.id,
           username,
-          accountType: form.accountType,
-          sellerState: form.accountType === "seller" ? form.sellerState.trim().toUpperCase() : null,
-          referralCode: form.referralCode.trim(),
-          avatarUrl: null,
-          shippingAddress: null,
-        }),
+          full_name: form.fullName.trim(),
+          seller_state: form.accountType === "seller" ? form.sellerState.trim().toUpperCase() : null,
+          is_seller: form.accountType === "seller",
+          seller_rating: 0,
+          total_sales: 0,
+          referral_code: form.referralCode.trim() || null,
+        }, { onConflict: "id" }),
+        (client.from("profile_privacy_settings") as any).upsert({
+          user_id: currentUser.id,
+          who_can_follow: "everyone",
+          who_can_friend_request: "everyone",
+          profile_visibility: "public",
+          collection_visibility: "public",
+          activity_visibility: "public",
+          message_visibility: "everyone",
+        }, { onConflict: "user_id" }),
+        (client.from("email_preferences") as any).upsert([
+          { user_id: currentUser.id, notification_type: "order_confirmation", enabled: true },
+          { user_id: currentUser.id, notification_type: "shipping_update", enabled: true },
+          { user_id: currentUser.id, notification_type: "delivery_confirmation", enabled: true },
+          { user_id: currentUser.id, notification_type: "login_alert", enabled: true },
+        ], { onConflict: "user_id,notification_type" }),
+      ];
+
+      if (form.accountType === "seller") {
+        profileWrites.push(
+          (client.from("sellers") as any).upsert({
+            id: currentUser.id,
+            display_name: form.fullName.trim(),
+            storefront_slug: storeSlug,
+            bio: null,
+            avatar_url: null,
+            banner_url: null,
+            verified: false,
+            rating: 0,
+            follower_count: 0,
+            sales_count: 0,
+            total_revenue: 0,
+            total_listings: 0,
+            total_live_shows: 0,
+          }, { onConflict: "id" }),
+          (client.from("seller_wallets") as any).upsert({
+            seller_id: currentUser.id,
+            available_balance: 0,
+            pending_balance: 0,
+            frozen_balance: 0,
+            lifetime_earnings: 0,
+            completed_orders_count: 0,
+            instant_payout_enabled: false,
+            fraud_flag: false,
+            fraud_risk_score: 0,
+            manual_review_required: false,
+          }, { onConflict: "seller_id" }),
+          (client.from("seller_stores") as any).upsert({
+            seller_id: currentUser.id,
+            name: form.fullName.trim(),
+            slug: storeSlug,
+            description: null,
+            banner_url: null,
+            logo_url: null,
+            theme: null,
+            verified: false,
+            featured: false,
+          }, { onConflict: "seller_id" }),
+        );
+      }
+
+      const results = await Promise.all(profileWrites);
+      const firstError = results.find((entry) => entry.error);
+      if (firstError?.error) throw firstError.error;
+
+      await client.auth.updateUser({
+        data: {
+          role,
+          username,
+          full_name: form.fullName.trim(),
+          seller_state: form.accountType === "seller" ? form.sellerState.trim().toUpperCase() : null,
+          referral_code: form.referralCode.trim() || null,
+        },
       });
 
-      const provisionData = await provision.json().catch(() => ({}));
-      if (!provision.ok) throw new Error(provisionData.error ?? "We could not finish setting up your account.");
-
-      const authResult = await client.auth.signInWithPassword({ email: form.email.trim(), password: form.password });
-      if (authResult.error) throw authResult.error;
+      router.replace(form.accountType === "seller" ? "/sell" : "/dashboard");
 
       setProgress(`Account created successfully. Redirecting to your ${form.accountType === "seller" ? "seller" : "buyer"} dashboard...`);
-      router.replace(form.accountType === "seller" ? "/sell" : "/");
     } catch (error) {
       setFieldErrors({ submit: error instanceof Error ? error.message : "We could not create your account right now." });
       setSubmitting(false);
@@ -196,20 +324,17 @@ export default function SignupWizard() {
           </a>
 
           <div className="inline-flex rounded-full border border-yellow-400/20 bg-yellow-400/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.32em] text-yellow-400">
-            Premium marketplace signup
+            Create account
           </div>
 
           <div className="max-w-2xl space-y-4">
             <h1 className="text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
-              Join the Pokémon marketplace built for buyers and sellers.
+              Create an account.
             </h1>
-            <p className="max-w-xl text-base leading-7 text-gray-300 sm:text-lg">
-              Create your account in a fast, mobile-first flow with clear validation, referral support, and the right dashboard waiting when you finish.
-            </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            {["Email signup", "Buyer and seller paths", "Referral codes preserved", "Accessible and responsive"].map((item) => (
+            {["Email or Google", "Buyer and seller", "Referral code", "Mobile friendly"].map((item) => (
               <div key={item} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm text-gray-300 backdrop-blur">
                 {item}
               </div>
@@ -219,10 +344,10 @@ export default function SignupWizard() {
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/20 backdrop-blur">
             <div className="flex items-center gap-3 text-sm font-semibold text-yellow-400">
               <span className="flex h-8 w-8 items-center justify-center rounded-full bg-yellow-400/15 text-base">★</span>
-              Trusted collector marketplace
+              Account setup
             </div>
             <p className="mt-3 text-sm leading-6 text-gray-300">
-              We keep the signup experience clean while preserving everything behind the scenes — account roles, referrals, wallets, and seller onboarding.
+              Complete the form below.
             </p>
           </div>
         </div>
@@ -236,7 +361,7 @@ export default function SignupWizard() {
             </div>
             <div className="text-right text-xs text-gray-400">
               <div>{step + 1} / {STEP_TITLES.length}</div>
-              <div className="mt-1 flex justify-end gap-1">
+              <div className="mt-1 flex gap-1 justify-end">
                 {STEP_TITLES.map((title, index) => (
                   <span key={title} className={`h-2 w-6 rounded-full ${step === index ? "bg-yellow-400" : stepComplete(index) ? "bg-emerald-400" : "bg-white/10"}`} />
                 ))}
@@ -252,9 +377,19 @@ export default function SignupWizard() {
             ))}
           </div>
 
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            disabled={submitting || googleLoading}
+            className="mb-5 flex w-full items-center justify-center gap-3 rounded-2xl bg-white px-4 py-3 font-bold text-black transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {googleLoading ? <Spinner /> : <GoogleIcon />}
+            Continue with Google
+          </button>
+
           <div className="mb-5 flex items-center gap-3 text-xs uppercase tracking-[0.3em] text-gray-500">
             <span className="h-px flex-1 bg-white/10" />
-            <span>Email signup</span>
+            <span>or email</span>
             <span className="h-px flex-1 bg-white/10" />
           </div>
 
@@ -270,9 +405,9 @@ export default function SignupWizard() {
                     type="text"
                     value={form.fullName}
                     onChange={(e) => setValue("fullName", e.target.value)}
-                    placeholder="Your full name"
+                    placeholder="Ash Ketchum"
                     autoComplete="name"
-                    disabled={submitting}
+                    disabled={submitting || googleLoading}
                     aria-invalid={Boolean(fieldErrors.fullName)}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                   />
@@ -283,14 +418,11 @@ export default function SignupWizard() {
                   Email
                   <input
                     type="email"
-                    inputMode="email"
-                    autoCapitalize="none"
-                    autoCorrect="off"
                     value={form.email}
                     onChange={(e) => setValue("email", e.target.value)}
                     placeholder="you@example.com"
                     autoComplete="email"
-                    disabled={submitting}
+                    disabled={submitting || googleLoading}
                     aria-invalid={Boolean(fieldErrors.email)}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                   />
@@ -306,8 +438,7 @@ export default function SignupWizard() {
                       onChange={(e) => setValue("password", e.target.value)}
                       placeholder="Create a strong password"
                       autoComplete="new-password"
-                      enterKeyHint="next"
-                      disabled={submitting}
+                      disabled={submitting || googleLoading}
                       aria-invalid={Boolean(fieldErrors.password)}
                       className="w-full rounded-2xl bg-transparent px-4 py-3 text-white outline-none placeholder:text-gray-500"
                     />
@@ -331,7 +462,7 @@ export default function SignupWizard() {
 
             {step === 1 && (
               <div className="space-y-3">
-                <div className="text-sm text-gray-300">Choose how you want to use the marketplace.</div>
+                <div className="text-sm text-gray-300">Choose account type.</div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {(["buyer", "seller"] as AccountType[]).map((type) => (
                     <button
@@ -341,11 +472,6 @@ export default function SignupWizard() {
                       className={`rounded-3xl border p-5 text-left transition ${form.accountType === type ? "border-yellow-400/50 bg-yellow-400/10" : "border-white/10 bg-white/5 hover:border-white/20"}`}
                     >
                       <div className="text-lg font-bold text-white">{type === "buyer" ? "Buyer" : "Seller"}</div>
-                      <p className="mt-2 text-sm text-gray-300">
-                        {type === "buyer"
-                          ? "Browse, buy, and track your collection with a fast checkout flow."
-                          : "List cards, manage inventory, and unlock seller tools after verification."}
-                      </p>
                     </button>
                   ))}
                 </div>
@@ -363,8 +489,7 @@ export default function SignupWizard() {
                     onChange={(e) => setValue("username", normalizeUsername(e.target.value))}
                     placeholder="ash-ketchum"
                     autoComplete="username"
-                    enterKeyHint="next"
-                    disabled={submitting}
+                    disabled={submitting || googleLoading}
                     aria-invalid={Boolean(fieldErrors.username)}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                   />
@@ -378,8 +503,7 @@ export default function SignupWizard() {
                     value={form.referralCode}
                     onChange={(e) => setValue("referralCode", e.target.value.toUpperCase())}
                     placeholder="Optional"
-                    enterKeyHint="next"
-                    disabled={submitting}
+                    disabled={submitting || googleLoading}
                     className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                   />
                 </label>
@@ -394,12 +518,10 @@ export default function SignupWizard() {
                       placeholder="CA"
                       maxLength={2}
                       autoComplete="address-level1"
-                      enterKeyHint="done"
-                      disabled={submitting}
+                      disabled={submitting || googleLoading}
                       aria-invalid={Boolean(fieldErrors.sellerState)}
                       className="mt-2 w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
                     />
-                    <span className="mt-1 block text-xs text-gray-500">Used for seller tax rules and onboarding.</span>
                     {fieldErrors.sellerState && <span className="mt-1 block text-xs text-red-300">{fieldErrors.sellerState}</span>}
                   </label>
                 )}
@@ -434,7 +556,7 @@ export default function SignupWizard() {
 
             <div className="flex items-center gap-3 pt-2">
               {step > 0 ? (
-                <button type="button" onClick={previousStep} disabled={submitting} className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/5 disabled:opacity-50">
+                <button type="button" onClick={previousStep} disabled={submitting || googleLoading} className="rounded-2xl border border-white/10 px-4 py-3 text-sm font-semibold text-gray-200 transition hover:bg-white/5 disabled:opacity-50">
                   Back
                 </button>
               ) : (
@@ -443,7 +565,7 @@ export default function SignupWizard() {
 
               <button
                 type="submit"
-                disabled={submitting || !canContinue}
+                disabled={submitting || googleLoading || !canContinue}
                 className="flex-1 rounded-2xl bg-gradient-to-r from-[#e22400] to-[#ffab01] px-4 py-3 font-bold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting ? <SpinnerButton label="Creating account..." /> : step === STEP_TITLES.length - 1 ? "Create account" : "Continue"}

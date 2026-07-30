@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Sign in",
-  description: "Access your TCG Poke Market account.",
+  title: "Account",
+  description: "Sign in or create an account.",
   robots: {
     index: false,
     follow: false,

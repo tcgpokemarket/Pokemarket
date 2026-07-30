@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Browse Pokémon TCG Listings",
-  description:
-    "Shop thousands of Pokémon TCG singles, sealed booster boxes, graded PSA/BGS/CGC cards, and accessories. Filter by set, condition, price, and rarity.",
+  title: "Listings",
+  description: "Browse and filter listings.",
   keywords: [
     "buy Pokémon cards online",
     "Pokémon singles for sale",

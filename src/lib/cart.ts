@@ -1,5 +1,4 @@
 import type { Listing } from "@/lib/supabase/types";
-import { getListingPrimaryImage } from "@/lib/uploads";
 
 export type CartItem = {
   listingId: string;
@@ -24,6 +23,6 @@ export function toCartItem(listing: Pick<Listing, "id" | "card_name" | "price" |
     quantity,
     title: listing.card_name,
     price: listing.price,
-    image: getListingPrimaryImage(listing.images ?? []) ?? null,
+    image: listing.images?.[0] ?? null,
   };
 }

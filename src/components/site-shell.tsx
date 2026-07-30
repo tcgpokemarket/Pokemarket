@@ -6,44 +6,44 @@ import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const primaryNav = [
-  { label: "Home", href: "/" },
-  { label: "Browse", href: "/listings" },
-  { label: "Live", href: "/live" },
-  { label: "Sell", href: "/sell" },
-  { label: "Scan", href: "/sell/scan" },
-  { label: "Wallet", href: "/dashboard?tab=overview" },
-  { label: "Messages", href: "/messages" },
-  { label: "Collection", href: "/collection" },
-  { label: "Cards", href: "/cards" },
-  { label: "Community", href: "/social" },
-  { label: "Events", href: "/giveaway-rules" },
-  { label: "Help", href: "/help" },
+  { label: "Home", href: "/", icon: "⌂" },
+  { label: "Browse", href: "/listings", icon: "⌘" },
+  { label: "Live", href: "/live", icon: "◎" },
+  { label: "Sell", href: "/sell", icon: "+" },
+  { label: "Wallet", href: "/dashboard?tab=overview", icon: "$" },
+  { label: "Messages", href: "/messages", icon: "✉" },
 ] as const;
 
 const userNav = [
   { label: "Profile", href: "/dashboard" },
-  { label: "Listings", href: "/dashboard?tab=listings" },
-  { label: "Purchases", href: "/dashboard?tab=purchases" },
-  { label: "Sales", href: "/dashboard?tab=sales" },
+  { label: "My Listings", href: "/dashboard?tab=listings" },
+  { label: "My Purchases", href: "/dashboard?tab=purchases" },
+  { label: "My Sales", href: "/dashboard?tab=sales" },
   { label: "Watchlist", href: "/collection?filter=watchlist" },
-  { label: "Saved searches", href: "/collection?saved=1" },
+  { label: "Saved Searches", href: "/collection?saved=1" },
+  { label: "Orders", href: "/dashboard?tab=purchases" },
   { label: "Payouts", href: "/dashboard?tab=fees" },
-  { label: "Verification", href: "/sell/verification" },
+  { label: "Settings", href: "/dashboard" },
+  { label: "Identity Verification", href: "/sell/verification" },
 ] as const;
 
+const quickLinks = [
+  { label: "Browse listings", href: "/listings" },
+  { label: "Live auctions", href: "/live" },
+  { label: "Card lookup", href: "/cards" },
+  { label: "Card library", href: "/collection" },
+] as const;
 
 const routeLabels: Record<string, string> = {
   "/": "Home",
   "/listings": "Browse",
-  "/live": "Live Auctions",
-  "/collection": "Marketplace",
-  "/cards": "Categories",
+  "/live": "Live",
+  "/collection": "Card library",
+  "/cards": "Card lookup",
   "/sell": "Sell",
-  "/sell/scan": "Scan Card",
   "/dashboard": "Wallet",
   "/messages": "Messages",
   "/social": "Community",
-  "/giveaway-rules": "Events",
   "/help": "Help Center",
   "/support": "Help Center",
   "/profile": "Profile",
@@ -73,13 +73,6 @@ function navClass(active: boolean) {
   ].join(" ");
 }
 
-function mobileNavClass(active: boolean) {
-  return [
-    "rounded-2xl border px-4 py-3 text-sm font-semibold transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/60",
-    active ? "border-yellow-400/40 bg-yellow-400/10 text-yellow-300" : "border-white/10 bg-white/5 text-gray-200 hover:border-white/20 hover:bg-white/10",
-  ].join(" ");
-}
-
 function isActiveLink(pathname: string, searchParams: URLSearchParams, href: string) {
   const [targetPath, query = ""] = href.split("?");
   if (pathname !== targetPath && !pathname.startsWith(`${targetPath}/`)) return false;
@@ -94,12 +87,11 @@ function isActiveLink(pathname: string, searchParams: URLSearchParams, href: str
 function getBreadcrumbs(pathname: string) {
   if (pathname === "/") return [];
   if (pathname.startsWith("/listings/")) return ["Home", "Browse", "Listing"];
-  if (pathname.startsWith("/live/")) return ["Home", "Live Auctions", "Live Room"];
+  if (pathname.startsWith("/live/")) return ["Home", "Live", "Room"];
   if (pathname.startsWith("/messages/")) return ["Home", "Messages", "Conversation"];
   if (pathname.startsWith("/profile/")) return ["Home", "Community", "Profile"];
   if (pathname.startsWith("/sellers/")) return ["Home", "Community", "Seller Store"];
   if (pathname.startsWith("/dashboard/fees")) return ["Home", "Wallet", "Fees"];
-  if (pathname.startsWith("/sell/scan")) return ["Home", "Sell", "Scan Card"];
   const base = `/${pathname.split("/")[1]}`;
   const label = routeLabels[base] ?? "Page";
   return ["Home", label];
@@ -158,15 +150,6 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
   }, [pathname, searchParams]);
 
   const breadcrumbs = useMemo(() => getBreadcrumbs(pathname), [pathname]);
-  const authRedirect = useMemo(() => `${pathname}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`, [pathname, searchParams]);
-  const showQuickActions = pathname !== "/auth" && pathname !== "/auth/signin";
-  const isSellArea = pathname.startsWith("/sell");
-  const mobileQuickLinks = [
-    { label: "Browse", href: "/listings" },
-    { label: "Sell", href: "/sell" },
-    { label: "Wallet", href: "/dashboard?tab=overview" },
-    { label: "Messages", href: "/messages" },
-  ] as const;
 
   const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -178,54 +161,41 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
 
   const handleSignOut = async () => {
     const client = createClient();
-    await client.auth.signOut({ scope: "global" });
+    await client.auth.signOut();
     setSignedIn(false);
-    setAvatarUrl(null);
-    setName(null);
-    setNotifications(0);
-    setMessages(0);
     setAccountOpen(false);
     setOpen(false);
-    router.replace("/auth?message=logged_out");
+    router.push("/auth");
   };
 
   return (
-    <div className="min-h-screen bg-[#0f0f1a] text-white">
+    <div className="min-h-screen bg-[#09090f] text-white">
       <header className="sticky top-0 z-50 border-b border-white/10 bg-[#0f0f1a]/95 backdrop-blur-xl">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center gap-3">
+          <div className="flex min-h-16 items-center gap-3 py-3 lg:h-16 lg:py-0">
             <Link href="/" className="flex items-center gap-2 text-lg font-black tracking-tight">
-              <span className="text-2xl">⚡</span>
-              <span className="text-white">TCG</span><span className="text-yellow-400">Poke</span><span className="text-white">Market</span>
+              <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-[#e22400] to-[#ffab01] text-xs font-black text-black shadow-lg shadow-black/30">TCG</span>
+              <span className="hidden sm:inline">Poke</span>
+              <span className="text-yellow-400">Market</span>
             </Link>
 
-            <form onSubmit={handleSearch} className="hidden flex-1 items-center gap-2 px-6 xl:flex">
+            <form onSubmit={handleSearch} className="hidden flex-1 items-center gap-2 px-4 xl:flex">
               <label className="sr-only" htmlFor="site-search">Search</label>
               <input
                 id="site-search"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search cards, sellers, auctions, orders"
-                className="w-full rounded-full border border-white/10 bg-white/5 px-4 py-2 text-sm text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/50"
+                className="w-full rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/50"
               />
             </form>
 
             <div className="ml-auto hidden items-center gap-2 lg:flex">
-              {showQuickActions && (
-                <>
-                  <Link href="/listings" className="rounded-full border border-white/10 px-3 py-2 text-sm text-gray-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white">
-                    Browse
-                  </Link>
-                  <Link href="/sell" className="rounded-full border border-yellow-400/30 bg-yellow-400/10 px-3 py-2 text-sm font-semibold text-yellow-300 transition hover:bg-yellow-400/20">
-                    Sell
-                  </Link>
-                </>
-              )}
               <Link href="/messages" className="relative rounded-full border border-white/10 px-3 py-2 text-sm text-gray-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white">
                 Messages{badgeCount(messages) ? <span className="ml-2 rounded-full bg-yellow-400 px-2 py-0.5 text-[11px] font-black text-black">{badgeCount(messages)}</span> : null}
               </Link>
               <Link href="/dashboard" className="relative rounded-full border border-white/10 px-3 py-2 text-sm text-gray-300 transition hover:border-white/20 hover:bg-white/5 hover:text-white">
-                Wallet{badgeCount(notifications) ? <span className="ml-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[11px] font-black text-black">{badgeCount(notifications)}</span> : null}
+                Notifications{badgeCount(notifications) ? <span className="ml-2 rounded-full bg-emerald-400 px-2 py-0.5 text-[11px] font-black text-black">{badgeCount(notifications)}</span> : null}
               </Link>
               {signedIn ? (
                 <div className="relative">
@@ -264,8 +234,8 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <Link href={`/auth/signin?redirectTo=${encodeURIComponent(authRedirect)}`} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Login</Link>
-                  <Link href={`/auth?redirectTo=${encodeURIComponent(authRedirect)}`} className="rounded-full bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">Sign Up</Link>
+                  <Link href="/auth/signin" className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/5">Login</Link>
+                  <Link href="/auth" className="rounded-full bg-yellow-400 px-4 py-2 text-sm font-bold text-black transition hover:bg-yellow-300">Sign Up</Link>
                 </div>
               )}
               <button
@@ -287,35 +257,19 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </div>
-
-          {showQuickActions && (
-            <div className="grid gap-2 border-t border-white/10 py-3 sm:grid-cols-2 lg:hidden">
-              {mobileQuickLinks.map((item) => (
-                <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={mobileNavClass(isActiveLink(pathname, searchParams, item.href))}>
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
       </header>
 
       {breadcrumbs.length > 0 && (
         <div className="border-b border-white/5 bg-white/[0.02] px-4 py-3">
-          <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
-            <div>
-              <span className="text-gray-500">Home</span>
-              {breadcrumbs.slice(1).map((crumb) => (
-                <span key={crumb}>
-                  <span className="mx-2 text-gray-600">/</span>
-                  <span className="text-gray-300">{crumb}</span>
-                </span>
-              ))}
-            </div>
-            <div className="hidden items-center gap-2 sm:flex">
-              <span className="rounded-full border border-yellow-400/20 bg-yellow-400/10 px-3 py-1 text-[10px] tracking-[0.25em] text-yellow-300">Collector-first</span>
-              {isSellArea && <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] tracking-[0.25em] text-gray-300">Sell flow</span>}
-            </div>
+          <div className="mx-auto max-w-7xl text-xs font-semibold uppercase tracking-[0.25em] text-gray-400">
+            <span className="text-gray-500">Home</span>
+            {breadcrumbs.slice(1).map((crumb) => (
+              <span key={crumb}>
+                <span className="mx-2 text-gray-600">/</span>
+                <span className="text-gray-300">{crumb}</span>
+              </span>
+            ))}
           </div>
         </div>
       )}
@@ -337,40 +291,34 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
               className="w-full rounded-xl border border-white/10 bg-black/20 px-4 py-3 text-sm outline-none"
             />
           </form>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            {quickLinks.map((item) => (
+              <Link key={item.href} href={item.href} onClick={() => setOpen(false)} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-4 text-sm font-semibold text-white transition hover:border-yellow-400/40 hover:bg-yellow-400/10">
+                {item.label}
+              </Link>
+            ))}
+          </div>
           <nav className="mt-6 space-y-6">
             <div>
               <div className="mb-2 text-xs uppercase tracking-[0.25em] text-gray-500">Primary</div>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 {primaryNav.map((item) => (
-                  <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={mobileNavClass(isActiveLink(pathname, searchParams, item.href))}>
-                    {item.label}
+                  <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={navClass(isActiveLink(pathname, searchParams, item.href))}>
+                    {item.icon} {item.label}
                   </Link>
                 ))}
               </div>
             </div>
-            {showQuickActions && (
-              <div>
-                <div className="mb-2 text-xs uppercase tracking-[0.25em] text-gray-500">Quick actions</div>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Link href="/sell/scan" scroll={false} onClick={() => setOpen(false)} className="rounded-2xl border border-yellow-400/30 bg-yellow-400/10 px-3 py-3 text-center text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/20">
-                    Scan Card
-                  </Link>
-                  <Link href="/listings/create" scroll={false} onClick={() => setOpen(false)} className="rounded-2xl bg-yellow-400 px-3 py-3 text-center text-sm font-bold text-black transition hover:bg-yellow-300">
-                    New Listing
-                  </Link>
-                </div>
-              </div>
-            )}
             <div>
               <div className="mb-2 text-xs uppercase tracking-[0.25em] text-gray-500">Account</div>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2">
                 {(signedIn ? userNav : [{ label: "Login", href: "/auth/signin" }, { label: "Sign Up", href: "/auth" }]).map((item) => (
-                  <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={mobileNavClass(isActiveLink(pathname, searchParams, item.href))}>
+                  <Link key={item.href} href={item.href} scroll={false} onClick={() => setOpen(false)} className={navClass(isActiveLink(pathname, searchParams, item.href))}>
                     {item.label}
                   </Link>
                 ))}
                 {signedIn && (
-                  <button type="button" onClick={handleSignOut} className={mobileNavClass(false) + " text-left"}>
+                  <button type="button" onClick={handleSignOut} className={navClass(false) + " text-left"}>
                     Logout
                   </button>
                 )}
@@ -380,7 +328,26 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
         </aside>
       </div>
 
-      <main>{children}</main>
+      <main className="pb-20 lg:pb-0">{children}</main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-[#0f0f1a]/95 px-2 py-2 backdrop-blur-xl lg:hidden">
+        <div className="mx-auto grid max-w-6xl grid-cols-6 gap-1">
+          {primaryNav.map((item) => {
+            const active = isActiveLink(pathname, searchParams, item.href);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                scroll={false}
+                className={`flex flex-col items-center justify-center gap-1 rounded-2xl px-2 py-2 text-[11px] font-semibold transition ${active ? "bg-yellow-400 text-black" : "text-gray-400 hover:bg-white/5 hover:text-white"}`}
+              >
+                <span className="text-sm">{item.icon}</span>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }

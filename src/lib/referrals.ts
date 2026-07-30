@@ -1,6 +1,4 @@
 import type { Order, SellerWallet } from "@/lib/supabase/types";
-import { calculateReferralSettlementDecision, calculateCommissionCap, getDefaultReferralSettlementSettings, normalizeReferralSettlementSettings, type ReferralSettlementSettings } from "./referral-settlement";
-import type { ReferralProgramSettings as ReferralProgramSettingsShape, ReferralSettlementSummary, ReferralFraudSnapshot } from "./referral-types";
 
 export type ReferralProgramType = "buyer" | "seller" | "creator" | "tiered";
 
@@ -27,11 +25,17 @@ export type ReferralOwnership = {
   firstTransactionAt: string | null;
   totalRevenueGenerated: number;
   totalRewardsEarned: number;
-  totalCommissionGenerated: number;
   status: "pending" | "held" | "available" | "paid" | "rejected" | "adjusted";
 };
 
-export type ReferralFraudSignals = ReferralFraudSnapshot;
+export type ReferralFraudSignals = {
+  sameDevice: boolean;
+  samePaymentMethod: boolean;
+  sameAddress: boolean;
+  sameIpPatterns: boolean;
+  selfReferral: boolean;
+  fakeTransaction: boolean;
+};
 
 export type ReferralRewardCandidate = {
   orderId: string;
@@ -55,9 +59,34 @@ export type ReferralRewardDecision = {
   reason: string | null;
 };
 
-export type ReferralProgramSettings = ReferralProgramSettingsShape;
+type ReferralProgramSettings = {
+  id: string;
+  buyer_reward_credit: number;
+  buyer_first_purchase_threshold: number;
+  buyer_credit_expiry_days: number;
+  buyer_reward_fee_share_percent: number;
+  buyer_reward_max_payout: number;
+  seller_reward_fee_share_percent: number;
+  seller_reward_max_payout: number;
+  creator_tier1_fee_share_percent: number;
+  creator_tier1_duration_days: number;
+  creator_tier1_max_payout: number;
+  creator_tier2_fee_share_percent: number;
+  creator_tier2_duration_days: number;
+  creator_tier2_max_payout: number;
+  min_profit_margin_percent: number;
+  referral_hold_days: number;
+  minimum_withdrawal_amount: number;
+  created_at: string;
+  updated_at: string;
+};
 
-export type ReferralAttribution = {
+type ReferralProgram = {
+  id: string;
+  code: string;
+};
+
+type ReferralAttribution = {
   id: string;
   referral_code: string;
   signup_source: string;
@@ -79,7 +108,27 @@ export type ReferralAttribution = {
   updated_at: string;
 };
 
-const DEFAULT_SETTINGS: ReferralProgramSettings = getDefaultReferralSettlementSettings() as ReferralProgramSettings;
+const DEFAULT_SETTINGS: ReferralProgramSettings = {
+  id: "default",
+  buyer_reward_credit: 5,
+  buyer_first_purchase_threshold: 25,
+  buyer_credit_expiry_days: 90,
+  buyer_reward_fee_share_percent: 10,
+  buyer_reward_max_payout: 50,
+  seller_reward_fee_share_percent: 15,
+  seller_reward_max_payout: 250,
+  creator_tier1_fee_share_percent: 20,
+  creator_tier1_duration_days: 90,
+  creator_tier1_max_payout: 500,
+  creator_tier2_fee_share_percent: 25,
+  creator_tier2_duration_days: 365,
+  creator_tier2_max_payout: 750,
+  min_profit_margin_percent: 60,
+  referral_hold_days: 14,
+  minimum_withdrawal_amount: 25,
+  created_at: new Date(0).toISOString(),
+  updated_at: new Date(0).toISOString(),
+};
 
 export function lockReferralOwnership(candidates: ReferralSourceCandidate[]) {
   return candidates.find((candidate) => candidate.code || candidate.userId) ?? null;
@@ -94,7 +143,6 @@ export function buildReferralOwnership(input: {
   firstTransactionAt?: string | null;
   totalRevenueGenerated?: number;
   totalRewardsEarned?: number;
-  totalCommissionGenerated?: number;
   status?: ReferralOwnership["status"];
 }): ReferralOwnership {
   return {
@@ -106,7 +154,6 @@ export function buildReferralOwnership(input: {
     firstTransactionAt: input.firstTransactionAt ?? null,
     totalRevenueGenerated: input.totalRevenueGenerated ?? 0,
     totalRewardsEarned: input.totalRewardsEarned ?? 0,
-    totalCommissionGenerated: input.totalCommissionGenerated ?? 0,
     status: input.status ?? "pending",
   };
 }
@@ -132,7 +179,6 @@ export function getReferralDisplayFields(ownership: ReferralOwnership | null) {
     firstTransactionAt: ownership.firstTransactionAt,
     totalRevenueGenerated: ownership.totalRevenueGenerated,
     totalRewardsEarned: ownership.totalRewardsEarned,
-    totalCommissionGenerated: ownership.totalCommissionGenerated,
     status: ownership.status,
   };
 }
@@ -147,53 +193,48 @@ export function getDefaultReferralSettings(): ReferralProgramSettings {
   return { ...DEFAULT_SETTINGS };
 }
 
-export function evaluateReferralReward(candidate: ReferralRewardCandidate, settings: ReferralProgramSettings = DEFAULT_SETTINGS): ReferralRewardDecision {
-  const feeCap = Math.min(candidate.marketplaceFeeAmount, candidate.maxPayout ?? Number.POSITIVE_INFINITY);
-  const rewardEstimate = Number((Math.max(0, feeCap) * (candidate.rewardRate / 100)).toFixed(2));
-  const { profit, margin } = calculateProfitMargin(candidate.marketplaceFeeAmount, rewardEstimate, candidate.processingFeeAmount);
-
-  if (margin < 0) {
-    return {
-      approved: false,
-      hold: true,
-      rewardAmount: 0,
-      companyKeptAmount: Number(profit.toFixed(2)),
-      reason: "Reward would create a loss",
-    };
-  }
-
-  const settled = calculateReferralSettlementDecision({
-    rewardAmount: rewardEstimate,
-    totalCommission: candidate.marketplaceFeeAmount,
-    paidRewards: 0,
-    settings: normalizeReferralSettlementSettings(settings),
-  });
-
-  return {
-    approved: settled.eligible,
-    hold: !settled.eligible,
-    rewardAmount: settled.rewardAmount,
-    companyKeptAmount: Number(Math.max(candidate.marketplaceFeeAmount - settled.rewardAmount - candidate.processingFeeAmount, 0).toFixed(2)),
-    reason: settled.reason,
-  };
-}
-
 export function calculateProfitMargin(marketplaceRevenue: number, rewardAmount: number, processingFeeAmount: number) {
   const profit = Math.max(marketplaceRevenue - rewardAmount - processingFeeAmount, 0);
   const margin = marketplaceRevenue > 0 ? (profit / marketplaceRevenue) * 100 : 0;
   return { profit, margin };
 }
 
+export function evaluateReferralReward(candidate: ReferralRewardCandidate, settings: ReferralProgramSettings = DEFAULT_SETTINGS): ReferralRewardDecision {
+  const cappedReward = Math.min(candidate.marketplaceFeeAmount * (candidate.rewardRate / 100), candidate.maxPayout ?? Number.POSITIVE_INFINITY);
+  const { profit, margin } = calculateProfitMargin(candidate.marketplaceFeeAmount, cappedReward, candidate.processingFeeAmount);
+  const minMargin = settings.min_profit_margin_percent;
+
+  if (margin < minMargin) {
+    return {
+      approved: false,
+      hold: true,
+      rewardAmount: Number(cappedReward.toFixed(2)),
+      companyKeptAmount: Number(profit.toFixed(2)),
+      reason: `Profit margin would fall below ${minMargin}%`,
+    };
+  }
+
+  return {
+    approved: true,
+    hold: false,
+    rewardAmount: Number(cappedReward.toFixed(2)),
+    companyKeptAmount: Number(profit.toFixed(2)),
+    reason: null,
+  };
+}
+
 export function calculateReferralRewardRate(programType: ReferralProgramType, settings: ReferralProgramSettings, totalSuccessfulReferrals = 0, creatorTier = 1) {
-  void programType;
-  void totalSuccessfulReferrals;
-  void creatorTier;
-  return settings.reward_amount;
+  if (programType === "buyer") return settings.buyer_reward_fee_share_percent;
+  if (programType === "seller") return settings.seller_reward_fee_share_percent;
+  if (programType === "creator") return creatorTier >= 2 ? settings.creator_tier2_fee_share_percent : settings.creator_tier1_fee_share_percent;
+  if (totalSuccessfulReferrals >= 51) return 15;
+  if (totalSuccessfulReferrals >= 11) return 12.5;
+  return 10;
 }
 
 export function getReferralHoldUntil(completedAt: string, settings: ReferralProgramSettings = DEFAULT_SETTINGS) {
   const date = new Date(completedAt);
-  date.setDate(date.getDate() + settings.payout_delay_days);
+  date.setDate(date.getDate() + settings.referral_hold_days);
   return date.toISOString();
 }
 
@@ -260,7 +301,7 @@ export function getReferralProgramDisplayName(programType: ReferralProgramType) 
 
 export function calculateBuyerCreditExpiry(createdAt: string, settings: ReferralProgramSettings = DEFAULT_SETTINGS) {
   const date = new Date(createdAt);
-  date.setDate(date.getDate() + settings.payout_delay_days);
+  date.setDate(date.getDate() + settings.buyer_credit_expiry_days);
   return date.toISOString();
 }
 
@@ -275,20 +316,4 @@ export function summarizeReferralWallet(wallet: Pick<SellerWallet, "available_ba
     frozen: Number(wallet.frozen_balance ?? 0),
     lifetime: Number(wallet.lifetime_earnings ?? 0),
   };
-}
-
-export function summarizeReferralSettlement(summary: ReferralSettlementSummary | null) {
-  if (!summary) return null;
-  return {
-    totalSuccessfulVolume: Number(summary.total_successful_volume ?? 0),
-    totalCommissionEarned: Number(summary.total_commission_earned ?? 0),
-    lifetimeRewardPaid: Number(summary.lifetime_reward_paid ?? 0),
-    lifetimeRewardPending: Number(summary.lifetime_reward_pending ?? 0),
-    maxLifetimeReward: Number(summary.max_lifetime_reward ?? 0),
-    remainingLifetimeReward: Number(summary.remaining_lifetime_reward ?? 0),
-  };
-}
-
-export function calculateSettlementCap(totalCommission: number, settings: ReferralProgramSettings = DEFAULT_SETTINGS) {
-  return calculateCommissionCap(totalCommission, normalizeReferralSettlementSettings(settings));
 }

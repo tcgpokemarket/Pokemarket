@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import type { LiveShowBid, LiveShowItem, LiveShowMessage, LiveShow } from "@/lib/supabase/types";
 
@@ -18,7 +17,7 @@ import LiveKitStage from "@/components/LiveKitStage";
 import SupportInlineCard from "@/components/support/support-inline-card";
 
 const LIVE_SUPPORT_CARD = (
-  <SupportInlineCard title="Need live show help?" description="Ask about bidding, giveaways, payouts, or stream issues while you watch." href="/support" />
+  <SupportInlineCard title="Need live show help?" description="Ask about bidding, giveaways, payouts, or stream issues while you watch." href="/help" />
 );
 
 
@@ -54,7 +53,6 @@ function getActiveGiveaway(giveaways: LiveShowGiveaway[]) {
 }
 
 export default function LiveShowClient({ initialData }: { initialData: { show: LiveShow; products: LiveShowItem[]; bids: LiveShowBid[]; chat: LiveShowMessage[]; giveaways?: LiveShowGiveaway[] } }) {
-  const searchParams = useSearchParams();
   const supabase = useMemo(() => createClient(), []);
   const [show, setShow] = useState(initialData.show);
   const [products, setProducts] = useState<LiveShowItem[]>(initialData.products);
@@ -66,8 +64,6 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const [auctionOrders, setAuctionOrders] = useState<Array<{ id: string; payment_status: string; payment_deadline: string; winning_bid: number; buyer_id: string; show_products?: { title?: string } | null }>>([]);
   const [showMode, setShowMode] = useState<"viewer" | "host">("viewer");
   const [moderatorLog, setModeratorLog] = useState<Array<{ id: string; event_type: string; payload: unknown; created_at: string }>>([]);
-  const [moderationActions, setModerationActions] = useState<Array<{ id: string; target_user_id: string; target_username: string | null; action_type: string; active: boolean; reason: string | null; updated_at: string }>>([]);
-  const [targetUserLookup, setTargetUserLookup] = useState<Record<string, string>>({});
   const [monitorLayout, setMonitorLayout] = useState<"single" | "dual" | "video-only" | "controls-only">("single");
   const [streamHealth, setStreamHealth] = useState({ connection: "strong", cpu: "stable", network: "stable" });
   const [now, setNow] = useState(() => Date.now());
@@ -79,7 +75,8 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       : "🟡 Awaiting Payment";
   const buyerTimer = activeAuctionOrder ? Math.max(0, new Date(activeAuctionOrder.payment_deadline).getTime() - now) : 0;
   const buyerTimerText = activeAuctionOrder ? `${String(Math.floor(buyerTimer / 60000)).padStart(2, "0")}:${String(Math.floor((buyerTimer % 60000) / 1000)).padStart(2, "0")}` : "15:00";
-  const isHost = showMode === "host" && show.seller_id === initialData.show.seller_id;
+  const hostPermissions = Array.isArray((show as any).host_permissions) ? (show as any).host_permissions as string[] : [];
+  const isHost = showMode === "host" && (show.seller_id === initialData.show.seller_id || hostPermissions.length > 0);
   const activeItem = useMemo(() => getActiveItem(products), [products]);
   const connectedViewers = Math.max(show.viewer_count, show.peak_viewers);
   const canShowHostControls = isHost;
@@ -89,7 +86,6 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   useEffect(() => {
     let mounted = true;
     const loadAuctionOrders = async () => {
-      if (showMode !== "host") return;
       const response = await fetch(`/api/live/shows/${show.id}/auction-orders`);
       const data = await response.json().catch(() => ({}));
       if (mounted && response.ok) {
@@ -97,12 +93,12 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       }
     };
     void loadAuctionOrders();
-    const interval = showMode === "host" ? setInterval(() => void loadAuctionOrders(), 10000) : null;
+    const interval = setInterval(() => void loadAuctionOrders(), 5000);
     return () => {
       mounted = false;
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
     };
-  }, [show.id, showMode]);
+  }, [show.id]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -113,80 +109,20 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
 
   useEffect(() => {
     let mounted = true;
-    const loadModeratorState = async () => {
-      if (showMode !== "host") return;
-      const [eventsResponse, moderationResponse] = await Promise.all([
-        fetch(`/api/live/shows/${show.id}/events`),
-        fetch(`/api/live/shows/${show.id}/moderation`),
-      ]);
-      const eventsData = await eventsResponse.json().catch(() => ({}));
-      const moderationData = await moderationResponse.json().catch(() => ({}));
-      if (mounted) {
-        if (eventsResponse.ok) setModeratorLog((eventsData.events ?? []) as any);
-        if (moderationResponse.ok) {
-          setModerationActions((moderationData.actions ?? []) as any);
-          setTargetUserLookup((moderationData.users ?? {}) as Record<string, string>);
-        }
+    const loadModeratorLog = async () => {
+      const response = await fetch(`/api/live/shows/${show.id}/events`);
+      const data = await response.json().catch(() => ({}));
+      if (mounted && response.ok) {
+        setModeratorLog((data.events ?? []) as any);
       }
     };
-    void loadModeratorState();
-    const interval = showMode === "host" ? setInterval(() => void loadModeratorState(), 15000) : null;
+    void loadModeratorLog();
+    const interval = setInterval(() => void loadModeratorLog(), 8000);
     return () => {
       mounted = false;
-      if (interval) clearInterval(interval);
+      clearInterval(interval);
     };
-  }, [show.id, showMode]);
-
-  useEffect(() => {
-    if (showMode !== "host") return;
-
-    const moderationChannel = supabase
-      .channel(`live-moderation:${show.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "live_show_moderation_actions", filter: `show_id=eq.${show.id}` }, () => {
-        void fetch(`/api/live/shows/${show.id}/moderation`).then(async (response) => {
-          const data = await response.json().catch(() => ({}));
-          if (response.ok) {
-            setModerationActions((data.actions ?? []) as any);
-            setTargetUserLookup((data.users ?? {}) as Record<string, string>);
-          }
-        });
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(moderationChannel);
-    };
-  }, [show.id, showMode, supabase]);
-
-  useEffect(() => {
-    if (showMode !== "host") return;
-
-    const bidsChannel = supabase
-      .channel(`live-bids:${show.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "live_bids", filter: `show_id=eq.${show.id}` }, (payload) => {
-        setBids((current) => [payload.new as LiveShowBid, ...current].slice(0, 100));
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(bidsChannel);
-    };
-  }, [show.id, showMode, supabase]);
-
-  useEffect(() => {
-    if (showMode !== "host") return;
-
-    const chatChannel = supabase
-      .channel(`live-chat:${show.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "live_chat", filter: `show_id=eq.${show.id}` }, (payload) => {
-        setChat((current) => [...current, payload.new as LiveShowMessage]);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(chatChannel);
-    };
-  }, [show.id, showMode, supabase]);
+  }, [show.id]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -212,14 +148,8 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
   const swipeLockUntil = useRef(0);
   const swipeResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeTrackRef = useRef<HTMLDivElement | null>(null);
-  const activeGiveaway = getActiveGiveaway(giveaways);
+  const activeGiveaway = useMemo(() => getActiveGiveaway(giveaways), [giveaways]);
   const roomName = `tcg-poke-market-${show.id}`;
-  const returnTo = `/live/${show.id}${searchParams.toString() ? `?${searchParams.toString()}` : ""}`;
-  const canPublishLiveVideo = showMode === "host" && isHost;
-  const liveJoinLabel = canPublishLiveVideo ? "Host broadcast" : "Viewer session";
-  const roomInstructions = canPublishLiveVideo
-    ? "Turn on your camera and microphone to broadcast the live auction."
-    : "Join the room to watch the auction and listen in real time.";
   const swipeHint = activeItem ? `Swipe to bid $${getNextSwipeBid(Number(activeItem.current_bid ?? 0)).toFixed(2)}` : "Swipe to bid";
   const currentBid = Number(activeItem?.current_bid ?? 0);
   const nextBid = getNextSwipeBid(currentBid);
@@ -238,6 +168,7 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
     streamHealth.cpu !== "stable" ? "CPU warning" : null,
     streamHealth.network !== "stable" ? "Network warning" : null,
   ].filter(Boolean) as string[], [streamHealth]);
+
   useEffect(() => {
     const showChannel = supabase
       .channel(`live-show:${show.id}`)
@@ -264,16 +195,6 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       })
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(showChannel);
-      supabase.removeChannel(bidsChannel);
-      supabase.removeChannel(chatChannel);
-    };
-  }, [show.id, showMode, supabase]);
-
-  useEffect(() => {
-    if (showMode !== "host") return;
-
     const giveawayChannel = supabase
       .channel(`live-giveaways:${show.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "giveaway_entries", filter: `show_id=eq.${show.id}` }, (payload) => {
@@ -292,9 +213,12 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
       .subscribe();
 
     return () => {
+      supabase.removeChannel(showChannel);
+      supabase.removeChannel(bidsChannel);
+      supabase.removeChannel(chatChannel);
       supabase.removeChannel(giveawayChannel);
     };
-  }, [activeGiveaway?.follow_required, show.id, showMode, supabase]);
+  }, [activeGiveaway?.follow_required, show.id, supabase]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -360,62 +284,20 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
 
   const hostAction = async (action: string, payload: Record<string, unknown> = {}) => {
     if (!canShowHostControls) return;
-    try {
-      await fetchLiveEvent(`host_${action}`, payload);
-      setStatusText(`${action.replaceAll("_", " ")} saved`);
-    } catch (error) {
-      setStatusText(error instanceof Error ? error.message : `${action.replaceAll("_", " ")} failed`);
-    }
+    await fetchLiveEvent(`host_${action}`, payload);
+    setStatusText(`${action.replaceAll("_", " ")} saved`);
   };
 
-  const moderateUser = async (actionType: "remove_bidder" | "mute_user" | "ban_user", targetUserId: string, targetUsername: string | null) => {
-    if (!canShowHostControls) return;
-    try {
-      const response = await fetch(`/api/live/shows/${show.id}/moderation`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actionType, targetUserId, targetUsername }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setStatusText(data.error ?? "Moderation update failed");
-        return;
-      }
-      setStatusText(data.message ?? "Moderation saved");
-    } catch (error) {
-      setStatusText(error instanceof Error ? error.message : "Moderation update failed");
-    }
+  const removeBidder = async (bidderId: string) => {
+    await hostAction("remove_bidder", { bidderId });
   };
 
-  const restoreModeration = async (actionId: string) => {
-    if (!canShowHostControls) return;
-    try {
-      const response = await fetch(`/api/live/shows/${show.id}/moderation`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ actionId }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        setStatusText(data.error ?? "Restore failed");
-        return;
-      }
-      setStatusText(data.message ?? "Restored");
-    } catch (error) {
-      setStatusText(error instanceof Error ? error.message : "Restore failed");
-    }
+  const muteUser = async (userId: string) => {
+    await hostAction("mute_user", { userId });
   };
 
-  const removeBidder = async (bidderId: string, bidderUsername: string | null) => {
-    await moderateUser("remove_bidder", bidderId, bidderUsername);
-  };
-
-  const muteUser = async (userId: string, username: string | null) => {
-    await moderateUser("mute_user", userId, username);
-  };
-
-  const banUser = async (userId: string, username: string | null) => {
-    await moderateUser("ban_user", userId, username);
+  const banUser = async (userId: string) => {
+    await hostAction("ban_user", { userId });
   };
 
   const confirmWinner = async () => {
@@ -437,28 +319,23 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
     swipeLockUntil.current = Date.now() + SWIPE_LOCK_MS;
     if (canVibrate()) navigator.vibrate(HAPTIC_PATTERN);
 
-    try {
-      const response = await fetch(`/api/live/shows/${show.id}/bids`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          productId: activeItem.id,
-          nonce: crypto.randomUUID(),
-          maxBid: maxBidEnabled ? Number(maxBidAmount || 0) : null,
-        }),
-      });
+    const response = await fetch(`/api/live/shows/${show.id}/bids`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        productId: activeItem.id,
+        nonce: crypto.randomUUID(),
+        maxBid: maxBidEnabled ? Number(maxBidAmount || 0) : null,
+      }),
+    });
 
-      if (response.ok) {
-        setStatusText(`Bid placed on ${activeItem.title}`);
-        setSwipeState("success");
-        if (canVibrate()) navigator.vibrate([40, 30, 40]);
-      } else {
-        const data = await response.json().catch(() => ({}));
-        setStatusText(data.error ?? "Bid failed");
-        setSwipeState("idle");
-      }
-    } catch (error) {
-      setStatusText(error instanceof Error ? error.message : "Bid failed");
+    if (response.ok) {
+      setStatusText(`Bid placed on ${activeItem.title}`);
+      setSwipeState("success");
+      if (canVibrate()) navigator.vibrate([40, 30, 40]);
+    } else {
+      const data = await response.json().catch(() => ({}));
+      setStatusText(data.error ?? "Bid failed");
       setSwipeState("idle");
     }
 
@@ -517,32 +394,27 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
     setGiveawayBusy(true);
     setActiveGiveawayId(giveawayId);
     setGiveawayStatus(null);
-    try {
-      const response = await fetch(`/api/giveaways/${giveawayId}/entry`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ followSeller }),
-      });
+    const response = await fetch(`/api/giveaways/${giveawayId}/entry`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ followSeller }),
+    });
 
-      const data = await response.json().catch(() => ({}));
-      if (response.ok) {
-        setEntryStatuses((current) => ({
-          ...current,
-          [giveawayId]: { entered: true, following: Boolean(followSeller), requiresFollow: Boolean(activeGiveaway?.follow_required) },
-        }));
-        setGiveawayStatus("You’re entered.");
-        setShowFollowPrompt(false);
-      } else if (response.status === 403 && data.requiresFollow) {
-        setShowFollowPrompt(true);
-        setGiveawayStatus(data.error ?? "Follow this seller to enter.");
-      } else {
-        setGiveawayStatus(data.error ?? "Unable to enter giveaway.");
-      }
-    } catch (error) {
-      setGiveawayStatus(error instanceof Error ? error.message : "Unable to enter giveaway.");
-    } finally {
-      setGiveawayBusy(false);
+    const data = await response.json().catch(() => ({}));
+    if (response.ok) {
+      setEntryStatuses((current) => ({
+        ...current,
+        [giveawayId]: { entered: true, following: Boolean(followSeller), requiresFollow: Boolean(activeGiveaway?.follow_required) },
+      }));
+      setGiveawayStatus("You’re entered.");
+      setShowFollowPrompt(false);
+    } else if (response.status === 403 && data.requiresFollow) {
+      setShowFollowPrompt(true);
+      setGiveawayStatus(data.error ?? "Follow this seller to enter.");
+    } else {
+      setGiveawayStatus(data.error ?? "Unable to enter giveaway.");
     }
+    setGiveawayBusy(false);
   };
 
   const currentGiveawayState = activeGiveaway ? entryStatuses[activeGiveaway.id] : null;
@@ -614,34 +486,16 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
               )}
 
               <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-black">
-                <LiveKitStage roomName={roomName} canPublish={canPublishLiveVideo} title={liveJoinLabel} returnTo={returnTo} />
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-white/10 bg-[#13131f] p-4 text-sm text-gray-300">
-                <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-                  <div>
-                    <div className="text-xs uppercase tracking-[0.3em] text-yellow-400">Live room</div>
-                    <div className="mt-1 font-semibold text-white">{canPublishLiveVideo ? "You are broadcasting live" : "You are watching the auction"}</div>
-                    <div className="mt-1 text-gray-400">{roomInstructions}</div>
-                  </div>
-                  <a href={canPublishLiveVideo ? "/dashboard/live-auctions/create" : "/support"} className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-center font-semibold text-white">
-                    {canPublishLiveVideo ? "Open host studio" : "Need help?"}
-                  </a>
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                    <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Current item</div>
-                    <div className="mt-1 font-semibold text-white">{activeItem?.title ?? "Waiting for auction"}</div>
+                <LiveKitStage token={null} roomName={roomName} />
+                <div className="absolute inset-x-4 bottom-4 flex items-end justify-between gap-4">
+                  <div className="rounded-2xl bg-black/70 p-3 text-sm backdrop-blur">
+                    <div className="text-gray-400">Current item</div>
+                    <div className="font-bold">{activeItem?.title ?? "Waiting for auction"}</div>
                     <div className="text-gray-400">${currentBid.toFixed(2)}</div>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-black/30 p-3">
-                    <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Room</div>
-                    <div className="mt-1 font-semibold text-white">{roomName}</div>
-                    <div className="text-gray-400">{canPublishLiveVideo ? "Publishing enabled" : "Viewer access"}</div>
-                  </div>
-                  <div className="rounded-xl border border-white/10 bg-black/30 p-3 text-right">
-                    <div className="text-xs uppercase tracking-[0.25em] text-gray-500">Viewers</div>
-                    <div className="mt-1 font-semibold text-yellow-400">{show.viewer_count}</div>
+                  <div className="rounded-2xl bg-black/70 p-3 text-right text-sm backdrop-blur">
+                    <div className="text-gray-400">Viewers</div>
+                    <div className="font-bold text-yellow-400">{show.viewer_count}</div>
                     <div className="text-gray-400">Peak {show.peak_viewers}</div>
                   </div>
                 </div>
@@ -779,42 +633,19 @@ export default function LiveShowClient({ initialData }: { initialData: { show: L
             <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="mb-3 font-bold">Moderator actions</div>
               <div className="space-y-3">
-                {bidHistory.slice(0, 4).map((bid) => {
-                  const targetUserId = bid.bidder_id;
-                  const targetUsername = bid.username ?? targetUserLookup[targetUserId] ?? null;
-                  return (
-                    <div key={bid.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">
-                      <div className="flex items-center justify-between gap-3">
-                        <span>{targetUsername ?? targetUserId}</span>
-                        <div className="flex flex-wrap gap-2">
-                          <button onClick={() => void removeBidder(targetUserId, targetUsername)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Remove bidder</button>
-                          <button onClick={() => void muteUser(targetUserId, targetUsername)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Mute</button>
-                          <button onClick={() => void banUser(targetUserId, targetUsername)} className="rounded-full border border-red-400/20 px-3 py-1 text-xs text-red-200">Ban</button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-                {!bidHistory.length && <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-gray-500">No bidders to moderate yet.</div>}
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-              <div className="mb-3 font-bold">Active moderation</div>
-              <div className="space-y-2">
-                {moderationActions.filter((action) => action.active).map((action) => (
-                  <div key={action.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">
+                {bidHistory.slice(0, 4).map((bid) => (
+                  <div key={bid.id} className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-semibold text-white">{action.action_type.replaceAll("_", " ")}</div>
-                        <div className="text-xs text-gray-400">{action.target_username ?? targetUserLookup[action.target_user_id] ?? action.target_user_id}</div>
+                      <span>{bid.username}</span>
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => void removeBidder(bid.username)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Remove bidder</button>
+                        <button onClick={() => void muteUser(bid.username)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Mute</button>
+                        <button onClick={() => void banUser(bid.username)} className="rounded-full border border-red-400/20 px-3 py-1 text-xs text-red-200">Ban</button>
                       </div>
-                      <button onClick={() => void restoreModeration(action.id)} className="rounded-full border border-white/10 px-3 py-1 text-xs">Restore</button>
                     </div>
-                    {action.reason ? <div className="mt-2 text-xs text-gray-400">Reason: {action.reason}</div> : null}
                   </div>
                 ))}
-                {!moderationActions.filter((action) => action.active).length && <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-gray-500">No active moderation actions.</div>}
+                {!bidHistory.length && <div className="rounded-xl border border-white/10 bg-[#0f0f1a] p-3 text-gray-500">No bidders to moderate yet.</div>}
               </div>
             </div>
 

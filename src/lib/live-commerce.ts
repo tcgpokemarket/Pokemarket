@@ -10,23 +10,6 @@ export type LiveShowFormat =
 export type LiveShowStatus = "scheduled" | "live" | "ended";
 export type LiveAuctionState = "upcoming" | "live" | "bidding_active" | "locked" | "sold";
 
-export type LiveShowSummary = {
-  id: string;
-  title: string;
-  status: LiveShowStatus;
-  auction_state: LiveAuctionState | null;
-  scheduled_start: string | null;
-  created_at: string;
-};
-
-export function hasActiveLiveShow(shows: LiveShowSummary[], excludeShowId?: string) {
-  return shows.some((show) => show.id !== excludeShowId && show.status === "live");
-}
-
-export function getActiveLiveShow(shows: LiveShowSummary[], excludeShowId?: string) {
-  return shows.find((show) => show.id !== excludeShowId && show.status === "live") ?? null;
-}
-
 export type LiveShowHostSettings = {
   mutedChat: boolean;
   slowModeSeconds: number;

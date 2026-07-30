@@ -2,16 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { toCartItem } from "@/lib/cart";
-import { addToCart } from "@/components/cart/CartClient";
 import { createClient } from "@/lib/supabase/client";
-import { getListingPrimaryImage, getProfessionalFallbackImage } from "@/lib/uploads";
 import type { Listing } from "@/lib/supabase/types";
 
 type ListingWithSeller = Listing & {
-  promotion_badge?: string | null;
-  promotion_tier?: string | null;
-  promoted_until?: string | null;
   profiles?: {
     id: string;
     username: string | null;
@@ -22,13 +16,15 @@ type ListingWithSeller = Listing & {
 };
 
 const CONDITION_COLORS: Record<string, string> = {
-  Mint: "text-emerald-400",
-  "Near Mint": "text-green-400",
-  "Lightly Played": "text-yellow-400",
-  "Moderately Played": "text-orange-400",
-  "Heavily Played": "text-red-400",
-  Damaged: "text-gray-400",
+  Mint: "text-emerald-300",
+  "Near Mint": "text-green-300",
+  "Lightly Played": "text-yellow-300",
+  "Moderately Played": "text-orange-300",
+  "Heavily Played": "text-red-300",
+  Damaged: "text-gray-300",
 };
+
+const ACTIONS = ["Buy now", "Add to cart", "Make offer", "Share listing", "Message seller"];
 
 export default function ListingDetailClient({ id, initialListing }: { id: string; initialListing: ListingWithSeller | null }) {
   const router = useRouter();
@@ -40,55 +36,16 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [marketPrice, setMarketPrice] = useState<number | null>(null);
   const [selectedImage, setSelectedImage] = useState(0);
-  const [sharing, setSharing] = useState(false);
-  const [offering, setOffering] = useState(false);
-  const [contactingSeller, setContactingSeller] = useState(false);
-  const [contactStatus, setContactStatus] = useState<string | null>(null);
-  const [messageText, setMessageText] = useState("");
-  const [showContactForm, setShowContactForm] = useState(false);
-  const [reporting, setReporting] = useState(false);
-  const [shared, setShared] = useState(false);
-  const [offerStatus, setOfferStatus] = useState<string | null>(null);
-  const [offerAmount, setOfferAmount] = useState("");
-  const [offerNote, setOfferNote] = useState("");
-  const [reportStatus, setReportStatus] = useState<string | null>(null);
-  const [reportReason, setReportReason] = useState("");
-  const [reportDetails, setReportDetails] = useState("");
-  const [showOfferForm, setShowOfferForm] = useState(false);
-  const [showReportForm, setShowReportForm] = useState(false);
 
   useEffect(() => {
-    let alive = true;
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
 
-    const load = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!alive) return;
-        setUser(user);
-
-        if (initialListing) {
-          const { fetchCardPrice } = await import("@/lib/prices");
-          const price = await fetchCardPrice(initialListing.card_name, initialListing.set_name);
-          if (!alive) return;
-          setMarketPrice(price.marketPrice);
-        }
-      } catch (error) {
-        if (!alive) return;
-        console.error("[listing] Failed to load listing detail", error);
-      } finally {
-        if (!alive) return;
-        setLoading(false);
-      }
-    };
-
-    void load();
-
-    return () => {
-      alive = false;
-    };
+    if (initialListing) {
+      import("@/lib/prices")
+        .then(({ fetchCardPrice }) => fetchCardPrice(initialListing.card_name, initialListing.set_name))
+        .then((price) => setMarketPrice(price.marketPrice));
+    }
   }, [id, initialListing, supabase]);
-
-  const listingUrl = typeof window !== "undefined" ? window.location.href : `/listings/${id}`;
 
   const handleBuy = async () => {
     if (!user) {
@@ -102,315 +59,129 @@ export default function ListingDetailClient({ id, initialListing }: { id: string
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ listingId: id, quantity: 1 }),
     });
-    const data = await res.json().catch(() => ({}));
+    const data = await res.json();
     if (data.url) window.location.href = data.url;
     else {
-      if (data.action === "update_shipping_address") {
-        router.push("/dashboard#shipping-address");
-      }
       alert(data.error ?? "Checkout failed. Please try again.");
       setBuying(false);
     }
   };
 
-  const handleAddToCart = () => {
-    if (!activeListing) return;
-    addToCart(toCartItem(activeListing, 1));
-    router.push("/cart");
-  };
-
-  const handleShare = async () => {
-    setSharing(true);
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: activeListing.card_name, text: `${activeListing.card_name} on TcgPoké Market`, url: listingUrl });
-        setShared(true);
-      } else {
-        await navigator.clipboard.writeText(listingUrl);
-        setShared(true);
-        window.alert("Listing link copied to clipboard.");
-      }
-    } catch {
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(listingUrl);
-        setShared(true);
-        window.alert("Listing link copied to clipboard.");
-      }
-    } finally {
-      setSharing(false);
-    }
-  };
-
-  const openContact = () => {
-    setShowContactForm((current) => !current);
-    setShowOfferForm(false);
-    setShowReportForm(false);
-  };
-
-  const openOffer = () => {
-    setShowOfferForm((current) => !current);
-    setShowContactForm(false);
-    setShowReportForm(false);
-  };
-
-  const openReport = () => {
-    setShowReportForm((current) => !current);
-    setShowOfferForm(false);
-  };
-
-  const handleContactSeller = async () => {
-    if (!activeListing.profiles?.id) {
-      setContactStatus("Seller contact is unavailable right now.");
-      return;
-    }
-    if (!messageText.trim()) {
-      setContactStatus("Add a message first.");
-      return;
-    }
-    if (!user) {
-      router.push(`/auth?redirectTo=/listings/${id}`);
-      return;
-    }
-
-    setContactingSeller(true);
-    setContactStatus("Sending message…");
-    const res = await fetch("/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: messageText.trim(),
-        recipientId: activeListing.profiles.id,
-        contextType: "listing",
-        contextId: activeListing.id,
-      }),
-    });
-    const data = await res.json();
-    if (data.ok && data.conversationId) {
-      setContactStatus("Message sent to the seller.");
-      setShowContactForm(false);
-      setMessageText("");
-      router.push(`/messages/${data.conversationId}`);
-      return;
-    }
-    setContactStatus(data.error ?? "Unable to contact seller right now.");
-    setContactingSeller(false);
-  };
-
-  const handleMakeOffer = async () => {
-    if (!activeListing.profiles?.id) {
-      setOfferStatus("Seller contact is unavailable right now.");
-      return;
-    }
-    if (!offerAmount.trim()) {
-      setOfferStatus("Enter an offer amount.");
-      return;
-    }
-    if (!user) {
-      router.push(`/auth?redirectTo=/listings/${id}`);
-      return;
-    }
-
-    const amount = Number.parseFloat(offerAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setOfferStatus("Enter a valid dollar amount.");
-      return;
-    }
-
-    setOffering(true);
-    setOfferStatus("Sending offer…");
-    const res = await fetch("/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        message: `Offer $${amount.toFixed(2)}${offerNote.trim() ? ` — ${offerNote.trim()}` : ""}`,
-        recipientId: activeListing.profiles.id,
-        contextType: "listing_offer",
-        contextId: activeListing.id,
-      }),
-    });
-    const data = await res.json();
-    if (data.ok && data.conversationId) {
-      setOfferStatus("Offer sent to the seller.");
-      setShowOfferForm(false);
-      setOfferAmount("");
-      setOfferNote("");
-      router.push(`/messages/${data.conversationId}`);
-      return;
-    }
-    setOfferStatus(data.error ?? "Unable to send offer right now.");
-    setOffering(false);
-  };
-
-  const handleReportListing = async () => {
-    if (!reportReason.trim()) {
-      setReportStatus("Choose a reason first.");
-      return;
-    }
-    if (!user) {
-      router.push(`/auth?redirectTo=/listings/${id}`);
-      return;
-    }
-
-    setReporting(true);
-    setReportStatus("Submitting report…");
-    const res = await fetch("/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "support",
-        category: "listing_issue",
-        issueSummary: `Reported listing ${activeListing.card_name}`,
-        priority: "normal",
-        listingId: activeListing.id,
-        sellerId: activeListing.seller_id,
-        message: reportReason.trim(),
-        details: reportDetails.trim(),
-      }),
-    });
-    const data = await res.json();
-    if (data.ok) {
-      setReportStatus("Thanks — support has the report.");
-      setShowReportForm(false);
-      setReportReason("");
-      setReportDetails("");
-      return;
-    }
-    setReportStatus(data.error ?? "Unable to submit report right now.");
-    setReporting(false);
-  };
-
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a]">
-        <div className="text-lg text-gray-400 animate-pulse">Loading listing...</div>
+      <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-center text-gray-400">
+        Loading listing...
       </div>
     );
   }
 
   if (!listing) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#0f0f1a] text-center">
-        <div>
-          <div className="mx-auto mb-4 h-56 w-44 overflow-hidden rounded-2xl border border-white/10">
-            <img src={getProfessionalFallbackImage()} alt="Image unavailable" className="h-full w-full object-cover" />
-          </div>
-          <h2 className="mb-2 text-2xl font-bold">Listing not found</h2>
-          <a href="/listings" className="text-yellow-400 hover:underline">Back to listings</a>
+      <div className="min-h-screen bg-[#0f0f1a] px-4 py-16 text-center text-white">
+        <div className="mx-auto max-w-sm rounded-3xl border border-white/10 bg-white/5 p-8">
+          <div className="text-6xl">🃏</div>
+          <h2 className="mt-4 text-2xl font-black">Listing not found</h2>
+          <a href="/listings" className="mt-4 inline-flex rounded-full bg-yellow-400 px-4 py-2.5 text-sm font-bold text-black">
+            Back to listings
+          </a>
         </div>
       </div>
     );
   }
 
-  const activeListing = listing;
-  const conditionColor = CONDITION_COLORS[activeListing.condition] ?? "text-gray-400";
-  const priceDiff = marketPrice ? ((activeListing.price - marketPrice) / marketPrice) * 100 : null;
-  const listingImages = activeListing.images ?? [];
-  const selectedImageSrc = listingImages[selectedImage] ?? getListingPrimaryImage(listingImages) ?? getProfessionalFallbackImage();
+  const conditionColor = CONDITION_COLORS[listing.condition] ?? "text-gray-300";
+  const priceDiff = marketPrice ? ((listing.price - marketPrice) / marketPrice) * 100 : null;
+  const images = listing.images ?? [];
+  const sellerName = listing.profiles?.username ?? "Seller";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(255,171,1,0.12),_transparent_28%),linear-gradient(180deg,#0f0f1a_0%,#090b14_100%)] text-white">
-      <div className="mx-auto max-w-7xl px-4 pb-12 pt-8 sm:px-6 lg:px-8 lg:pt-10">
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start">
-          <div className="space-y-4">
-            <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.04] shadow-2xl shadow-black/20">
-              <div className="aspect-[3/4] bg-black/20">
-                <img src={selectedImageSrc} alt={activeListing.card_name} className="h-full w-full object-contain p-3 sm:p-4" onError={(event) => { event.currentTarget.src = getProfessionalFallbackImage(); }} />
+    <div className="min-h-screen bg-[#0f0f1a] text-white">
+      <div className="mx-auto max-w-7xl px-4 pb-8 pt-6 sm:px-6 lg:px-8">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-white/10 bg-white/5 p-4">
+          <a href="/listings" className="text-sm font-semibold text-gray-300 hover:text-white">← Back to listings</a>
+          <div className="flex flex-wrap gap-2">
+            <a href={`/messages?shop=${encodeURIComponent(sellerName)}`} className="rounded-full border border-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/5">Message seller</a>
+            <a href="/auth" className="rounded-full bg-yellow-400 px-4 py-2 text-sm font-bold text-black hover:bg-yellow-300">Sign in</a>
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] lg:items-start">
+          <section className="space-y-3">
+            <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#101724] shadow-2xl shadow-black/20">
+              <div className="aspect-[4/5] bg-[#0b0b12] sm:aspect-[3/4]">
+                {images.length ? (
+                  <img src={images[selectedImage]} alt={listing.card_name} className="h-full w-full object-contain p-4" />
+                ) : (
+                  <div className="flex h-full items-center justify-center text-7xl">🃏</div>
+                )}
               </div>
             </div>
-            {listingImages.length > 1 && (
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {listingImages.map((img, i) => (
-                  <button key={i} onClick={() => setSelectedImage(i)} className={`h-14 w-14 shrink-0 overflow-hidden rounded-xl border transition-colors ${i === selectedImage ? "border-yellow-400" : "border-white/10"}`}>
+
+            {images.length > 1 && (
+              <div className="flex gap-3 overflow-x-auto pb-1">
+                {images.map((img, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedImage(i)}
+                    className={`h-16 w-16 shrink-0 overflow-hidden rounded-2xl border transition ${i === selectedImage ? "border-yellow-400" : "border-white/10"}`}
+                  >
                     <img src={img} alt="" className="h-full w-full object-cover" />
                   </button>
                 ))}
               </div>
             )}
-          </div>
+          </section>
 
-          <div className="space-y-4">
+          <section className="space-y-5 rounded-[2rem] border border-white/10 bg-[#101724] p-5 shadow-2xl shadow-black/20 sm:p-6 lg:sticky lg:top-24">
             <div className="flex flex-wrap items-center gap-2 text-xs font-semibold uppercase tracking-[0.22em]">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-gray-300">{activeListing.condition}</span>
-              {activeListing.grade_company && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{activeListing.grade_company} {activeListing.grade_score}</span>}
-              {activeListing.promotion_badge && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{activeListing.promotion_badge}</span>}
+              <span className={conditionColor}>{listing.condition}</span>
+              {listing.grade_company && <span className="rounded-full bg-yellow-400 px-2 py-1 text-[10px] font-black text-black">{listing.grade_company} {listing.grade_score}</span>}
+              <span className="rounded-full border border-white/10 px-2 py-1 text-gray-400">{listing.quantity} available</span>
             </div>
-            {activeListing.promoted_until && <p className="text-xs font-semibold uppercase tracking-[0.2em] text-yellow-300">Promoted until {new Date(activeListing.promoted_until).toLocaleString()}</p>}
-            {activeListing.promotion_tier && <p className="text-xs text-gray-500">Promotion tier: {activeListing.promotion_tier}</p>}
+
             <div>
-              <h1 className="text-3xl font-black leading-tight sm:text-4xl">{activeListing.card_name}</h1>
-              <p className="mt-1 text-sm text-gray-400">{activeListing.set_name}{activeListing.card_number ? ` · #${activeListing.card_number}` : ""}{activeListing.rarity ? ` · ${activeListing.rarity}` : ""}</p>
+              <h1 className="text-3xl font-black leading-tight sm:text-4xl">{listing.card_name}</h1>
+              <p className="mt-2 text-sm text-gray-400">{listing.set_name}{listing.card_number ? ` · #${listing.card_number}` : ""}{listing.rarity ? ` · ${listing.rarity}` : ""}</p>
             </div>
 
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5">
               <div className="flex items-end gap-3">
-                <span className="text-4xl font-black">${activeListing.price.toFixed(2)}</span>
-                {priceDiff !== null && <span className={`pb-1 text-xs font-semibold ${priceDiff > 5 ? "text-red-400" : priceDiff < -5 ? "text-green-400" : "text-gray-400"}`}>{priceDiff > 0 ? "+" : ""}{priceDiff.toFixed(1)}% vs market</span>}
+                <span className="text-4xl font-black">${listing.price.toFixed(2)}</span>
+                {priceDiff !== null && (
+                  <span className={`pb-1 text-xs font-semibold ${priceDiff > 5 ? "text-red-300" : priceDiff < -5 ? "text-green-300" : "text-gray-400"}`}>
+                    {priceDiff > 0 ? "+" : ""}{priceDiff.toFixed(1)}% vs market
+                  </span>
+                )}
               </div>
-              <div className="mt-2 text-sm text-gray-300">{activeListing.quantity} available{marketPrice ? ` · Market avg $${marketPrice.toFixed(2)}` : ""}</div>
+              <div className="mt-2 text-sm text-gray-300">Market average {marketPrice ? `$${marketPrice.toFixed(2)}` : "not available"}</div>
             </div>
 
-            {activeListing.description && <p className="text-sm leading-6 text-gray-400">{activeListing.description}</p>}
+            {listing.description && <p className="text-sm leading-6 text-gray-400">{listing.description}</p>}
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <button onClick={handleBuy} disabled={buying || activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">{buying ? "Redirecting..." : activeListing.seller_id === user?.id ? "Your listing" : activeListing.status !== "active" ? "Sold" : "Buy Now"}</button>
-              <button onClick={handleAddToCart} disabled={activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Add to Cart</button>
-              <button onClick={openOffer} disabled={activeListing.status !== "active" || activeListing.seller_id === user?.id} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">Make Offer</button>
-              <button onClick={handleShare} disabled={sharing} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">{sharing ? "Sharing..." : shared ? "Link Copied" : "Share Listing"}</button>
-              <button onClick={openReport} className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">Report Listing</button>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <button onClick={handleBuy} disabled={buying || listing.status !== "active" || listing.seller_id === user?.id} className="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-bold text-black transition hover:bg-yellow-300 disabled:cursor-not-allowed disabled:opacity-50">
+                {buying ? "Redirecting..." : listing.seller_id === user?.id ? "Your listing" : listing.status !== "active" ? "Sold" : "Buy now"}
+              </button>
+              {ACTIONS.slice(1).map((action) => (
+                <button key={action} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+                  {action}
+                </button>
+              ))}
             </div>
 
-            {showOfferForm ? (
-              <div className="space-y-3 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
-                <div><p className="text-sm font-semibold text-white">Make an offer</p><p className="mt-1 text-sm text-gray-400">Send the seller a direct offer from this listing.</p></div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <input type="number" step="0.01" min="0" value={offerAmount} onChange={(event) => setOfferAmount(event.target.value)} placeholder="Offer amount" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
-                  <input value={offerNote} onChange={(event) => setOfferNote(event.target.value)} placeholder="Optional note" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-4 sm:p-5">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-white">Seller</p>
+                  <p className="text-sm text-gray-400">{sellerName}</p>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  <button onClick={handleMakeOffer} disabled={offering} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50">{offering ? "Sending..." : "Send Offer"}</button>
-                  <button onClick={() => setShowOfferForm(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Cancel</button>
+                <div className="text-right text-sm text-gray-400">
+                  {listing.profiles?.seller_rating ? <div className="text-yellow-300">★ {listing.profiles.seller_rating.toFixed(1)}</div> : null}
+                  {listing.profiles?.total_sales ? <div>{listing.profiles.total_sales.toLocaleString()} sales</div> : null}
                 </div>
-                {offerStatus ? <p className="text-sm text-gray-400">{offerStatus}</p> : null}
               </div>
-            ) : null}
-
-            {showContactForm ? (
-              <div className="space-y-3 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
-                <div><p className="text-sm font-semibold text-white">Message the seller</p><p className="mt-1 text-sm text-gray-400">Ask a question about the card, shipping, or bundle options.</p></div>
-                <textarea value={messageText} onChange={(event) => setMessageText(event.target.value)} rows={4} placeholder="Hi, is this still available?" className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
-                <div className="flex flex-wrap gap-3">
-                  <button onClick={handleContactSeller} disabled={contactingSeller} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50">{contactingSeller ? "Sending..." : "Send Message"}</button>
-                  <button onClick={() => setShowContactForm(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Cancel</button>
-                </div>
-                {contactStatus ? <p className="text-sm text-gray-400">{contactStatus}</p> : null}
-              </div>
-            ) : null}
-
-            {showReportForm ? (
-              <div className="space-y-3 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
-                <div><p className="text-sm font-semibold text-white">Report this listing</p><p className="mt-1 text-sm text-gray-400">Send this to support for review if something looks off.</p></div>
-                <select value={reportReason} onChange={(event) => setReportReason(event.target.value)} className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none">
-                  <option value="">Select a reason</option>
-                  <option value="Misleading listing">Misleading listing</option>
-                  <option value="Prohibited item">Prohibited item</option>
-                  <option value="Counterfeit concern">Counterfeit concern</option>
-                  <option value="Spam or scam">Spam or scam</option>
-                  <option value="Other issue">Other issue</option>
-                </select>
-                <textarea value={reportDetails} onChange={(event) => setReportDetails(event.target.value)} rows={4} placeholder="Add any extra details for support." className="w-full rounded-xl border border-white/10 bg-[#0f0f1a] px-4 py-3 text-sm text-white outline-none placeholder:text-gray-600" />
-                <div className="flex flex-wrap gap-3">
-                  <button onClick={handleReportListing} disabled={reporting} className="rounded-xl bg-yellow-400 px-4 py-2 text-sm font-bold text-black disabled:cursor-not-allowed disabled:opacity-50">{reporting ? "Submitting..." : "Submit Report"}</button>
-                  <button onClick={() => setShowReportForm(false)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white">Cancel</button>
-                </div>
-                {reportStatus ? <p className="text-sm text-gray-400">{reportStatus}</p> : null}
-              </div>
-            ) : null}
-
-            <div className="flex items-center justify-between gap-3 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 sm:p-5">
-              <div><p className="text-sm font-semibold text-white">Seller</p><p className="text-sm text-gray-400">{activeListing.profiles?.username ?? "Seller"}</p></div>
-              <div className="text-right text-sm text-gray-400">{activeListing.profiles?.seller_rating ? <div className="text-yellow-400">★ {activeListing.profiles.seller_rating.toFixed(1)}</div> : null}</div>
             </div>
-          </div>
+          </section>
         </div>
       </div>
     </div>

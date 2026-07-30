@@ -1,3 +1,5 @@
+"use client";
+
 import ListingWizard from "@/components/listings/listing-wizard";
 
 export default function SellPage() {
@@ -6,15 +8,13 @@ export default function SellPage() {
       copy={{
         title: "Create a listing",
         eyebrow: "Sell",
-        description: "",
+        description: "Build a polished listing with guided steps, photo ordering, price checks, and draft autosave.",
         backHref: "/dashboard",
         backLabel: "Dashboard",
         actionLabel: "Publish",
-        actionHint: "",
+        actionHint: "Your draft saves locally as you work, and you can save it to the marketplace anytime before publishing.",
       }}
       redirectTo="/sell"
-      scannerHref="/sell/scan"
-      scannerLabel="Scan Card"
     />
   );
 }

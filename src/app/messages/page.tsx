@@ -281,7 +281,6 @@ export default function MessagesPage() {
         .from("conversations")
         .update({ last_message_preview: draft.trim(), last_message_at: new Date().toISOString() })
         .eq("id", conversationId);
-
       setDraft("");
       setStatus("Message sent.");
       router.refresh();
@@ -313,7 +312,6 @@ export default function MessagesPage() {
         .from("conversations")
         .update({ last_message_preview: draft.trim(), last_message_at: new Date().toISOString() })
         .eq("id", activeConversation.id);
-
       setDraft("");
       setStatus("Message sent.");
       router.refresh();
