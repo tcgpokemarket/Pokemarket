@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { getCartItemTotal, type CartItem } from "@/lib/cart";
 
@@ -70,9 +71,7 @@ export default function CartClient() {
             <p className="font-bold text-yellow-400">${(item.price * item.quantity).toFixed(2)}</p>
           </div>
         )) : (
-          <div className="rounded-2xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">
-            Your cart is empty.
-          </div>
+          <div className="rounded-2xl border border-white/10 bg-[#13131f] p-6 text-sm text-gray-400">Your cart is empty.</div>
         )}
       </div>
 
@@ -80,6 +79,12 @@ export default function CartClient() {
         <span>Total</span>
         <span>${total.toFixed(2)}</span>
       </div>
+
+      {items.length > 0 && (
+        <Link href="/checkout" className="mt-6 block rounded-xl bg-yellow-400 px-5 py-3 text-center font-black text-black hover:bg-yellow-300">
+          Checkout
+        </Link>
+      )}
     </div>
   );
 }
