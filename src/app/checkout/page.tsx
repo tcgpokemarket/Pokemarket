@@ -53,9 +53,9 @@ export default function CheckoutPage() {
               Total: ${total.toFixed(2)}
             </div>
 
-            <button className="mt-6 rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">
+            <Link href="/checkout/payment" className="mt-6 inline-block rounded-xl bg-yellow-400 px-5 py-3 font-bold text-black">
               Continue to payment
-            </button>
+            </Link>
           </>
         )}
       </div>
