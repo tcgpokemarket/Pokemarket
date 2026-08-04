@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { normalizeRedirect, buildRedirectForProvider } from "@/lib/redirect";
 
 function GoogleIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5">
-      <path fill="#EA4335" d="M12 9.5v5h6.9c-.3 1.8-2 5.3-6.9 5.3A7.8 7.8 0 1 1 12 4.2c2.2 0 3.7.9 4.6 1.8l3.1-3A11.8 11.8 0 0 0 12 0C5.4 0 .1 5.4.1 12S5.4 24 12 24c6.8 0 11.3-4.7 11.3-11.3 0-.8-.1-1.4-.2-2H12Z" />
+      <path fill="#EA4335" d="M12 9.5v5h6.9c-.3 1.8-2 5.3-6.9 5.3A7.8 7.8 0 1 1 12 4.2c2.2 0 3.7.9 4.6 1.8l3.1-3A11.8 11.8 0 0 0 12 0C5.4 0 .1 5.4.1 12S5.4 24 12 24c6.8 0 11.3-4.7 11.3-11.3 0-.8-." />
       <path fill="#4285F4" d="M23.3 12.7c0-.7-.1-1.3-.2-2H12v4.1h6.3c-.3 1.5-1.1 2.9-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.7Z" />
       <path fill="#FBBC05" d="m5.6 14.3-.8.6-3 2.4A12 12 0 0 0 12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4Z" />
       <path fill="#34A853" d="M12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4l-3.3 2.5C2.7 20.7 7 24 12 24Z" />
@@ -19,12 +20,6 @@ function Spinner() {
   return <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />;
 }
 
-function safeRedirect(value: string | null) {
-  if (!value || !value.startsWith("/")) return "/dashboard";
-  if (value.startsWith("/auth")) return "/dashboard";
-  return value;
-}
-
 function defaultDestination(role: string | null) {
   return role === "admin" || role === "super_admin" ? "/admin" : "/dashboard";
 }
@@ -32,7 +27,7 @@ function defaultDestination(role: string | null) {
 export default function AuthClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = useMemo(() => safeRedirect(searchParams.get("redirectTo")), [searchParams]);
+  const redirectTo = useMemo(() => normalizeRedirect(searchParams.get("redirectTo")), [searchParams]);
   const [mode, setMode] = useState<"signin" | "signup">(searchParams.get("mode") === "signup" ? "signup" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -60,7 +55,7 @@ export default function AuthClient() {
       const { error } = await client.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+          redirectTo: `${window.location.origin}/auth/callback?redirectTo=${buildRedirectForProvider(redirectTo, window.location.hash)}`,
           queryParams: { prompt: "select_account" },
         },
       });
@@ -84,7 +79,7 @@ export default function AuthClient() {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=${encodeURIComponent(redirectTo)}`,
+            emailRedirectTo: `${window.location.origin}/auth/callback?redirectTo=${buildRedirectForProvider(redirectTo, window.location.hash)}`,
             data: { full_name: fullName },
           },
         });
@@ -192,7 +187,7 @@ export default function AuthClient() {
         <div>
           <div className="mb-2 flex items-center justify-between gap-3">
             <label htmlFor="password" className="block text-sm font-medium text-gray-200">Password</label>
-            <button type="button" onClick={handlePasswordReset} disabled={loading || googleLoading || resetLoading} className="text-sm font-semibold text-yellow-400 hover:text-yellow-300 disabled:opacity-50">
+            <button type="button" onClick={handlePasswordReset} disabled={loading || googleLoading || resetLoading} className="text-sm font-semibold text-yellow-400 hover:text-yellow-300 disabled[...]">
               {resetLoading ? "Sending..." : "Forgot Password"}
             </button>
           </div>
@@ -208,7 +203,7 @@ export default function AuthClient() {
               disabled={loading || googleLoading || resetLoading}
               className="w-full rounded-2xl border border-white/10 bg-[#111827] px-4 py-3 pr-24 text-white outline-none transition placeholder:text-gray-500 focus:border-yellow-400/60"
             />
-            <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-gray-300 hover:bg-white/5">
+            <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-white/10 px-3 py-1.5 text[...]">
               {showPassword ? "Hide" : "Show"}
             </button>
           </div>
@@ -225,7 +220,7 @@ export default function AuthClient() {
         </label>
 
         {message && (
-          <div className={`rounded-2xl border px-4 py-3 text-sm ${message.type === "error" ? "border-red-500/30 bg-red-500/10 text-red-200" : "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"}`}>
+          <div className={`rounded-2xl border px-4 py-3 text-sm ${message.type === "error" ? "border-red-500/30 bg-red-500/10 text-red-200" : "border-emerald-500/30 bg-emerald-500/10 text-emerald[...]`}> 
             {message.text}
           </div>
         )}
@@ -233,7 +228,7 @@ export default function AuthClient() {
         <button
           type="submit"
           disabled={loading || googleLoading || resetLoading}
-          className="w-full rounded-2xl bg-gradient-to-r from-[#e22400] to-[#ffab01] px-4 py-3 font-bold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-2xl bg-gradient-to-r from-[#e22400] to-[#ffab01] px-4 py-3 font-bold text-black transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60[...]"
         >
           {loading ? <span className="inline-flex items-center gap-2"><Spinner /> Loading...</span> : mode === "signin" ? "Sign in" : "Create account"}
         </button>
