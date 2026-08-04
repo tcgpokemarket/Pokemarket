@@ -3,11 +3,12 @@ import { Suspense } from "react";
 import "./globals.css";
 import AppFrame from "@/components/app-frame";
 
-const BASE_URL = "https://tcg-poke-market.sintra.site";
-const OG_IMAGE = "https://cdn.sintra.ai/img/pGq7RIJGMDuiejauByatqWc9HGCgpqvSJyf9_1fzpMA/f:jpg/rs:fit:800/czM6Ly9zaW50cmEtYnJhaW5haS1tZWRpYS9rbm93bGVkZ2UtcHJvZmlsZXMvZTE4YTEyMGUtMjk0Yy00N2UyLWIyZTctNTBjMzI3ZjY4YjY1L2Fzc2V0cy8wN2FkYmJhOC0xNWY5LTRkYzEtYjk1OS03MzczMmJkNzgzN2QvNDMucG5n";
+// Use environment-driven site URL to avoid hard-coded domains in metadata and redirects.
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+const OG_IMAGE = process.env.NEXT_PUBLIC_OG_IMAGE || `${SITE_URL.replace(/\/$/, "")}/og.png`;
 
 export const metadata: Metadata = {
-  metadataBase: new URL(BASE_URL),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "TCG Poke Market | Buy, Sell & Trade Pokémon Cards",
     template: "%s | TCG Poke Market",
@@ -31,7 +32,7 @@ export const metadata: Metadata = {
     "booster box",
     "elite trainer box",
   ],
-  authors: [{ name: "TCG Poke Market", url: BASE_URL }],
+  authors: [{ name: "TCG Poke Market", url: SITE_URL }],
   creator: "TCG Poke Market",
   publisher: "TCG Poke Market",
   robots: {
@@ -46,12 +47,12 @@ export const metadata: Metadata = {
     },
   },
   alternates: {
-    canonical: BASE_URL,
+    canonical: SITE_URL,
   },
   openGraph: {
     type: "website",
     locale: "en_US",
-    url: BASE_URL,
+    url: SITE_URL,
     siteName: "TCG Poke Market",
     title: "TCG Poke Market | Buy, Sell & Trade Pokémon Cards",
     description:
