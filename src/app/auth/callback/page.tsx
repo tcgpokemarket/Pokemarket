@@ -2,19 +2,16 @@
 
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-
-function getSafeRedirect(value: string | null) {
-  if (!value || !value.startsWith("/")) return "/dashboard";
-  if (value.startsWith("/auth")) return "/dashboard";
-  return value;
-}
+import { normalizeRedirect } from "@/lib/redirect";
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
+    // searchParams.get("redirectTo") may be encoded by the provider; normalizeRedirect
+    // safely decodes once, enforces same-origin and loop protection, and returns a path.
+    const redirectTo = normalizeRedirect(searchParams.get("redirectTo"));
     router.replace(redirectTo);
   }, [router, searchParams]);
 

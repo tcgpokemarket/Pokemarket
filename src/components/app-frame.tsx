@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import SiteShell from "@/components/site-shell";
 import { createClient } from "@/lib/supabase/client";
 import { getAppRole } from "@/lib/security";
+import { normalizeRedirect, buildRedirectForProvider } from "@/lib/redirect";
 
 const AUTH_PATHS = ["/auth", "/auth/signin", "/auth/callback", "/auth/reset-password"] as const;
 
@@ -32,12 +33,6 @@ function isProtectedPath(pathname: string) {
 function getRequestedPath(pathname: string, searchParams: URLSearchParams) {
   const search = searchParams.toString();
   return `${pathname}${search ? `?${search}` : ""}`;
-}
-
-function getSafeRedirect(value: string | null) {
-  if (!value || !value.startsWith("/")) return null;
-  if (value.startsWith("/auth")) return null;
-  return value;
 }
 
 function getDestination(userRole: ReturnType<typeof getAppRole>, redirectTo: string | null) {
@@ -77,7 +72,11 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
       const { data: { user } } = await client.auth.getUser();
       if (!alive) return;
 
-      const redirectTo = getSafeRedirect(searchParams.get("redirectTo"));
+      // preserve fragment when available
+      const currentHash = typeof window !== "undefined" ? window.location.hash : "";
+
+      const rawRedirect = searchParams.get("redirectTo");
+      const redirectTo = rawRedirect ? normalizeRedirect(rawRedirect) : null;
 
       if (isAuthPage) {
         if (user) {
@@ -90,7 +89,9 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
       }
 
       if (isProtectedPage && !user) {
-        router.replace(`/auth?redirectTo=${encodeURIComponent(requestedPath)}`);
+        // build a redirect that preserves fragment by encoding requestedPath + hash
+        const encoded = buildRedirectForProvider(requestedPath, currentHash);
+        router.replace(`/auth?redirectTo=${encoded}`);
         return;
       }
 
@@ -100,7 +101,9 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     run().catch(() => {
       if (!alive) return;
       if (isProtectedPage) {
-        router.replace(`/auth?redirectTo=${encodeURIComponent(requestedPath)}`);
+        const currentHash = typeof window !== "undefined" ? window.location.hash : "";
+        const encoded = buildRedirectForProvider(requestedPath, currentHash);
+        router.replace(`/auth?redirectTo=${encoded}`);
       } else {
         setAuthState("ready");
       }

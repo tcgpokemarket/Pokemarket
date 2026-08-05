@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { normalizeRedirect, buildRedirectForProvider } from "@/lib/redirect";
 
 function GoogleIcon() {
   return (
     <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5">
-      <path fill="#EA4335" d="M12 9.5v5h6.9c-.3 1.8-2 5.3-6.9 5.3A7.8 7.8 0 1 1 12 4.2c2.2 0 3.7.9 4.6 1.8l3.1-3A11.8 11.8 0 0 0 12 0C5.4 0 .1 5.4.1 12S5.4 24 12 24c6.8 0 11.3-4.7 11.3-11.3 0-.8-.1-1.4-.2-2H12Z" />
+      <path fill="#EA4335" d="M12 9.5v5h6.9c-.3 1.8-2 5.3-6.9 5.3A7.8 7.8 0 1 1 12 4.2c2.2 0 3.7.9 4.6 1.8l3.1-3A11.8 11.8 0 0 0 12 0C5.4 0 .1 5.4.1 12S5.4 24 12 24c6.8 0 11.3-4.7 11.3-11.3 0-.8-.1-1.6-.3-2.4H12v4.1h6.3c-.3 1.5-1.1 2.9-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.7Z" />
       <path fill="#4285F4" d="M23.3 12.7c0-.7-.1-1.3-.2-2H12v4.1h6.3c-.3 1.5-1.1 2.9-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.7Z" />
       <path fill="#FBBC05" d="m5.6 14.3-.8.6-3 2.4A12 12 0 0 0 12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4Z" />
       <path fill="#34A853" d="M12 24c3.4 0 6.2-1.1 8.3-3l-3.7-2.9c-1 .7-2.3 1.2-4.6 1.2-4 0-7.4-2.7-8.5-6.4l-3.3 2.5C2.7 20.7 7 24 12 24Z" />
@@ -22,8 +23,8 @@ function Spinner() {
 export default function SignIn() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") ?? "/dashboard";
-  const callbackUrl = `/auth/signin?redirectTo=${encodeURIComponent(redirectTo)}`;
+  const rawRedirect = searchParams.get("redirectTo");
+  const redirectTo = useMemo(() => normalizeRedirect(rawRedirect), [searchParams]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -37,10 +38,11 @@ export default function SignIn() {
 
     try {
       const supabase = createClient();
+      const providerRedirect = `${window.location.origin}/auth/signin?redirectTo=${buildRedirectForProvider(redirectTo, window.location.hash)}`;
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}${callbackUrl}`,
+          redirectTo: providerRedirect,
           queryParams: { prompt: "select_account" },
         },
       });
@@ -60,9 +62,10 @@ export default function SignIn() {
       const supabase = createClient();
 
       if (isSignUp) {
-        const result = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}${callbackUrl}` } });
+        const emailRedirect = `${window.location.origin}/auth/signin?redirectTo=${buildRedirectForProvider(redirectTo, window.location.hash)}`;
+        const result = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: emailRedirect } });
         if (result.error) throw result.error;
-        router.push(callbackUrl);
+        router.push(`/auth/signin?redirectTo=${encodeURIComponent(redirectTo)}`);
       } else {
         const result = await supabase.auth.signInWithPassword({ email, password });
         if (result.error) throw result.error;
@@ -91,9 +94,7 @@ export default function SignIn() {
           <h1 className="max-w-2xl text-4xl font-black leading-tight sm:text-5xl lg:text-6xl">
             {isSignUp ? "Create account." : "Sign in."}
           </h1>
-          <p className="max-w-2xl text-lg leading-relaxed text-gray-300">
-            Email or Google.
-          </p>
+          <p className="max-w-2xl text-lg leading-relaxed text-gray-300">Email or Google.</p>
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/20 backdrop-blur sm:p-8">
@@ -115,9 +116,7 @@ export default function SignIn() {
           </div>
 
           {error && (
-            <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-              {error}
-            </div>
+            <div className="mb-4 rounded-2xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>
           )}
 
           <button
