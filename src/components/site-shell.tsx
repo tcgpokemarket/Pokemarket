@@ -9,6 +9,7 @@ const primaryNav = [
   { label: "Home", href: "/", icon: "⌂" },
   { label: "Browse", href: "/listings", icon: "⌘" },
   { label: "Live", href: "/live", icon: "◎" },
+  { label: "Rips", href: "/rips", icon: "◈" },
   { label: "Sell", href: "/sell", icon: "+" },
   { label: "Wallet", href: "/dashboard?tab=overview", icon: "$" },
   { label: "Messages", href: "/messages", icon: "✉" },
@@ -30,6 +31,7 @@ const userNav = [
 const quickLinks = [
   { label: "Browse listings", href: "/listings" },
   { label: "Live auctions", href: "/live" },
+  { label: "Poké Rips", href: "/rips" },
   { label: "Card lookup", href: "/cards" },
   { label: "Card library", href: "/collection" },
 ] as const;
@@ -38,6 +40,7 @@ const routeLabels: Record<string, string> = {
   "/": "Home",
   "/listings": "Browse",
   "/live": "Live",
+  "/rips": "Rips",
   "/collection": "Card library",
   "/cards": "Card lookup",
   "/sell": "Sell",
