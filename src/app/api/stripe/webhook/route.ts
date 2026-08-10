@@ -1,11 +1,14 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient as _createAdminClient } from "@/lib/supabase/admin";
+
+function adminDb() { return _createAdminClient() as any }
 
 export async function POST(req: Request) {
   const payload = await req.text();
   const sig = req.headers.get("stripe-signature") ?? "";
-  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2022-11-15" });
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-06-24.dahlia" as "2026-06-24.dahlia" });
 
   let event: Stripe.Event;
   try {
@@ -14,7 +17,7 @@ export async function POST(req: Request) {
     return new Response("Invalid signature", { status: 400 });
   }
 
-  const admin = createAdminClient();
+  const admin = adminDb();
 
   try {
     // Idempotency: skip if we've already processed this provider_event_id

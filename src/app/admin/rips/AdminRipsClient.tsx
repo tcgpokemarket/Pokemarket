@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 interface Pack {
   id: string
@@ -170,11 +171,35 @@ function TransactionsTab({ transactions }: { transactions: Transaction[] }) {
 
 function InventoryTab() {
   return (
-    <div className="rounded-xl border border-white/10 bg-white/5 p-8 text-center">
-      <p className="text-sm text-gray-400">
-        Manage physical inventory via Supabase table editor or the CSV import tool.
-        Each row in <code className="rounded bg-white/10 px-1 text-xs">rip_physical_inventory</code> represents one physical card.
-      </p>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold text-white">Card Inventory</h2>
+        <Link
+          href="/admin/rips/inventory"
+          className="rounded-xl bg-yellow-400 px-5 py-2 text-sm font-black text-black transition hover:bg-yellow-300"
+        >
+          Open Inventory →
+        </Link>
+      </div>
+      <div className="rounded-xl border border-yellow-400/20 bg-yellow-400/5 p-6">
+        <p className="text-sm text-gray-300">
+          Upload and manage physical Pokémon cards, assign them to Rip packs, and track their status and market values.
+        </p>
+        <ul className="mt-4 space-y-2 text-sm text-gray-400">
+          <li className="flex items-center gap-2">
+            <span className="text-yellow-400">›</span> CSV bulk import with validation
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="text-yellow-400">›</span> Manual card entry with image upload
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="text-yellow-400">›</span> Assign cards to specific pack versions
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="text-yellow-400">›</span> Live market values and audit history
+          </li>
+        </ul>
+      </div>
     </div>
   )
 }

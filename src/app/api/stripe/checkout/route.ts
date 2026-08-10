@@ -1,6 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { createAdminClient as _createAdminClient } from "@/lib/supabase/admin";
+
+function adminDb() { return _createAdminClient() as any }
 
 export async function POST(req: Request) {
   try {
@@ -9,8 +12,8 @@ export async function POST(req: Request) {
 
     if (!listingId) return NextResponse.json({ error: "missing listingId" }, { status: 400 });
 
-    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2022-11-15" });
-    const admin = createAdminClient();
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: "2026-06-24.dahlia" as "2026-06-24.dahlia" });
+    const admin = adminDb();
 
     // Validate listing & price
     const { data: listing, error: listErr } = await admin.from("listings").select("*").eq("id", listingId).maybeSingle();
