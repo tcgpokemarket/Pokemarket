@@ -33,11 +33,11 @@ alter table public.payment_events enable row level security;
 create policy "auction orders readable by participants" on public.auction_orders
   for select using (auth.uid() = buyer_id or auth.uid() = seller_id);
 create policy "auction orders insertable by staff" on public.auction_orders
-  for insert with check (auth.uid() is not null);
+  for insert with check ((auth.jwt() -> 'app_metadata' ->> 'role') in ('admin','super_admin'));
 create policy "auction orders updatable by participants or staff" on public.auction_orders
-  for update using (auth.uid() = buyer_id or auth.uid() = seller_id);
+  for update using (auth.uid() = buyer_id or auth.uid() = seller_id or (auth.jwt() -> 'app_metadata' ->> 'role') in ('admin','super_admin'));
 
 create policy "payment events readable by participants" on public.payment_events
   for select using (exists (select 1 from public.auction_orders where id = order_id and (buyer_id = auth.uid() or seller_id = auth.uid())));
 create policy "payment events insertable by staff" on public.payment_events
-  for insert with check (auth.uid() is not null);
+  for insert with check ((auth.jwt() -> 'app_metadata' ->> 'role') in ('admin','super_admin'));

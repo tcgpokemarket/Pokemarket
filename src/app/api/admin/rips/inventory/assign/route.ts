@@ -22,6 +22,9 @@ export async function POST(req: NextRequest) {
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return NextResponse.json({ error: 'ids array is required.' }, { status: 400 })
   }
+  if (ids.length > 500) {
+    return NextResponse.json({ error: 'Maximum 500 items per bulk operation.' }, { status: 400 })
+  }
   if (!pack_id) {
     return NextResponse.json({ error: 'pack_id is required.' }, { status: 400 })
   }
@@ -41,7 +44,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to load inventory.' }, { status: 500 })
   }
 
-  const protectedStatuses = ['allocated', 'shipped', 'sold']
+  const protectedStatuses = ['allocated', 'shipped', 'sold', 'returned', 'destroyed']
   const blocked = (existing ?? []).filter((r: any) => protectedStatuses.includes(r.inventory_status))
 
   if (blocked.length > 0) {

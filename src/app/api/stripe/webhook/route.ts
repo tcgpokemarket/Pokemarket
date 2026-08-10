@@ -33,9 +33,15 @@ export async function POST(req: Request) {
         // Mark the order as paid and record payment intent
         await admin.from("orders").update({ status: "paid", stripe_payment_intent_id: session.payment_intent }).eq("id", orderId);
 
+        const { data: order } = await admin
+          .from('orders')
+          .select('seller_id')
+          .eq('id', orderId)
+          .maybeSingle()
+
         // Create an escrow ledger hold entry
         const amount = session.amount_total ? Number(session.amount_total) / 100 : undefined;
-        await admin.from("escrow_ledger").insert({ order_id: orderId, seller_id: null, entry_type: "hold", amount: amount ?? 0, created_at: new Date().toISOString() });
+        await admin.from("escrow_ledger").insert({ order_id: orderId, seller_id: order?.seller_id ?? null, entry_type: "hold", amount: amount ?? 0, created_at: new Date().toISOString() });
       }
     }
 

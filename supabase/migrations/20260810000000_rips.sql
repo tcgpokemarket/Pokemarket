@@ -372,10 +372,7 @@ CREATE POLICY "packs_public_read" ON rip_packs
 
 CREATE POLICY "packs_admin_all" ON rip_packs
   FOR ALL USING (
-    auth.jwt() ->> 'email' = ANY(
-      string_to_array(current_setting('app.admin_emails', true), ',')
-    )
-    OR (auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin')
+    (auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin')
   );
 
 -- Pack versions: read for authenticated users; admin write
@@ -394,16 +391,116 @@ CREATE POLICY "physical_inventory_admin" ON rip_physical_inventory
   );
 
 -- Transactions: users see only their own
-CREATE POLICY "transactions_own" ON rip_transactions
-  FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "transactions_select_own" ON rip_transactions
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "transactions_insert_own" ON rip_transactions
+  FOR INSERT WITH CHECK (user_id = auth.uid());
+
+CREATE POLICY "transactions_update_service" ON rip_transactions
+  FOR UPDATE USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'))
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'));
 
 -- Results: users see only their own
-CREATE POLICY "results_own" ON rip_results
-  FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "results_select_own" ON rip_results
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "results_admin_all" ON rip_results
+  FOR ALL USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'))
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'));
+
+CREATE OR REPLACE FUNCTION rip_results_immutable()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  RAISE EXCEPTION 'rip_results is immutable';
+END;
+$$;
+
+DROP TRIGGER IF EXISTS rip_results_no_update ON rip_results;
+CREATE TRIGGER rip_results_no_update
+BEFORE UPDATE OR DELETE ON rip_results
+FOR EACH ROW EXECUTE FUNCTION rip_results_immutable();
+
+DROP TRIGGER IF EXISTS digital_inventory_no_update ON digital_inventory;
+CREATE OR REPLACE FUNCTION digital_inventory_service_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF (auth.jwt() -> 'app_metadata' ->> 'role') NOT IN ('admin','super_admin') THEN
+    RAISE EXCEPTION 'digital_inventory is service-controlled';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER digital_inventory_no_update
+BEFORE UPDATE OR DELETE ON digital_inventory
+FOR EACH ROW EXECUTE FUNCTION digital_inventory_service_guard();
+
+CREATE OR REPLACE FUNCTION rip_transactions_service_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF (auth.jwt() -> 'app_metadata' ->> 'role') NOT IN ('admin','super_admin') THEN
+    RAISE EXCEPTION 'rip_transactions is service-controlled';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS rip_transactions_no_update ON rip_transactions;
+CREATE TRIGGER rip_transactions_no_update
+BEFORE UPDATE OR DELETE ON rip_transactions
+FOR EACH ROW EXECUTE FUNCTION rip_transactions_service_guard();
+
+DROP TRIGGER IF EXISTS rip_physical_inventory_no_update ON rip_physical_inventory;
+CREATE OR REPLACE FUNCTION rip_physical_inventory_service_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF (auth.jwt() -> 'app_metadata' ->> 'role') NOT IN ('admin','super_admin') THEN
+    RAISE EXCEPTION 'rip_physical_inventory is service-controlled';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER rip_physical_inventory_no_update
+BEFORE UPDATE OR DELETE ON rip_physical_inventory
+FOR EACH ROW EXECUTE FUNCTION rip_physical_inventory_service_guard();
+
+CREATE OR REPLACE FUNCTION rip_audit_logs_service_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  IF (auth.jwt() -> 'app_metadata' ->> 'role') NOT IN ('admin','super_admin') THEN
+    RAISE EXCEPTION 'rip_audit_logs is service-controlled';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS rip_audit_logs_no_update ON rip_audit_logs;
+CREATE TRIGGER rip_audit_logs_no_update
+BEFORE UPDATE OR DELETE ON rip_audit_logs
+FOR EACH ROW EXECUTE FUNCTION rip_audit_logs_service_guard();
 
 -- Digital inventory: users see only their own
-CREATE POLICY "digital_inventory_own" ON digital_inventory
-  FOR ALL USING (user_id = auth.uid());
+CREATE POLICY "digital_inventory_select_own" ON digital_inventory
+  FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "digital_inventory_update_service" ON digital_inventory
+  FOR UPDATE USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'))
+  WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'));
+
+CREATE POLICY "digital_inventory_delete_service" ON digital_inventory
+  FOR DELETE USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'));
 
 -- Pricing snapshots: authenticated read; server write
 CREATE POLICY "pricing_snapshots_auth_read" ON rip_pricing_snapshots

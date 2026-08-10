@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
   if (!ids || !Array.isArray(ids) || ids.length === 0) {
     return NextResponse.json({ error: 'ids array is required.' }, { status: 400 })
   }
+  if (ids.length > 500) {
+    return NextResponse.json({ error: 'Maximum 500 items per bulk operation.' }, { status: 400 })
+  }
 
   const validActions: BulkAction[] = ['lock', 'update_location', 'unassign']
   if (!action || !validActions.includes(action)) {

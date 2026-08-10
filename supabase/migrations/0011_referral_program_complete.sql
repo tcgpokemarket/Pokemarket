@@ -87,12 +87,12 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   CREATE POLICY "referral_rewards_insert_service" ON public.referral_rewards
-    FOR INSERT WITH CHECK (true);
+    FOR INSERT WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_super_admin','super_admin'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   CREATE POLICY "referral_rewards_update_service" ON public.referral_rewards
-    FOR UPDATE USING (true);
+    FOR UPDATE USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ──────────────────────────────────────────────────────────────
@@ -116,17 +116,17 @@ ALTER TABLE public.referral_fraud_flags ENABLE ROW LEVEL SECURITY;
 
 DO $$ BEGIN
   CREATE POLICY "referral_fraud_flags_insert" ON public.referral_fraud_flags
-    FOR INSERT WITH CHECK (true);
+    FOR INSERT WITH CHECK ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   CREATE POLICY "referral_fraud_flags_select_service" ON public.referral_fraud_flags
-    FOR SELECT USING (true);
+    FOR SELECT USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   CREATE POLICY "referral_fraud_flags_update_service" ON public.referral_fraud_flags
-    FOR UPDATE USING (true);
+    FOR UPDATE USING ((auth.jwt() -> 'app_metadata' ->> 'role') IN ('admin','super_admin'));
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ──────────────────────────────────────────────────────────────

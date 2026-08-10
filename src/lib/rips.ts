@@ -289,12 +289,14 @@ export async function getTransactionByIdempotencyKey(
 
 export async function getRipResultForTransaction(
   transactionId: string,
+  userId: string,
 ): Promise<RipResult | null> {
   const supabase = createAdminClient()
   const { data, error } = await supabase
     .from('rip_results')
     .select('*')
     .eq('transaction_id', transactionId)
+    .eq('user_id', userId)
     .maybeSingle()
 
   if (error) throw error

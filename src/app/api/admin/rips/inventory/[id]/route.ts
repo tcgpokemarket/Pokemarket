@@ -105,15 +105,32 @@ export async function PATCH(req: NextRequest, ctx: RouteContext) {
   }
 
   // Only allow updating safe fields
-  const allowed = [
+  const update: Record<string, any> = { updated_at: new Date().toISOString() }
+
+  const stringFields = [
     'card_name', 'set_name', 'set_id', 'card_number', 'card_id',
     'language', 'condition', 'grade', 'grade_company', 'certification_number',
-    'image_url', 'market_value', 'acquisition_cost', 'warehouse_location',
-    'notes', 'inventory_status',
-  ]
-  const update: Record<string, any> = { updated_at: new Date().toISOString() }
-  for (const key of allowed) {
+    'image_url', 'warehouse_location', 'notes', 'inventory_status',
+  ] as const
+
+  for (const key of stringFields) {
     if (key in body) update[key] = body[key]
+  }
+
+  if ('market_value' in body) {
+    const value = Number(body.market_value)
+    if (!Number.isFinite(value) || value < 0) {
+      return NextResponse.json({ error: 'Invalid market_value.' }, { status: 400 })
+    }
+    update.market_value = value
+  }
+
+  if ('acquisition_cost' in body) {
+    const value = Number(body.acquisition_cost)
+    if (!Number.isFinite(value) || value < 0) {
+      return NextResponse.json({ error: 'Invalid acquisition_cost.' }, { status: 400 })
+    }
+    update.acquisition_cost = value
   }
 
   const { data: updated, error: updateErr } = await db

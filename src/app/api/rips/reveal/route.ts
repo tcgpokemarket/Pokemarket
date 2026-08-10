@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
   // 4. Idempotency — already revealed
   if (['revealed', 'completed'].includes(tx.status)) {
-    const result = await getRipResultForTransaction(transactionId)
+    const result = await getRipResultForTransaction(transactionId, user.id)
     if (result) return NextResponse.json({ result })
   }
 

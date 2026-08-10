@@ -16,7 +16,7 @@ function normalizeRole(value: unknown): AppRole | null {
 }
 
 export function getAppRole(user: User | null | undefined): AppRole {
-  const metadataRole = normalizeRole(user?.app_metadata?.role) ?? normalizeRole(user?.user_metadata?.role);
+  const metadataRole = normalizeRole(user?.app_metadata?.role);
   if (metadataRole) return metadataRole;
 
   const email = user?.email?.toLowerCase() ?? "";

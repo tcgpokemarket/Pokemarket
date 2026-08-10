@@ -171,22 +171,37 @@ create policy "conversations are updatable by members" on public.conversations
 
 create policy "conversation members are readable by members" on public.conversation_members
   for select using (exists (select 1 from public.conversation_members cm where cm.conversation_id = conversation_id and cm.user_id = auth.uid()));
+drop policy if exists "conversation members are insertable by authenticated users" on public.conversation_members;
 create policy "conversation members are insertable by authenticated users" on public.conversation_members
-  for insert with check (auth.uid() is not null);
+  for insert with check (auth.uid() = user_id);
+drop policy if exists "conversation members are updatable by members" on public.conversation_members;
 create policy "conversation members are updatable by members" on public.conversation_members
-  for update using (user_id = auth.uid() or exists (select 1 from public.conversation_members cm where cm.conversation_id = conversation_id and cm.user_id = auth.uid()));
+  for update using (user_id = auth.uid());
 
 create policy "messages are readable by members" on public.messages
   for select using (exists (select 1 from public.conversation_members where conversation_id = messages.conversation_id and user_id = auth.uid()));
+drop policy if exists "messages are insertable by conversation members" on public.messages;
 create policy "messages are insertable by conversation members" on public.messages
-  for insert with check (exists (select 1 from public.conversation_members where conversation_id = messages.conversation_id and user_id = auth.uid()));
+  for insert with check (
+    sender_id = auth.uid()
+    and exists (select 1 from public.conversation_members where conversation_id = messages.conversation_id and user_id = auth.uid())
+  );
+drop policy if exists "messages are updatable by sender or members" on public.messages;
 create policy "messages are updatable by sender or members" on public.messages
-  for update using (sender_id = auth.uid() or exists (select 1 from public.conversation_members where conversation_id = messages.conversation_id and user_id = auth.uid()));
+  for update using (sender_id = auth.uid());
 
 create policy "message recipients are readable by recipient" on public.message_recipients
   for select using (user_id = auth.uid());
+drop policy if exists "message recipients are insertable by message senders" on public.message_recipients;
 create policy "message recipients are insertable by message senders" on public.message_recipients
-  for insert with check (auth.uid() is not null);
+  for insert with check (
+    exists (
+      select 1
+      from public.messages
+      where messages.id = message_recipients.message_id
+        and messages.sender_id = auth.uid()
+    )
+  );
 create policy "message recipients are updatable by recipient" on public.message_recipients
   for update using (user_id = auth.uid());
 

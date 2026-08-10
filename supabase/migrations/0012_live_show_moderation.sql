@@ -37,19 +37,19 @@ create index if not exists idx_live_show_moderation_actions_target on public.liv
 create index if not exists idx_live_show_moderation_history_show_id on public.live_show_moderation_history (show_id, created_at desc);
 
 create policy "moderation actions are readable" on public.live_show_moderation_actions
-  for select using (true);
+  for select using ((auth.jwt() -> 'app_metadata' ->> 'role') in ('admin','super_admin'));
 
 create policy "moderation history is readable" on public.live_show_moderation_history
-  for select using (true);
+  for select using ((auth.jwt() -> 'app_metadata' ->> 'role') in ('admin','super_admin'));
 
 create policy "moderation actions are insertable by staff" on public.live_show_moderation_actions
-  for insert with check (auth.uid() is not null);
+  for insert with check ((auth.jwt() -> 'app_metadata' ->> 'role') in ('admin','super_admin'));
 
 create policy "moderation history is insertable by staff" on public.live_show_moderation_history
-  for insert with check (auth.uid() is not null);
+  for insert with check ((auth.jwt() -> 'app_metadata' ->> 'role') in ('admin','super_admin'));
 
 create policy "moderation actions are updatable by staff" on public.live_show_moderation_actions
-  for update using (auth.uid() is not null);
+  for update using ((auth.jwt() -> 'app_metadata' ->> 'role') in ('admin','super_admin'));
 
 create policy "moderation history is updatable by staff" on public.live_show_moderation_history
-  for update using (auth.uid() is not null);
+  for update using ((auth.jwt() -> 'app_metadata' ->> 'role') in ('admin','super_admin'));

@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { hasInternalAuth } from "@/lib/internal-auth";
 
 export async function POST(req: Request) {
   try {
+    if (!hasInternalAuth(req)) {
+      return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+    }
+
     const body = await req.json();
     const { user_id, device_id, ip_address, user_agent, platform, locale } = body ?? {};
 
@@ -10,7 +15,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "missing user_id or device_id" }, { status: 400 });
     }
 
-    // TODO: Add authentication for internal callers (signed token / cookie)
     const admin = createAdminClient();
 
     const payload = {
