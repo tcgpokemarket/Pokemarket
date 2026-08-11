@@ -53,18 +53,6 @@ const EMPTY_POPULAR_CATEGORIES = [
   { label: "Accessories", count: 0 },
 ];
 
-const EMPTY_HOME = {
-  liveNow: EMPTY_LIVE_SHOWS,
-  featuredLiveShows: EMPTY_LIVE_SHOWS,
-  endingSoonAuctions: EMPTY_LIVE_SHOWS,
-  trendingMarketplace: EMPTY_LISTINGS,
-  recentlyAdded: EMPTY_LISTINGS,
-  popularCategories: EMPTY_POPULAR_CATEGORIES,
-  featuredSellers: EMPTY_SELLERS,
-  activity: EMPTY_ACTIVITY,
-  upcomingLiveShows: EMPTY_LIVE_SHOWS,
-};
-
 function emptyHome(): HomepageData {
   return {
     liveNow: [],
@@ -80,7 +68,14 @@ function emptyHome(): HomepageData {
 }
 
 function mapListing(listing: ListingRow): HomepageListing {
-  return { id: listing.id, card_name: listing.card_name, set_name: listing.set_name, price: listing.price, category: listing.category, images: listing.images ?? [] };
+  return {
+    id: listing.id,
+    card_name: listing.card_name,
+    set_name: listing.set_name,
+    price: listing.price,
+    category: listing.category,
+    images: listing.images ?? [],
+  };
 }
 
 function mapSeller(seller: SellerRow | null | undefined): HomepageSeller | null {
@@ -100,33 +95,77 @@ function mapSeller(seller: SellerRow | null | undefined): HomepageSeller | null 
   };
 }
 
-function emptyHomeData(): HomepageData {
-  return emptyHome();
+function mapLiveShow(row: Record<string, unknown>): HomepageLiveShow {
+  return {
+    id: String(row.id),
+    title: String(row.title ?? "Live showcase"),
+    description: (row.description as string | null) ?? null,
+    thumbnail: (row.thumbnail as string | null) ?? null,
+    viewer_count: typeof row.viewer_count === "number" ? row.viewer_count : 0,
+    status: String(row.status ?? "scheduled"),
+    seller_id: String(row.seller_id),
+    scheduled_start: (row.scheduled_start as string | null) ?? null,
+    scheduled_end: (row.scheduled_end as string | null) ?? null,
+    auction_settings: (row.auction_settings as Record<string, unknown> | null) ?? null,
+  };
 }
 
 export async function getHomepageData(): Promise<HomepageData> {
   try {
     const supabase = await createClient();
-    const [listingsResult, sellersResult] = await Promise.all([
-      supabase.from("listings").select("*").eq("status", "active").order("created_at", { ascending: false }).limit(12),
-      supabase.from("sellers").select("*").order("sales_count", { ascending: false }).limit(8),
+    const [listingsResult, sellersResult, liveShowsResult] = await Promise.all([
+      supabase
+        .from("listings")
+        .select("*")
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(12),
+      supabase
+        .from("sellers")
+        .select("*")
+        .order("sales_count", { ascending: false })
+        .limit(8),
+      supabase
+        .from("live_shows")
+        .select("id, seller_id, title, description, thumbnail, status, viewer_count, scheduled_start, scheduled_end, auction_settings, created_at, updated_at")
+        .in("status", ["live", "scheduled", "upcoming"])
+        .order("created_at", { ascending: false })
+        .limit(24),
     ]);
 
-    const trendingMarketplace = (listingsResult.data ?? []).map(mapListing);
-    const featuredSellers = (sellersResult.data ?? []).map((seller) => mapSeller(seller as SellerRow)).filter(Boolean) as HomepageSeller[];
+    const trendingMarketplace = (listingsResult.data ?? []).map((listing) => mapListing(listing as ListingRow));
+    const featuredSellers = (sellersResult.data ?? [])
+      .map((seller) => mapSeller(seller as SellerRow))
+      .filter(Boolean) as HomepageSeller[];
+
+    const liveShows = (liveShowsResult.data ?? []).map((row) => mapLiveShow(row as Record<string, unknown>));
+    const liveNow = liveShows.filter((show) => show.status === "live");
+    const upcomingLiveShows = liveShows.filter((show) => show.status === "scheduled" || show.status === "upcoming");
+    const featuredLiveShows = liveShows.filter((show) => Boolean(show.auction_settings?.featured));
+
+    // Ending-soon showcases are live rooms with a known scheduled end time.
+    const now = Date.now();
+    const endingSoonAuctions = liveNow
+      .filter((show) => {
+        if (!show.scheduled_end) return false;
+        const end = Date.parse(show.scheduled_end);
+        return Number.isFinite(end) && end > now && end - now <= 60 * 60 * 1000;
+      })
+      .sort((a, b) => Date.parse(a.scheduled_end ?? "") - Date.parse(b.scheduled_end ?? ""))
+      .slice(0, 8);
 
     return {
-      liveNow: [],
-      featuredLiveShows: [],
-      endingSoonAuctions: [],
+      liveNow,
+      featuredLiveShows: featuredLiveShows.length ? featuredLiveShows : liveNow.slice(0, 8),
+      endingSoonAuctions,
       trendingMarketplace,
       recentlyAdded: trendingMarketplace.slice(0, 4),
       popularCategories: EMPTY_POPULAR_CATEGORIES,
       featuredSellers,
-      activity: [],
-      upcomingLiveShows: [],
+      activity: EMPTY_ACTIVITY,
+      upcomingLiveShows: upcomingLiveShows.slice(0, 12),
     };
   } catch {
-    return emptyHomeData();
+    return emptyHome();
   }
 }
