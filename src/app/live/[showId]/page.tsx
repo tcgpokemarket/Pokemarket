@@ -35,40 +35,13 @@ export const dynamicParams = false;
 
 export async function generateStaticParams(): Promise<Array<{ showId: string }>> {
   const shows = await fetchPublicRows<Pick<LiveShowDirectoryItem, "id">>("live_shows", "id", [["order", "created_at.desc"]], 2000);
-  return shows.length ? shows.map((show) => ({ showId: show.id })) : [{ showId: "preview" }];
-}
-
-function getPreviewShow() {
-  return {
-    show: {
-      id: "preview",
-      seller_id: "preview-seller",
-      title: "Live Auction Preview",
-      description: "The live auction feed is empty right now, so this placeholder keeps the route exportable.",
-      thumbnail: null,
-      status: "scheduled",
-      auction_state: "upcoming",
-      viewer_count: 0,
-      peak_viewers: 0,
-      total_sales_amount: 0,
-      total_bidders: 0,
-      average_bid_value: 0,
-      engagement_score: 0,
-      scheduled_start: null,
-      scheduled_end: null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      auction_settings: null,
-    },
-    products: [],
-    bids: [],
-    chat: [],
-    giveaways: [],
-  } as any;
+  return shows.map((show) => ({ showId: show.id }));
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ showId: string }> }): Promise<Metadata> {
   const { showId } = await params;
+  if (showId === "preview") return { title: "Live Auction", description: "Live auction show on TCG Poke Market." };
+
   try {
     const { show } = await getLiveShowDetails(showId);
     return {
@@ -78,7 +51,7 @@ export async function generateMetadata({ params }: { params: Promise<{ showId: s
   } catch {
     return {
       title: "Live Auction",
-      description: "Live auction show on TcgPoké Market.",
+      description: "Live auction show on TCG Poke Market.",
     };
   }
 }
@@ -86,9 +59,9 @@ export async function generateMetadata({ params }: { params: Promise<{ showId: s
 export default async function LiveShowPage({ params }: { params: Promise<{ showId: string }> }) {
   const { showId } = await params;
 
-  if (showId === "preview") {
-    return <LiveShowClient initialData={getPreviewShow()} />;
-  }
+  // "preview" is a build-time placeholder, never a production show ID.
+  // Do not send it to Supabase or initialize the live-show client with it.
+  if (showId === "preview") notFound();
 
   let data;
   try {
