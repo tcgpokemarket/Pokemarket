@@ -94,9 +94,13 @@ export async function POST(req: NextRequest) {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       // Stripe Checkout's `card` payment method includes eligible Apple Pay and Google Pay wallets.
-      // Wallet buttons are rendered by Stripe when the customer's device/browser, currency,
-      // account settings, and registered payment-method domain support them.
+      // Stripe Tax uses the checkout shipping address for the transaction location instead of
+      // trusting browser GPS/IP, which is not precise enough for US local tax jurisdictions.
       payment_method_types: ['card'],
+      automatic_tax: { enabled: true },
+      shipping_address_collection: { allowed_countries: ['US'] },
+      customer_creation: 'always',
+      customer_update: { shipping: 'auto' },
       line_items: [{
         price_data: {
           currency: 'usd',
