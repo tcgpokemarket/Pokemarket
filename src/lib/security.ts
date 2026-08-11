@@ -2,10 +2,8 @@ import type { User } from "@supabase/supabase-js";
 
 export type AppRole = "buyer" | "seller" | "moderator" | "support" | "admin" | "super_admin";
 
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS ?? "tcgpokemarketadmin@gmail.com")
-  .split(",")
-  .map((email) => email.trim().toLowerCase())
-  .filter(Boolean);
+// Single-owner admin allowlist. Do not grant admin access from profile/app metadata.
+const OWNER_ADMIN_EMAIL = "tcgpokemarketadmin@gmail.com";
 
 function normalizeRole(value: unknown): AppRole | null {
   const role = String(value ?? "").trim().toLowerCase();
@@ -16,16 +14,14 @@ function normalizeRole(value: unknown): AppRole | null {
 }
 
 export function getAppRole(user: User | null | undefined): AppRole {
-  const metadataRole = normalizeRole(user?.app_metadata?.role);
-  if (metadataRole) return metadataRole;
-
-  const email = user?.email?.toLowerCase() ?? "";
-  if (ADMIN_EMAILS.includes(email)) return "admin";
+  const email = user?.email?.trim().toLowerCase() ?? "";
+  if (email === OWNER_ADMIN_EMAIL) return "admin";
   return "buyer";
 }
 
 export function isAdmin(user: User | null | undefined) {
-  return getAppRole(user) === "admin" || getAppRole(user) === "super_admin";
+  const email = user?.email?.trim().toLowerCase() ?? "";
+  return Boolean(user) && email === OWNER_ADMIN_EMAIL;
 }
 
 export function bypassVerificationFor(user: User | null | undefined) {
