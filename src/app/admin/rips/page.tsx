@@ -17,14 +17,17 @@ export default async function AdminRipsPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/signin')
 
-  // Check admin role
+  // Check admin role. The generated Supabase type can infer an empty/never
+  // row shape for profiles in some builds, so normalize the selected role to
+  // the runtime shape used by this authorization check.
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', user.id)
     .maybeSingle()
 
-  if (!profile || !['admin', 'super_admin'].includes(profile.role ?? '')) {
+  const role = (profile as { role?: string } | null)?.role
+  if (!role || !['admin', 'super_admin'].includes(role)) {
     redirect('/')
   }
 
