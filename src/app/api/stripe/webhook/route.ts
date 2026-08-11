@@ -27,9 +27,23 @@ export async function POST(req: Request) {
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
+
+      if (session.metadata?.wallet_topup === "true" && session.payment_status === "paid") {
+        const userId = session.metadata.user_id;
+        const amountCents = Number(session.metadata.amount_cents);
+        if (!userId || !Number.isInteger(amountCents) || amountCents <= 0) throw new Error("Invalid wallet top-up metadata");
+        const { error } = await admin.rpc("wallet_credit_topup", {
+          p_user_id: userId,
+          p_amount: amountCents / 100,
+          p_idempotency_key: `stripe_checkout:${session.id}`,
+          p_reference_id: session.payment_intent ? String(session.payment_intent) : session.id,
+          p_description: "Stripe wallet top-up",
+        });
+        if (error) throw error;
+      }
+
       const orderId = session.metadata?.order_id;
       if (orderId) {
-        // The database function locks the order/listing/inventory and performs the ownership transfer atomically.
         const { data: completion, error: completionError } = await admin.rpc('complete_marketplace_order', { p_order_id: orderId });
         if (completionError) throw completionError;
 
