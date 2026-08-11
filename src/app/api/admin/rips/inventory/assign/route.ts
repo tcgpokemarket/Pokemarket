@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
   // Validate the selected pack and version before touching inventory.
   const [{ data: pack, error: packErr }, { data: version, error: versionErr }] = await Promise.all([
-    db.from('rip_packs').select('id, name').eq('id', pack_id).maybeSingle(),
+    db.from('rip_packs').select('id, name, status, active_version_id').eq('id', pack_id).maybeSingle(),
     db.from('rip_pack_versions').select('id, pack_id, version_number').eq('id', pack_version_id).maybeSingle(),
   ])
 
@@ -64,28 +64,30 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'One or more selected inventory cards were not found.' }, { status: 404 })
   }
 
-  const protectedStatuses = ['allocated', 'shipped', 'sold', 'returned', 'destroyed']
+  // A card assigned to a pack is still inventory available for the rip.
+  // 'allocated' is reserved for the moment a paid rip transaction claims it.
+  const protectedStatuses = ['shipped', 'sold', 'returned', 'destroyed']
   const blocked = existing.filter((r: any) => protectedStatuses.includes(r.inventory_status))
 
   if (blocked.length > 0) {
     return NextResponse.json(
       {
-        error: `${blocked.length} card(s) cannot be reassigned because they are already allocated, shipped, or sold.`,
+        error: `${blocked.length} card(s) cannot be reassigned because they are already shipped, sold, returned, or destroyed.`,
         blocked: blocked.map((r: any) => ({ id: r.id, card_name: r.card_name, status: r.inventory_status })),
       },
       { status: 409 },
     )
   }
 
-  // Assignment is a real inventory state transition. Keep the pack, version,
-  // and status synchronized so the card immediately appears as allocated to
-  // the selected pack/version everywhere in the admin UI and in rip allocation.
+  // Assignment links the card to the pack/version but keeps it available so
+  // the public Rips allocator can select it. A successful paid rip changes
+  // this same row to 'allocated'.
   const { error: updateErr } = await db
     .from('rip_physical_inventory')
     .update({
       pack_id,
       pack_version_id,
-      inventory_status: 'allocated',
+      inventory_status: 'available',
       updated_at: new Date().toISOString(),
     })
     .in('id', ids)
@@ -93,6 +95,51 @@ export async function POST(req: NextRequest) {
   if (updateErr) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 })
   }
+
+  // Keep the denormalized pack inventory fields synchronized with the actual
+  // physical inventory. Make the assigned pack/version live once an admin has
+  // explicitly put inventory into it; empty packs remain draft/sold-out.
+  const { count: availableCount, error: countErr } = await db
+    .from('rip_physical_inventory')
+    .select('id', { count: 'exact', head: true })
+    .eq('pack_id', pack_id)
+    .eq('inventory_status', 'available')
+
+  if (countErr) {
+    return NextResponse.json({ error: 'Cards assigned, but pack inventory count could not be synchronized.' }, { status: 500 })
+  }
+
+  const { count: totalCount, error: totalErr } = await db
+    .from('rip_physical_inventory')
+    .select('id', { count: 'exact', head: true })
+    .eq('pack_id', pack_id)
+
+  if (totalErr) {
+    return NextResponse.json({ error: 'Cards assigned, but pack inventory total could not be synchronized.' }, { status: 500 })
+  }
+
+  const packUpdate: Record<string, unknown> = {
+    inventory_count: totalCount ?? 0,
+    available_quantity: availableCount ?? 0,
+    active_version_id: pack_version_id,
+    status: 'active',
+    updated_at: new Date().toISOString(),
+  }
+
+  const { error: packUpdateErr } = await db
+    .from('rip_packs')
+    .update(packUpdate)
+    .eq('id', pack_id)
+
+  if (packUpdateErr) {
+    return NextResponse.json({ error: `Cards assigned, but pack could not be synchronized: ${packUpdateErr.message}` }, { status: 500 })
+  }
+
+  // Version 1 must be marked active when it becomes the pack's active version.
+  await db
+    .from('rip_pack_versions')
+    .update({ activated_at: new Date().toISOString(), deactivated_at: null })
+    .eq('id', pack_version_id)
 
   const ip = req.headers.get('x-forwarded-for') ?? undefined
 
@@ -105,10 +152,11 @@ export async function POST(req: NextRequest) {
       payload: {
         old_pack_id: row.pack_id,
         old_pack_version_id: row.pack_version_id,
+        old_inventory_status: row.inventory_status,
         new_pack_id: pack_id,
         new_pack_version_id: pack_version_id,
         card_name: row.card_name,
-        new_inventory_status: 'allocated',
+        new_inventory_status: 'available',
       },
       ip_address: ip,
     })
@@ -118,6 +166,9 @@ export async function POST(req: NextRequest) {
     assigned: ids.length,
     pack_id,
     pack_version_id,
-    status: 'allocated',
+    status: 'available',
+    pack_status: 'active',
+    inventory_count: totalCount ?? 0,
+    available_quantity: availableCount ?? 0,
   })
 }
