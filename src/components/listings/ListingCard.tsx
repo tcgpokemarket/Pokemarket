@@ -16,9 +16,6 @@ function getImageStatus(listing: ListingWithSeller) {
     variant: listing.grade_company ? `${listing.grade_company} ${listing.grade_score ?? ""}`.trim() : null,
   };
 
-  // Seller verification and image verification are separate trust signals.
-  // A verified seller's uploaded image should not be labeled "Unverified" merely
-  // because the image itself has not been independently matched yet.
   const sellerIsVerified = listing.profiles?.verification_status === "approved";
   const source = sellerIsVerified ? "seller_verified" : "seller_unverified";
 
@@ -68,20 +65,10 @@ export default function ListingCard({ listing }: ListingCardProps) {
       </Link>
 
       <div className="flex flex-wrap gap-2 px-5 pb-5">
-        <Link href={`/listings/${listing.id}`} className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">
-          View
-        </Link>
-        <button type="button" className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">
-          Add to Cart
-        </button>
-        <button type="button" className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">
-          Make Offer
-        </button>
-        {listing.profiles?.username && (
-          <Link href={`/profile/${listing.profiles.username}`} className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">
-            @{listing.profiles.username}
-          </Link>
-        )}
+        <Link href={`/listings/${listing.id}`} className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">View</Link>
+        <button type="button" className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">Add to Cart</button>
+        <button type="button" className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">Make Offer</button>
+        {listing.profiles?.username && <Link href={`/profile/${listing.profiles.username}`} className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">@{listing.profiles.username}</Link>}
       </div>
     </div>
   );
