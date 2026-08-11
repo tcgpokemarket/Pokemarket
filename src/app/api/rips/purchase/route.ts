@@ -93,6 +93,9 @@ export async function POST(req: NextRequest) {
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      // Stripe Checkout's `card` payment method includes eligible Apple Pay and Google Pay wallets.
+      // Wallet buttons are rendered by Stripe when the customer's device/browser, currency,
+      // account settings, and registered payment-method domain support them.
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
