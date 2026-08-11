@@ -8,7 +8,7 @@ import AdminGate from "./AdminGate";
 
 export const metadata: Metadata = {
   title: "Admin Control Center",
-  description: "Admin control center connected to the live TCG Poké Market dashboard and operations modules.",
+  description: "Protected admin control center connected to live marketplace workflows and Supabase-backed operations.",
 };
 
 type AdminModule = {
@@ -29,10 +29,14 @@ const modules: AdminModule[] = [
   { title: "Referrals", description: "Manage the existing referral administration workflow.", href: "/admin/referrals", area: "Trust" },
   { title: "Rips", description: "Manage live rip/break administration and related production controls.", href: "/admin/rips", area: "Commerce" },
   { title: "Rip inventory", description: "Manage rip inventory and uploaded product/card assets.", href: "/admin/rips/inventory", area: "Commerce" },
-  { title: "API management", description: "Review the connected API management controls available to administrators.", href: "/admin/apis", area: "System" },
+  { title: "API management", description: "Review connected integration health and runtime configuration.", href: "/admin/apis", area: "System" },
 ];
 
 const areas = ["Operations", "Commerce", "Trust", "System"] as const;
+
+function countResult(value: { count: number | null } | null | undefined) {
+  return value?.count ?? 0;
+}
 
 export default async function AdminPage() {
   const cookieStore = await cookies();
@@ -55,6 +59,28 @@ export default async function AdminPage() {
   if (!user) redirect("/auth/signin?redirectTo=/admin");
   if (!isAdmin(user)) redirect("/dashboard");
 
+  const [users, sellers, pendingVerification, listings, orders, shipments, ripPacks, ripTransactions] = await Promise.all([
+    supabase.from("profiles").select("id", { count: "exact", head: true }),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).in("verification_status", ["approved", "pending_review", "more_information_required"]),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("verification_status", "pending_review"),
+    supabase.from("listings").select("id", { count: "exact", head: true }),
+    supabase.from("orders").select("id", { count: "exact", head: true }),
+    supabase.from("shipments").select("id", { count: "exact", head: true }),
+    supabase.from("rip_packs").select("id", { count: "exact", head: true }),
+    supabase.from("rip_transactions").select("id", { count: "exact", head: true }),
+  ]);
+
+  const stats = [
+    ["Users", countResult(users)],
+    ["Sellers", countResult(sellers)],
+    ["Pending verification", countResult(pendingVerification)],
+    ["Listings", countResult(listings)],
+    ["Orders", countResult(orders)],
+    ["Shipments", countResult(shipments)],
+    ["Rip packs", countResult(ripPacks)],
+    ["Rip transactions", countResult(ripTransactions)],
+  ] as const;
+
   return (
     <AdminGate>
       <div className="min-h-screen px-4 py-6 text-white sm:px-6 sm:py-10">
@@ -65,7 +91,7 @@ export default async function AdminPage() {
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-yellow-400">Admin control center</p>
                 <h1 className="mt-2 text-3xl font-black tracking-tight sm:text-4xl">Admin ↔ Dashboard</h1>
                 <p className="mt-3 max-w-3xl text-sm leading-6 text-gray-400">
-                  One protected entry point to the live marketplace, seller tools, commerce workflows, trust controls, and system administration. Links below target the existing production routes instead of mock admin screens.
+                  Protected operations view backed by the live Supabase data layer. Counts below are queried server-side at request time; navigation targets real application workflows.
                 </p>
               </div>
               <Link href="/dashboard" className="inline-flex items-center justify-center rounded-xl border border-yellow-400/30 bg-yellow-400/10 px-4 py-3 text-sm font-bold text-yellow-300 transition hover:bg-yellow-400/20">
@@ -73,6 +99,19 @@ export default async function AdminPage() {
               </Link>
             </div>
           </header>
+
+          <section aria-labelledby="admin-live-metrics" className="mt-6">
+            <h2 id="admin-live-metrics" className="sr-only">Live metrics</h2>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {stats.map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-white/10 bg-[#13131f] p-5">
+                  <p className="text-xs font-bold uppercase tracking-widest text-gray-500">{label}</p>
+                  <p className="mt-2 text-2xl font-black tabular-nums">{value.toLocaleString()}</p>
+                  <p className="mt-1 text-xs text-gray-500">Supabase-backed</p>
+                </div>
+              ))}
+            </div>
+          </section>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {areas.map((area) => {
@@ -114,7 +153,7 @@ export default async function AdminPage() {
           </main>
 
           <footer className="mt-10 rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-xs leading-5 text-gray-500">
-            Admin access is still enforced server-side before this page renders. This control center does not grant permissions or expose service-role credentials; it only routes an authenticated administrator to existing application workflows.
+            Admin access is enforced server-side before this page renders. The page uses the authenticated Supabase session and never exposes service-role credentials.
           </footer>
         </div>
       </div>
