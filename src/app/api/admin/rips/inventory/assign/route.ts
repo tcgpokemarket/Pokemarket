@@ -34,7 +34,23 @@ export async function POST(req: NextRequest) {
 
   const db = adminDb()
 
-  // Load existing rows to check status safety
+  // Validate the selected pack and version before touching inventory.
+  const [{ data: pack, error: packErr }, { data: version, error: versionErr }] = await Promise.all([
+    db.from('rip_packs').select('id, name').eq('id', pack_id).maybeSingle(),
+    db.from('rip_pack_versions').select('id, pack_id, version_number').eq('id', pack_version_id).maybeSingle(),
+  ])
+
+  if (packErr || !pack) {
+    return NextResponse.json({ error: 'Selected pack was not found.' }, { status: 404 })
+  }
+  if (versionErr || !version) {
+    return NextResponse.json({ error: 'Selected pack version was not found.' }, { status: 404 })
+  }
+  if (version.pack_id !== pack_id) {
+    return NextResponse.json({ error: 'Selected pack version does not belong to the selected pack.' }, { status: 400 })
+  }
+
+  // Load existing rows to check status safety.
   const { data: existing, error: fetchErr } = await db
     .from('rip_physical_inventory')
     .select('id, inventory_status, pack_id, pack_version_id, card_name')
@@ -44,8 +60,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to load inventory.' }, { status: 500 })
   }
 
+  if (!existing || existing.length !== ids.length) {
+    return NextResponse.json({ error: 'One or more selected inventory cards were not found.' }, { status: 404 })
+  }
+
   const protectedStatuses = ['allocated', 'shipped', 'sold', 'returned', 'destroyed']
-  const blocked = (existing ?? []).filter((r: any) => protectedStatuses.includes(r.inventory_status))
+  const blocked = existing.filter((r: any) => protectedStatuses.includes(r.inventory_status))
 
   if (blocked.length > 0) {
     return NextResponse.json(
@@ -57,11 +77,15 @@ export async function POST(req: NextRequest) {
     )
   }
 
+  // Assignment is a real inventory state transition. Keep the pack, version,
+  // and status synchronized so the card immediately appears as allocated to
+  // the selected pack/version everywhere in the admin UI and in rip allocation.
   const { error: updateErr } = await db
     .from('rip_physical_inventory')
     .update({
       pack_id,
       pack_version_id,
+      inventory_status: 'allocated',
       updated_at: new Date().toISOString(),
     })
     .in('id', ids)
@@ -72,7 +96,7 @@ export async function POST(req: NextRequest) {
 
   const ip = req.headers.get('x-forwarded-for') ?? undefined
 
-  for (const row of existing ?? []) {
+  for (const row of existing) {
     await writeAuditLog({
       event_type: 'PACK_ASSIGNED',
       admin_id: auth.user.id,
@@ -84,10 +108,16 @@ export async function POST(req: NextRequest) {
         new_pack_id: pack_id,
         new_pack_version_id: pack_version_id,
         card_name: row.card_name,
+        new_inventory_status: 'allocated',
       },
       ip_address: ip,
     })
   }
 
-  return NextResponse.json({ assigned: ids.length })
+  return NextResponse.json({
+    assigned: ids.length,
+    pack_id,
+    pack_version_id,
+    status: 'allocated',
+  })
 }
