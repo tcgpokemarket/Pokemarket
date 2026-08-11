@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
-import { cookies } from 'next/headers'
-import { createServerClient } from '@supabase/ssr'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import AdminRipsClient from './AdminRipsClient'
 
@@ -9,21 +8,11 @@ export const metadata = {
 }
 
 export default async function AdminRipsPage() {
-  const cookieStore = await cookies()
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll() },
-        setAll(toSet) {
-          toSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options),
-          )
-        },
-      },
-    },
-  )
+  // Server Components can read request cookies, but Next.js does not allow
+  // them to mutate cookies. The shared Supabase server client safely ignores
+  // refresh-cookie writes here; auth/session mutation belongs in a Route
+  // Handler or middleware.
+  const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/signin')
