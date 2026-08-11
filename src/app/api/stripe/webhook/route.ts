@@ -43,18 +43,39 @@ export async function POST(req: Request) {
       }
 
       const orderId = session.metadata?.order_id;
-      if (orderId) {
-        const { data: completion, error: completionError } = await admin.rpc('complete_marketplace_order', { p_order_id: orderId });
+      if (orderId && session.payment_status === "paid") {
+        const { data: completion, error: completionError } = await admin.rpc("complete_marketplace_order", { p_order_id: orderId });
         if (completionError) throw completionError;
 
-        const { data: order } = await admin.from('orders').select('seller_id,total_amount').eq('id', orderId).maybeSingle();
+        const { data: order } = await admin.from("orders").select("seller_id,total_amount").eq("id", orderId).maybeSingle();
         const amount = session.amount_total ? Number(session.amount_total) / 100 : Number(order?.total_amount ?? 0);
         const { data: existingHold } = await admin.from("escrow_ledger").select("id").eq("order_id", orderId).eq("entry_type", "hold").maybeSingle();
         if (!existingHold) {
-          await admin.from("escrow_ledger").insert({ order_id: orderId, seller_id: order?.seller_id ?? null, entry_type: "hold", amount, created_at: new Date().toISOString() });
+          const { error: holdError } = await admin.from("escrow_ledger").insert({ order_id: orderId, seller_id: order?.seller_id ?? null, entry_type: "hold", amount, created_at: new Date().toISOString() });
+          if (holdError) throw holdError;
         }
 
-        console.info('[stripe/webhook] marketplace order completed', { orderId, completion });
+        // Create the referral reward only after the paid order has been completed.
+        // The database function independently caps the reward to eligible platform
+        // revenue and reserves the configured minimum platform margin.
+        const { error: referralError } = await admin.rpc("create_profit_safe_referral_reward", { p_order_id: orderId });
+        if (referralError) throw referralError;
+
+        console.info("[stripe/webhook] marketplace order completed", { orderId, completion });
+      }
+    }
+
+    // A refund/chargeback must reverse any pending or available referral reward.
+    const refundEvents = new Set(["charge.refunded", "charge.dispute.created", "payment_intent.payment_failed"]);
+    if (refundEvents.has(event.type)) {
+      const object: any = event.data.object;
+      const paymentIntentId = typeof object.payment_intent === "string" ? object.payment_intent : object.id;
+      if (paymentIntentId) {
+        const { data: order } = await admin.from("orders").select("id").eq("stripe_payment_intent_id", paymentIntentId).maybeSingle();
+        if (order?.id) {
+          const { error } = await admin.rpc("reverse_referral_reward_for_order", { p_order_id: order.id, p_reason: event.type });
+          if (error) throw error;
+        }
       }
     }
   } catch (err) {
