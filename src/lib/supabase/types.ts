@@ -136,6 +136,59 @@ export interface Database {
         }
         Update: Partial<Database['public']['Tables']['listings']['Insert']>
       }
+      rip_physical_inventory: {
+        Row: {
+          id: string
+          pack_id: string
+          pack_version_id: string | null
+          card_id: string | null
+          card_name: string
+          set_name: string | null
+          set_id: string | null
+          card_number: string | null
+          rarity: string | null
+          language: string
+          condition: string
+          grade: string | null
+          grade_company: string | null
+          certification_number: string | null
+          image_url: string | null
+          market_value: number | null
+          acquisition_cost: number | null
+          warehouse_location: string | null
+          notes: string | null
+          inventory_status: string
+          ownership_status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          pack_id: string
+          pack_version_id?: string | null
+          card_id?: string | null
+          card_name: string
+          set_name?: string | null
+          set_id?: string | null
+          card_number?: string | null
+          rarity?: string | null
+          language?: string
+          condition?: string
+          grade?: string | null
+          grade_company?: string | null
+          certification_number?: string | null
+          image_url?: string | null
+          market_value?: number | null
+          acquisition_cost?: number | null
+          warehouse_location?: string | null
+          notes?: string | null
+          inventory_status?: string
+          ownership_status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: Partial<Database['public']['Tables']['rip_physical_inventory']['Insert']>
+      }
       orders: {
         Row: {
           id: string

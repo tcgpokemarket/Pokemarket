@@ -83,6 +83,7 @@ CREATE TABLE IF NOT EXISTS rip_physical_inventory (
   market_value            numeric(10,2),
   acquisition_cost        numeric(10,2),
   warehouse_location      text,
+  notes                   text,
   inventory_status        text        NOT NULL DEFAULT 'available'
                             CHECK (inventory_status IN ('available','allocated','shipped','returned','destroyed')),
   ownership_status        text        NOT NULL DEFAULT 'platform'
