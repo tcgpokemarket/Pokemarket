@@ -93,11 +93,11 @@ export function evaluateImageMatch(identity: CardIdentity, candidate: { imageUrl
   if (exactNumberMatch) score += 20;
   if (exactVariantMatch) score += 10;
   if (candidate.source === "seller_verified") score += 10;
-  if (candidate.source === "seller_unverified") score -= 35;
+  if (candidate.source === "seller_unverified") score -= 10;
   if ((width ?? 0) >= MIN_DISPLAY_WIDTH) score += 5;
 
   if (candidate.source === "seller_unverified" && !(exactSetMatch && exactNumberMatch)) {
-    score = Math.min(score, 34);
+    score = Math.max(score, 40);
   }
 
   if (candidate.source === "pokemon_api" || candidate.source === "scryfall" || candidate.source === "ygoprodeck") {
@@ -118,23 +118,28 @@ export function evaluateImageMatch(identity: CardIdentity, candidate: { imageUrl
     score -= 15;
   }
 
-  if (!exactSetMatch && !exactNumberMatch && candidate.source === "seller_unverified") {
-    reason = "Image pending verification";
-  } else if (!exactSetMatch || !exactNumberMatch) {
+  if (candidate.source === "seller_unverified") {
+    reason = exactSetMatch && exactNumberMatch ? "Seller image matched; pending verification" : "Seller image pending verification";
+  } else if (!exactSetMatch && !exactNumberMatch) {
     reason = "Metadata mismatch";
   } else {
     reason = "Verified match";
   }
 
-  const confidence: ImageMatchConfidence = score >= 110 && verified
-    ? "verified"
-    : score >= 95 && verified
-      ? "high"
-      : score >= 70
-        ? "medium"
-        : score >= 40
-          ? "low"
-          : "blocked";
+  // Seller-uploaded images remain visible while verification is pending.
+  // Verification controls badges/trust and go-live eligibility, not whether
+  // a legitimate listing image is rendered to customers.
+  const confidence: ImageMatchConfidence = candidate.source === "seller_unverified"
+    ? "low"
+    : score >= 110 && verified
+      ? "verified"
+      : score >= 95 && verified
+        ? "high"
+        : score >= 70
+          ? "medium"
+          : score >= 40
+            ? "low"
+            : "blocked";
 
   return {
     imageUrl,
