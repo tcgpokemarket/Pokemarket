@@ -63,6 +63,13 @@ export async function POST(req: Request) {
         payment_method_types: ['card'],
         line_items: [{ price_data: { currency: 'usd', product_data: { name: listing.card_name }, unit_amount: Math.round(Number(listing.price) * 100) }, quantity }],
         mode: 'payment',
+        // Stripe Tax must determine tax from the buyer's actual checkout location.
+        // For physical marketplace orders, collect the shipping address rather than
+        // relying on browser GPS/IP, which can be inaccurate for US local tax districts.
+        automatic_tax: { enabled: true },
+        shipping_address_collection: { allowed_countries: ['US'] },
+        customer_creation: 'always',
+        customer_update: { shipping: 'auto' },
         success_url: `${process.env.NEXT_PUBLIC_SITE_URL}/orders/${orderData.id}/thank-you`,
         cancel_url: `${process.env.NEXT_PUBLIC_SITE_URL}/listings/${listingId}`,
         metadata: { order_id: orderData.id },
