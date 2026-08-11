@@ -4,6 +4,8 @@ import { VerifiedImage } from "./VerifiedImage";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 
 type ListingWithSeller = Listing & {
+  // Keep the seller relationship explicitly typed so production builds can
+  // safely read verification_status from the joined profile.
   profiles?: Pick<Profile, "username" | "seller_rating" | "verification_status"> | null;
 };
 
