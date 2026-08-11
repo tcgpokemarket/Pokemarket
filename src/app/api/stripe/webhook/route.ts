@@ -13,14 +13,13 @@ export async function POST(req: Request) {
   let event: Stripe.Event;
   try {
     event = stripe.webhooks.constructEvent(payload, sig, process.env.STRIPE_WEBHOOK_SECRET!);
-  } catch (err) {
+  } catch {
     return new Response("Invalid signature", { status: 400 });
   }
 
   const admin = adminDb();
 
   try {
-    // Idempotency: skip if we've already processed this provider_event_id
     const { data: existing } = await admin.from("webhook_events").select("id").eq("provider_event_id", event.id).maybeSingle();
     if (existing) return NextResponse.json({ received: true });
 
@@ -30,24 +29,21 @@ export async function POST(req: Request) {
       const session = event.data.object as Stripe.Checkout.Session;
       const orderId = session.metadata?.order_id;
       if (orderId) {
-        // Mark the order as paid and record payment intent
-        await admin.from("orders").update({ status: "paid", stripe_payment_intent_id: session.payment_intent }).eq("id", orderId);
+        // The database function locks the order/listing/inventory and performs the ownership transfer atomically.
+        const { data: completion, error: completionError } = await admin.rpc('complete_marketplace_order', { p_order_id: orderId });
+        if (completionError) throw completionError;
 
-        const { data: order } = await admin
-          .from('orders')
-          .select('seller_id')
-          .eq('id', orderId)
-          .maybeSingle()
+        const { data: order } = await admin.from('orders').select('seller_id,total_amount').eq('id', orderId).maybeSingle();
+        const amount = session.amount_total ? Number(session.amount_total) / 100 : Number(order?.total_amount ?? 0);
+        const { data: existingHold } = await admin.from("escrow_ledger").select("id").eq("order_id", orderId).eq("entry_type", "hold").maybeSingle();
+        if (!existingHold) {
+          await admin.from("escrow_ledger").insert({ order_id: orderId, seller_id: order?.seller_id ?? null, entry_type: "hold", amount, created_at: new Date().toISOString() });
+        }
 
-        // Create an escrow ledger hold entry
-        const amount = session.amount_total ? Number(session.amount_total) / 100 : undefined;
-        await admin.from("escrow_ledger").insert({ order_id: orderId, seller_id: order?.seller_id ?? null, entry_type: "hold", amount: amount ?? 0, created_at: new Date().toISOString() });
+        console.info('[stripe/webhook] marketplace order completed', { orderId, completion });
       }
     }
-
-    // handle other event types as needed
   } catch (err) {
-    // Log error record to webhook_events -> we already inserted event payload above; additional error logging can be added
     return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 
