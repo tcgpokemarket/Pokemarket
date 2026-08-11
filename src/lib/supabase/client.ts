@@ -1,10 +1,10 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { Database } from "./types";
 
-export function createClient(options: { rememberSession?: boolean } = {}) {
-  // Accept multiple possible env var names so staging/provisioning scripts that use
-  // different names (SUPABASE_URL / SUPABASE_PUBLISHABLE_KEY / SUPABASE_SECRET_KEY)
-  // will still work without changing app code.
+// Keep one browser Supabase client and persist the auth session across navigation
+// and reloads. The session is cleared only when Supabase signOut() is called or
+// when the user explicitly clears site storage.
+export function createClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL ?? "";
   const anonKey =
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
@@ -22,8 +22,8 @@ export function createClient(options: { rememberSession?: boolean } = {}) {
     auth: {
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      persistSession: options.rememberSession ?? true,
-    } as any,
-    isSingleton: false,
+      persistSession: true,
+    },
+    isSingleton: true,
   });
 }
