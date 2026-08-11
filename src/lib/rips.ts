@@ -4,6 +4,10 @@ import { fetchCardPrice } from '@/lib/prices'
 
 function createAdminClient() { return _createAdminClient() as any }
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 // ─── Public types ────────────────────────────────────────────────────────────
 
 export interface RipPack {
@@ -161,49 +165,24 @@ export interface JurisdictionRule {
 
 // ─── Jurisdiction helpers ─────────────────────────────────────────────────────
 
-/**
- * Returns the best-matching jurisdiction rule for (code, pack), preferring
- * the pack-specific rule over the global default.
- * Never exposes the full rules list to the caller.
- */
-export async function getJurisdictionRule(
-  jurisdictionCode: string,
-  packId?: string,
-): Promise<JurisdictionRule | null> {
+export async function getJurisdictionRule(jurisdictionCode: string, packId?: string): Promise<JurisdictionRule | null> {
+  if (packId && !isUuid(packId)) return null
   const supabase = createAdminClient()
-
-  // Check pack-specific rule first, then country-level, then broad default
-  const codesToTry = [
-    packId ? `${jurisdictionCode}|${packId}` : null,
-    jurisdictionCode,
-    jurisdictionCode.split('-')[0], // e.g. 'US' from 'US-CA'
-  ].filter(Boolean) as string[]
+  const codesToTry = [packId ? `${jurisdictionCode}|${packId}` : null, jurisdictionCode, jurisdictionCode.split('-')[0]].filter(Boolean) as string[]
 
   for (const code of codesToTry) {
     const isPack = code.includes('|')
     const [jCode, pId] = isPack ? code.split('|') : [code, null]
-
-    const query = supabase
-      .from('rip_jurisdiction_rules')
-      .select('*')
-      .eq('jurisdiction_code', jCode)
-
-    const { data } = pId
-      ? await query.eq('pack_id', pId).maybeSingle()
-      : await query.is('pack_id', null).maybeSingle()
-
+    const query = supabase.from('rip_jurisdiction_rules').select('*').eq('jurisdiction_code', jCode)
+    const { data } = pId ? await query.eq('pack_id', pId).maybeSingle() : await query.is('pack_id', null).maybeSingle()
     if (data) return data as JurisdictionRule
   }
-
   return null
 }
 
-export async function isJurisdictionAllowed(
-  jurisdictionCode: string,
-  packId?: string,
-): Promise<boolean> {
+export async function isJurisdictionAllowed(jurisdictionCode: string, packId?: string): Promise<boolean> {
   const rule = await getJurisdictionRule(jurisdictionCode, packId)
-  if (!rule) return false // deny by default if no rule found
+  if (!rule) return false
   return rule.is_allowed
 }
 
@@ -211,182 +190,88 @@ export async function isJurisdictionAllowed(
 
 export async function getActivePacks(): Promise<RipPack[]> {
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('rip_packs')
-    .select('*')
-    .eq('status', 'active')
-    .order('sort_order', { ascending: true })
-
+  const { data, error } = await supabase.from('rip_packs').select('*').eq('status', 'active').order('sort_order', { ascending: true })
   if (error) throw error
   return (data ?? []) as RipPack[]
 }
 
 export async function getPackById(packId: string): Promise<RipPack | null> {
+  if (!isUuid(packId)) return null
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('rip_packs')
-    .select('*')
-    .eq('id', packId)
-    .maybeSingle()
-
+  const { data, error } = await supabase.from('rip_packs').select('*').eq('id', packId).maybeSingle()
   if (error) throw error
   return data as RipPack | null
 }
 
-export async function getActivePackVersion(
-  packId: string,
-): Promise<RipPackVersion | null> {
+export async function getActivePackVersion(packId: string): Promise<RipPackVersion | null> {
+  if (!isUuid(packId)) return null
   const supabase = createAdminClient()
-  const { data: pack } = await supabase
-    .from('rip_packs')
-    .select('active_version_id')
-    .eq('id', packId)
-    .maybeSingle()
-
+  const { data: pack } = await supabase.from('rip_packs').select('active_version_id').eq('id', packId).maybeSingle()
   if (!pack?.active_version_id) return null
-
-  const { data, error } = await supabase
-    .from('rip_pack_versions')
-    .select('*')
-    .eq('id', pack.active_version_id)
-    .maybeSingle()
-
+  const { data, error } = await supabase.from('rip_pack_versions').select('*').eq('id', pack.active_version_id).maybeSingle()
   if (error) throw error
   return data as RipPackVersion | null
 }
 
 // ─── Transaction helpers ──────────────────────────────────────────────────────
 
-export async function getTransactionById(
-  transactionId: string,
-  userId: string,
-): Promise<RipTransaction | null> {
+export async function getTransactionById(transactionId: string, userId: string): Promise<RipTransaction | null> {
+  if (!isUuid(transactionId) || !isUuid(userId)) return null
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('rip_transactions')
-    .select('*')
-    .eq('id', transactionId)
-    .eq('user_id', userId)
-    .maybeSingle()
-
+  const { data, error } = await supabase.from('rip_transactions').select('*').eq('id', transactionId).eq('user_id', userId).maybeSingle()
   if (error) throw error
   return data as RipTransaction | null
 }
 
-export async function getTransactionByIdempotencyKey(
-  key: string,
-): Promise<RipTransaction | null> {
+export async function getTransactionByIdempotencyKey(key: string): Promise<RipTransaction | null> {
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('rip_transactions')
-    .select('*')
-    .eq('idempotency_key', key)
-    .maybeSingle()
-
+  const { data, error } = await supabase.from('rip_transactions').select('*').eq('idempotency_key', key).maybeSingle()
   if (error) throw error
   return data as RipTransaction | null
 }
 
-export async function getRipResultForTransaction(
-  transactionId: string,
-  userId: string,
-): Promise<RipResult | null> {
+export async function getRipResultForTransaction(transactionId: string, userId: string): Promise<RipResult | null> {
+  if (!isUuid(transactionId) || !isUuid(userId)) return null
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('rip_results')
-    .select('*')
-    .eq('transaction_id', transactionId)
-    .eq('user_id', userId)
-    .maybeSingle()
-
+  const { data, error } = await supabase.from('rip_results').select('*').eq('transaction_id', transactionId).eq('user_id', userId).maybeSingle()
   if (error) throw error
   return data as RipResult | null
 }
 
 // ─── Digital inventory helpers ────────────────────────────────────────────────
 
-export async function getUserVaultItems(
-  userId: string,
-): Promise<DigitalInventoryItem[]> {
+export async function getUserVaultItems(userId: string): Promise<DigitalInventoryItem[]> {
   const supabase = createAdminClient()
-  const { data, error } = await supabase
-    .from('digital_inventory')
-    .select('*, physical:physical_inventory_id(*)')
-    .eq('user_id', userId)
-    .in('status', ['available', 'vaulted'])
-    .order('acquired_at', { ascending: false })
-
+  const { data, error } = await supabase.from('digital_inventory').select('*, physical:physical_inventory_id(*)').eq('user_id', userId).in('status', ['available', 'vaulted']).order('acquired_at', { ascending: false })
   if (error) throw error
   return (data ?? []) as unknown as DigitalInventoryItem[]
 }
 
 // ─── Audit helpers ────────────────────────────────────────────────────────────
 
-export async function writeAuditLog(entry: {
-  event_type: string
-  transaction_id?: string
-  user_id?: string
-  admin_id?: string
-  pack_id?: string
-  physical_inventory_id?: string
-  digital_inventory_id?: string
-  payload?: Record<string, unknown>
-  ip_address?: string
-}): Promise<void> {
+export async function writeAuditLog(entry: { event_type: string; transaction_id?: string; user_id?: string; admin_id?: string; pack_id?: string; physical_inventory_id?: string; digital_inventory_id?: string; payload?: Record<string, unknown>; ip_address?: string }): Promise<void> {
   const supabase = createAdminClient()
-  await supabase.from('rip_audit_logs').insert({
-    ...entry,
-    payload: entry.payload ?? {},
-  })
-  // Errors are intentionally swallowed — audit failure must never block the user flow.
-  // Operators should monitor the rip_audit_logs table for completeness.
+  await supabase.from('rip_audit_logs').insert({ ...entry, payload: entry.payload ?? {} })
 }
 
 // ─── Pricing snapshot ─────────────────────────────────────────────────────────
 
-export async function recordPricingSnapshot(
-  ripResultId: string,
-  cardName: string,
-  setName: string | null,
-): Promise<void> {
+export async function recordPricingSnapshot(ripResultId: string, cardName: string, setName: string | null): Promise<void> {
   try {
     const price = await fetchCardPrice(cardName, setName ?? '')
     if (!price) return
-
     const supabase = createAdminClient()
-    await supabase.from('rip_pricing_snapshots').insert({
-      rip_result_id: ripResultId,
-      card_name: cardName,
-      set_name: setName,
-      market_price: price.marketPrice ?? null,
-      low_price: price.lowPrice ?? null,
-      high_price: price.highPrice ?? null,
-      source: price.source ?? 'unknown',
-    })
-  } catch {
-    // Non-fatal — pricing is best-effort
-  }
+    await supabase.from('rip_pricing_snapshots').insert({ rip_result_id: ripResultId, card_name: cardName, set_name: setName, market_price: price.marketPrice ?? null, low_price: price.lowPrice ?? null, high_price: price.highPrice ?? null, source: price.source ?? 'unknown' })
+  } catch {}
 }
 
 // ─── Per-user pack limit check ────────────────────────────────────────────────
 
-export async function checkUserPackLimit(
-  userId: string,
-  packId: string,
-  maxPerUser: number | null,
-): Promise<{ allowed: boolean; count: number }> {
-  if (!maxPerUser) return { allowed: true, count: 0 }
-
+export async function checkUserPackLimit(userId: string, packId: string, maxPerUser: number | null): Promise<{ allowed: boolean; count: number }> {
+  if (!maxPerUser || !isUuid(userId) || !isUuid(packId)) return { allowed: Boolean(!maxPerUser), count: 0 }
   const supabase = createAdminClient()
-  const { count, error } = await supabase
-    .from('rip_transactions')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .eq('pack_id', packId)
-    .in('status', ['paid', 'allocating', 'allocated', 'revealed', 'completed'])
-
+  const { count, error } = await supabase.from('rip_transactions').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('pack_id', packId).in('status', ['paid', 'allocating', 'allocated', 'revealed', 'completed'])
   if (error) throw error
-
   const current = count ?? 0
   return { allowed: current < maxPerUser, count: current }
 }
