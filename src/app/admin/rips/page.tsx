@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isAdmin } from '@/lib/security'
 import AdminRipsClient from './AdminRipsClient'
 
 export const metadata = {
@@ -8,28 +9,13 @@ export const metadata = {
 }
 
 export default async function AdminRipsPage() {
-  // Server Components can read request cookies, but Next.js does not allow
-  // them to mutate cookies. The shared Supabase server client safely ignores
-  // refresh-cookie writes here; auth/session mutation belongs in a Route
-  // Handler or middleware.
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/auth/signin')
 
-  // Check admin role. The generated Supabase type can infer an empty/never
-  // row shape for profiles in some builds, so normalize the selected role to
-  // the runtime shape used by this authorization check.
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  const role = (profile as { role?: string } | null)?.role
-  if (!role || !['admin', 'super_admin'].includes(role)) {
-    redirect('/')
-  }
+  // Rips admin access is restricted to the single owner login.
+  if (!isAdmin(user)) redirect('/')
 
   const admin = createAdminClient()
 
