@@ -6,6 +6,7 @@ import SiteShell from "@/components/site-shell";
 import { createClient } from "@/lib/supabase/client";
 import { getAppRole } from "@/lib/security";
 import { normalizeRedirect, buildRedirectForProvider } from "@/lib/redirect";
+import LiveShowFormLabels from "@/components/live/LiveShowFormLabels";
 
 const AUTH_PATHS = ["/auth", "/auth/signin", "/auth/callback", "/auth/reset-password"] as const;
 
@@ -72,9 +73,7 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
       const { data: { user } } = await client.auth.getUser();
       if (!alive) return;
 
-      // preserve fragment when available
       const currentHash = typeof window !== "undefined" ? window.location.hash : "";
-
       const rawRedirect = searchParams.get("redirectTo");
       const redirectTo = rawRedirect ? normalizeRedirect(rawRedirect) : null;
 
@@ -83,13 +82,11 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
           router.replace(getDestination(getAppRole(user), redirectTo));
           return;
         }
-
         setAuthState("ready");
         return;
       }
 
       if (isProtectedPage && !user) {
-        // build a redirect that preserves fragment by encoding requestedPath + hash
         const encoded = buildRedirectForProvider(requestedPath, currentHash);
         router.replace(`/auth?redirectTo=${encoded}`);
         return;
@@ -122,5 +119,10 @@ export default function AppFrame({ children }: { children: React.ReactNode }) {
     return <>{children}</>;
   }
 
-  return <SiteShell>{children}</SiteShell>;
+  return (
+    <SiteShell>
+      {children}
+      <LiveShowFormLabels />
+    </SiteShell>
+  );
 }
