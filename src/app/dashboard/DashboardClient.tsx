@@ -38,6 +38,11 @@ const SUPPORT_CARD = (
 );
 
 type Tab = "overview" | "listings" | "purchases" | "sales" | "fees" | "live";
+const VALID_TABS: Tab[] = ["overview", "listings", "purchases", "sales", "fees", "live"];
+
+function getRequestedTab(value: string | null): Tab {
+  return value && VALID_TABS.includes(value as Tab) ? (value as Tab) : "overview";
+}
 
 type DashboardOrder = Order & {
   listings?: { card_name?: string; images?: string[] } | null;
@@ -68,7 +73,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
 
-  const [tab, setTab] = useState<Tab>(orderTab === "sales" ? "sales" : "overview");
+  const [tab, setTab] = useState<Tab>(() => getRequestedTab(orderTab));
   const [profile, setProfile] = useState<Profile | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<SellerVerificationStatus | null>(null);
   const [verificationDetails, setVerificationDetails] = useState<VerificationRow | null>(null);
@@ -97,6 +102,11 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const [adminError, setAdminError] = useState<string | null>(null);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminNavLoading, setAdminNavLoading] = useState(false);
+
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab");
+    setTab(getRequestedTab(requestedTab));
+  }, [searchParams]);
 
   useEffect(() => {
     const init = async () => {
@@ -322,7 +332,7 @@ export default function DashboardClient({ orderSuccess }: { orderSuccess: boolea
   const earningsBreakdown = sellerSummary.netEarnings;
   const showTrustScore = 100;
   const notificationsEnabled = false;
-  const totalLiveShowSales = sellerLiveShows.reduce((sum) => sum, 0);
+  const totalLiveShowSales = sellerLiveShows.reduce((sum, room) => sum + 0, 0);
   const showQueueSize = sellerLiveShows.length;
   const auctionHealth = Math.max(0, 100 - Math.max(0, 100 - shippingPerformance));
   const giveawaySummary = { activeGiveaways: 0, eligibleUsers: 0, claimedWinners: 0, totalCost: 0, platformRevenueProtected: true };
