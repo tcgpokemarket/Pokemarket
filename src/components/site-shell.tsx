@@ -107,6 +107,7 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [name, setName] = useState<string | null>(null);
   const [notifications, setNotifications] = useState(0);
@@ -117,27 +118,30 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
     const client = createClient();
     let alive = true;
 
-    client.auth.getUser().then(({ data: { user } }) => {
+    client.auth.getUser().then(async ({ data: { user } }) => {
       if (!alive) return;
       setSignedIn(Boolean(user));
       setName(user?.email?.split("@")[0] ?? null);
-    });
+      setAuthReady(true);
 
-    client.auth.getSession().then(async ({ data: { session } }) => {
-      if (!alive || !session?.user) return;
-      const { data: profile } = await client.from("profiles").select("full_name, avatar_url").eq("id", session.user.id).maybeSingle();
+      if (!user) return;
+
+      const { data: profile } = await client.from("profiles").select("full_name, avatar_url").eq("id", user.id).maybeSingle();
       if (!alive) return;
       setAvatarUrl((profile as { avatar_url?: string | null } | null)?.avatar_url ?? null);
-      setName((profile as { full_name?: string | null } | null)?.full_name ?? session.user.email?.split("@")[0] ?? null);
+      setName((profile as { full_name?: string | null } | null)?.full_name ?? user.email?.split("@")[0] ?? null);
 
       const [{ count: notificationCount }, { count: messageCount }] = await Promise.all([
-        client.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", session.user.id).eq("read_status", false),
+        client.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("read_status", false),
         client.from("messages").select("id", { count: "exact", head: true }).eq("read_status", false),
       ]);
 
       if (!alive) return;
       setNotifications(notificationCount ?? 0);
       setMessages(messageCount ?? 0);
+    }).catch(() => {
+      if (!alive) return;
+      setAuthReady(true);
     });
 
     return () => {
@@ -170,6 +174,14 @@ export default function SiteShell({ children }: { children: React.ReactNode }) {
     setOpen(false);
     router.push("/auth");
   };
+
+  if (!authReady) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#09090f] px-4 text-center text-sm text-gray-400">
+        Loading...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#09090f] text-white">

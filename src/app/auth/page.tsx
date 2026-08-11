@@ -8,7 +8,7 @@ export default function AuthPage() {
         <section className="w-full rounded-[2rem] border border-white/10 bg-[#0f1627]/90 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl sm:p-7">
           <div className="flex items-center gap-3 text-2xl font-black tracking-tight">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-[#e22400] to-[#ffab01] text-sm font-black text-black shadow-lg shadow-black/30">TCG</div>
-            <span className="text-white">Poke</span>
+            <span className="text-white">Poké</span>
             <span className="text-yellow-400">Market</span>
           </div>
           <h1 className="mt-8 text-4xl font-black leading-tight sm:text-5xl">Sign in to continue.</h1>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { normalizeRedirect, buildRedirectForProvider } from "@/lib/redirect";
@@ -39,12 +39,6 @@ export default function AuthClient() {
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<{ type: "error" | "success"; text: string } | null>(null);
 
-  useEffect(() => {
-    const client = createClient({ rememberSession: rememberMe });
-    client.auth.getUser().then(({ data: { user } }) => {
-      if (user) router.replace(redirectTo);
-    });
-  }, [rememberMe, redirectTo, router]);
 
   const handleGoogleSignIn = async () => {
     setMessage(null);

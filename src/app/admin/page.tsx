@@ -1,5 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import { createServerClient } from "@supabase/ssr";
+import { isAdmin } from "@/lib/security";
 import AdminGate from "./AdminGate";
 
 export const metadata: Metadata = {
@@ -18,7 +22,27 @@ const modules = [
   { title: "Referral tools", href: "/admin/referrals" },
 ] as const;
 
-export default function AdminPage() {
+export default async function AdminPage() {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(toSet) {
+          toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+        },
+      },
+    },
+  );
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect('/auth/signin?redirectTo=/admin');
+  if (!isAdmin(user)) redirect('/dashboard');
+
   return (
     <AdminGate>
       <div className="px-4 py-10 text-white">
