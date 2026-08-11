@@ -1,9 +1,13 @@
 import Link from "next/link";
-import type { Listing } from "@/lib/supabase/types";
+import type { Listing, Profile } from "@/lib/supabase/types";
 import { VerifiedImage } from "./VerifiedImage";
-import { choosePrimaryImage, evaluateImageMatch, type ImageVerificationResult } from "@/lib/image-verification";
+import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 
-function getImageStatus(listing: Listing) {
+type ListingWithSeller = Listing & {
+  profiles?: Pick<Profile, "username" | "seller_rating" | "verification_status"> | null;
+};
+
+function getImageStatus(listing: ListingWithSeller) {
   const images = listing.images ?? [];
   const identity = {
     name: listing.card_name,
@@ -32,13 +36,7 @@ function getImageStatus(listing: Listing) {
 }
 
 interface ListingCardProps {
-  listing: Listing & {
-    profiles?: {
-      username: string | null;
-      seller_rating: number;
-      verification_status?: "not_started" | "pending_review" | "approved" | "rejected" | "more_information_required" | "suspended" | null;
-    } | null;
-  };
+  listing: ListingWithSeller;
 }
 
 export default function ListingCard({ listing }: ListingCardProps) {
