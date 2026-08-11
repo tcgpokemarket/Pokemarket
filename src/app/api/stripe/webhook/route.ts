@@ -44,6 +44,12 @@ export async function POST(req: Request) {
 
       const orderId = session.metadata?.order_id;
       if (orderId && session.payment_status === "paid") {
+        const paymentIntentId = typeof session.payment_intent === "string" ? session.payment_intent : null;
+        if (paymentIntentId) {
+          const { error: paymentIntentError } = await admin.from("orders").update({ stripe_payment_intent_id: paymentIntentId }).eq("id", orderId);
+          if (paymentIntentError) throw paymentIntentError;
+        }
+
         const { data: completion, error: completionError } = await admin.rpc("complete_marketplace_order", { p_order_id: orderId });
         if (completionError) throw completionError;
 
@@ -55,9 +61,7 @@ export async function POST(req: Request) {
           if (holdError) throw holdError;
         }
 
-        // Create the referral reward only after the paid order has been completed.
-        // The database function independently caps the reward to eligible platform
-        // revenue and reserves the configured minimum platform margin.
+        // Reward creation is idempotent and profit-capped inside Postgres.
         const { error: referralError } = await admin.rpc("create_profit_safe_referral_reward", { p_order_id: orderId });
         if (referralError) throw referralError;
 
@@ -65,9 +69,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // A refund/chargeback must reverse any pending or available referral reward.
-    const refundEvents = new Set(["charge.refunded", "charge.dispute.created", "payment_intent.payment_failed"]);
-    if (refundEvents.has(event.type)) {
+    const reversalEvents = new Set(["charge.refunded", "charge.dispute.created", "payment_intent.payment_failed"]);
+    if (reversalEvents.has(event.type)) {
       const object: any = event.data.object;
       const paymentIntentId = typeof object.payment_intent === "string" ? object.payment_intent : object.id;
       if (paymentIntentId) {
