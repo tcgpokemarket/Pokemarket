@@ -13,8 +13,6 @@ type ListingWithSeller = Listing & {
   profiles?: ListingSellerProfile | null;
 };
 
-// Supabase's generated Listing type does not guarantee the optional profiles relation.
-// Keep the relation access behind this runtime-safe narrowing so Vercel's TypeScript build succeeds.
 function getSellerProfile(listing: Listing): ListingSellerProfile | null {
   const value = (listing as unknown as { profiles?: ListingSellerProfile | null }).profiles;
   return value ?? null;
