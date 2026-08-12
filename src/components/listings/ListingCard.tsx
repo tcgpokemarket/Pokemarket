@@ -1,10 +1,17 @@
 import Link from "next/link";
-import type { Listing, Profile } from "@/lib/supabase/types";
+import type { Listing } from "@/lib/supabase/types";
 import { VerifiedImage } from "./VerifiedImage";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
 
-type ListingSellerProfile = Pick<Profile, "username" | "seller_rating" | "verification_status">;
-type ListingWithSeller = Listing & { profiles?: ListingSellerProfile | null };
+type ListingSellerProfile = {
+  username: string | null;
+  seller_rating: number;
+  verification_status: "not_started" | "pending_review" | "approved" | "rejected" | "more_information_required" | "suspended" | null;
+};
+
+type ListingWithSeller = Listing & {
+  profiles?: ListingSellerProfile | null;
+};
 
 function getImageStatus(listing: ListingWithSeller) {
   const images = listing.images ?? [];
@@ -15,8 +22,6 @@ function getImageStatus(listing: ListingWithSeller) {
     variant: listing.grade_company ? `${listing.grade_company} ${listing.grade_score ?? ""}`.trim() : null,
   };
 
-  // Seller verification and image verification are separate signals.
-  // A verified seller must never be rendered as an unverified seller because an image is unverified.
   const sellerIsVerified = listing.profiles?.verification_status === "approved";
   const source = sellerIsVerified ? "seller_verified" : "seller_unverified";
 
