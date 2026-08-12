@@ -25,3 +25,5 @@ This is intentionally documented here rather than rewriting `supabase_migrations
 Before the next database migration push, run the linked-project reconciliation workflow (`supabase db pull --linked`, local reset/verification, then the exact `supabase migration repair` operations reported by `supabase migration list`).
 
 This file is intentionally non-functional and exists to create a fresh Git revision after the feature fixes so the connected deployment pipeline can consume the complete `main` tree as one production baseline.
+
+Deployment trigger refresh: 2026-08-11 — force a fresh Git revision so the connected Vercel production integration evaluates the complete `main` tree after the ListingCard type fix.
