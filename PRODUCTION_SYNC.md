@@ -12,7 +12,7 @@ Production requirements represented by the current branch include:
 - marketplace homepage with active listings and live/upcoming shows
 - listing images and verified-seller badges
 - tier/Poké Ball presentation
-- canonical SEO configuration for `tcgpoKe.app`
+- canonical SEO configuration for `tcgpoke.app`
 
 ## Supabase migration audit — 2026-08-11
 
