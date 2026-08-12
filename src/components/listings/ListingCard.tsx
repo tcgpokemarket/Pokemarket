@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Listing } from "@/lib/supabase/types";
-import { VerifiedImage } from "./VerifiedImage";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
+import { VerifiedImage } from "./VerifiedImage";
 
 type ListingSellerProfile = {
   username: string | null;
