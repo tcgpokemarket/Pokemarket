@@ -13,7 +13,11 @@ type ListingWithSeller = Listing & {
   profiles?: ListingSellerProfile | null;
 };
 
-function getImageStatus(listing: ListingWithSeller) {
+function getSellerProfile(listing: Listing): ListingSellerProfile | null {
+  return (listing as ListingWithSeller).profiles ?? null;
+}
+
+function getImageStatus(listing: Listing) {
   const images = listing.images ?? [];
   const identity = {
     name: listing.card_name,
@@ -22,7 +26,7 @@ function getImageStatus(listing: ListingWithSeller) {
     variant: listing.grade_company ? `${listing.grade_company} ${listing.grade_score ?? ""}`.trim() : null,
   };
 
-  const sellerIsVerified = listing.profiles?.verification_status === "approved";
+  const sellerIsVerified = getSellerProfile(listing)?.verification_status === "approved";
   const source = sellerIsVerified ? "seller_verified" : "seller_unverified";
 
   const scored = images.map((imageUrl) =>
@@ -44,7 +48,8 @@ interface ListingCardProps {
 
 export default function ListingCard({ listing }: ListingCardProps) {
   const image = getImageStatus(listing);
-  const sellerIsVerified = listing.profiles?.verification_status === "approved";
+  const sellerProfile = getSellerProfile(listing);
+  const sellerIsVerified = sellerProfile?.verification_status === "approved";
 
   return (
     <div className="group block overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#101724]">
@@ -74,7 +79,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
         <Link href={`/listings/${listing.id}`} className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">View</Link>
         <button type="button" className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">Add to Cart</button>
         <button type="button" className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">Make Offer</button>
-        {listing.profiles?.username && <Link href={`/profile/${listing.profiles.username}`} className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">@{listing.profiles.username}</Link>}
+        {sellerProfile?.username && <Link href={`/profile/${sellerProfile.username}`} className="rounded-lg border border-white/20 px-3 py-2 text-sm text-white">@{sellerProfile.username}</Link>}
       </div>
     </div>
   );
