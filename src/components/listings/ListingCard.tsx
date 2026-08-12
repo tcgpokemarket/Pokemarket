@@ -13,8 +13,10 @@ type ListingWithSeller = Listing & {
   profiles?: ListingSellerProfile | null;
 };
 
+// Keep the generated Listing type independent from the optional Supabase relation.
 function getSellerProfile(listing: Listing): ListingSellerProfile | null {
-  return (listing as ListingWithSeller).profiles ?? null;
+  const value = (listing as unknown as { profiles?: ListingSellerProfile | null }).profiles;
+  return value ?? null;
 }
 
 function getImageStatus(listing: Listing) {
