@@ -22,7 +22,17 @@ export async function getHomepageData(): Promise<HomepageData> {
     ]);
 
     const trendingMarketplace = (listingsResult.data ?? []) as HomepageListing[];
-    const featuredSellers = (sellersResult.data ?? []).map((seller) => ({ ...seller, display_name: seller.display_name ?? seller.full_name ?? seller.username ?? "Seller", storefront_slug: seller.storefront_slug ?? seller.username ?? seller.id, verified: Boolean(seller.verified), rating: Number(seller.rating ?? seller.seller_rating ?? 0), sales_count: Number(seller.sales_count ?? seller.total_sales ?? 0) })) as HomepageSeller[];
+    const featuredSellers = (sellersResult.data ?? []).map((seller) => {
+      const row = seller as Partial<HomepageSeller> & { display_name?: string | null; storefront_slug?: string | null; verified?: boolean | null; rating?: number | null; sales_count?: number | null };
+      return {
+        ...(row as HomepageSeller),
+        display_name: row.display_name ?? row.full_name ?? row.username ?? "Seller",
+        storefront_slug: row.storefront_slug ?? row.username ?? row.id ?? "",
+        verified: Boolean(row.verified),
+        rating: Number(row.rating ?? row.seller_rating ?? 0),
+        sales_count: Number(row.sales_count ?? row.total_sales ?? 0),
+      };
+    }) as HomepageSeller[];
     const liveShows = (liveShowsResult.data ?? []) as HomepageLiveShow[];
     const liveNow = liveShows.filter((show) => show.status === "live");
     const upcomingLiveShows = liveShows.filter((show) => show.status === "scheduled" || show.status === "upcoming");

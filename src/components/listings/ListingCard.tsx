@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Listing } from "@/lib/supabase/types";
 import { choosePrimaryImage, evaluateImageMatch } from "@/lib/image-verification";
+import { normalizePublicImageUrl } from "@/lib/image-url";
 import { VerifiedImage } from "./VerifiedImage";
 
 type ListingSellerProfile = {
@@ -19,7 +20,10 @@ function getSellerProfile(listing: Listing): ListingSellerProfile | null {
 }
 
 function getImageStatus(listing: Listing) {
-  const images = listing.images ?? [];
+  const imageUrls = (listing.images ?? [])
+    .map((value) => normalizePublicImageUrl(value, "listing-images"))
+    .filter((value): value is string => Boolean(value));
+
   const identity = {
     name: listing.card_name,
     setName: listing.set_name,
@@ -30,7 +34,7 @@ function getImageStatus(listing: Listing) {
   const sellerIsVerified = getSellerProfile(listing)?.verification_status === "approved";
   const source = sellerIsVerified ? "seller_verified" : "seller_unverified";
 
-  const scored = images.map((imageUrl) =>
+  const scored = imageUrls.map((imageUrl) =>
     evaluateImageMatch(identity, {
       imageUrl,
       source,
@@ -59,7 +63,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
           {image ? (
             <VerifiedImage listing={listing} image={image} className="absolute inset-0" />
           ) : (
-            <div className="flex h-full items-center justify-center text-7xl">🃏</div>
+            <div className="flex h-full items-center justify-center text-7xl" aria-label={`${listing.card_name} image unavailable`}>🃏</div>
           )}
           {sellerIsVerified && (
             <div className="absolute bottom-2 right-2 rounded-full border border-yellow-400/30 bg-black/70 px-2 py-1 text-[11px] font-semibold text-yellow-300 backdrop-blur">
@@ -71,7 +75,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
         <div className="p-5">
           <h3 className="font-black text-white">{listing.card_name}</h3>
           <p className="text-sm text-gray-400">{listing.set_name}</p>
-          <p className="mt-2 font-black text-white">${listing.price.toFixed(2)}</p>
+          <p className="mt-2 font-black text-white">${Number(listing.price ?? 0).toFixed(2)}</p>
           {sellerIsVerified && <p className="mt-1 text-xs font-semibold text-yellow-300">Verified Seller</p>}
         </div>
       </Link>

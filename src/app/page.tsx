@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getHomepageData } from "@/lib/homepage-data";
 import ListingCard from "@/components/listings/ListingCard";
+import { normalizePublicImageUrl } from "@/lib/image-url";
 import type { Listing, Profile } from "@/lib/supabase/types";
 
 export const dynamic = "force-dynamic";
@@ -12,7 +13,11 @@ type HomeListing = Listing & {
 export default async function Home() {
   const data = await getHomepageData();
   const listings = data.trendingMarketplace as HomeListing[];
-  const showcases = data.liveNow.length ? data.liveNow : data.featuredLiveShows.length ? data.featuredLiveShows : data.upcomingLiveShows;
+  const showcases = data.liveNow.length
+    ? data.liveNow
+    : data.featuredLiveShows.length
+      ? data.featuredLiveShows
+      : data.upcomingLiveShows;
 
   return (
     <main className="min-h-screen bg-[#0f0f1a] text-white">
@@ -38,13 +43,21 @@ export default async function Home() {
         </section>
 
         <section className="mt-8">
-          <div className="mb-4 flex items-center justify-between"><h2 className="text-2xl font-black">Listings</h2><Link href="/listings" className="text-sm font-semibold text-yellow-400">View all</Link></div>
-          {listings.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{listings.slice(0, 12).map((listing) => <ListingCard key={listing.id} listing={listing} />)}</div> : <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/50">No active listings yet.</div>}
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-2xl font-black">Live & upcoming</h2><Link href="/live" className="text-sm font-semibold text-yellow-400">View all</Link></div>
+          {showcases.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{showcases.slice(0, 8).map((show) => {
+            const thumbnail = normalizePublicImageUrl(show.thumbnail, "live-show-images");
+            return <Link key={show.id} href={`/live/${show.id}`} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10"><div className="aspect-video bg-black/30">{thumbnail ? <img src={thumbnail} alt={show.title} className="h-full w-full object-cover" loading="lazy" decoding="async" /> : <div className="flex h-full items-center justify-center text-4xl">🎴</div>}</div><div className="p-4"><div className="flex justify-between text-xs"><span className="font-bold text-yellow-400">{show.status === "live" ? "LIVE" : "UPCOMING"}</span><span className="text-white/50">{show.viewer_count ?? 0} watching</span></div><h3 className="mt-2 line-clamp-2 font-bold">{show.title}</h3></div></Link>;
+          })}</div> : <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/50">No live or upcoming shows right now.</div>}
         </section>
 
         <section className="mt-10" aria-label="Live shows">
           <div className="mb-4 flex items-center justify-between"><h2 className="text-2xl font-black">Live Shows</h2><Link href="/live" className="text-sm font-semibold text-yellow-400">View all</Link></div>
-          {showcases.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{showcases.slice(0, 8).map((show) => <Link key={show.id} href={`/live/${show.id}`} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10"><div className="aspect-video bg-black/30">{show.thumbnail ? <img src={show.thumbnail} alt={show.title} className="h-full w-full object-cover" /> : <div className="flex h-full items-center justify-center text-4xl">🎴</div>}</div><div className="p-4"><div className="flex justify-between text-xs"><span className="font-bold text-yellow-400">{show.status === "live" ? "LIVE" : "UPCOMING"}</span><span className="text-white/50">{show.viewer_count ?? 0} watching</span></div><h3 className="mt-2 line-clamp-2 font-bold">{show.title}</h3></div></Link>)}</div> : <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/50">No live or upcoming shows right now.</div>}
+          {showcases.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{showcases.slice(0, 8).map((show) => <Link key={show.id} href={`/live/${show.id}`} className="overflow-hidden rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10"><div className="aspect-video bg-black/30">{show.thumbnail ? <img src={show.thumbnail} alt={show.title} className="h-full w-full object-cover" loading="lazy" decoding="async" /> : <div className="flex h-full items-center justify-center text-4xl">🎴</div>}</div><div className="p-4"><div className="flex justify-between text-xs"><span className="font-bold text-yellow-400">{show.status === "live" ? "LIVE" : "UPCOMING"}</span><span className="text-white/50">{show.viewer_count ?? 0} watching</span></div><h3 className="mt-2 line-clamp-2 font-bold">{show.title}</h3></div></Link>)}</div> : <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/50">No live or upcoming shows right now.</div>}
+
+        <section className="mt-10">
+          <div className="mb-4 flex items-center justify-between"><h2 className="text-2xl font-black">Listings</h2><Link href="/listings" className="text-sm font-semibold text-yellow-400">View all</Link></div>
+          {listings.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{listings.slice(0, 12).map((listing) => <ListingCard key={listing.id} listing={listing} />)}</div> : <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-center text-white/50">No active listings yet.</div>}
+        </section>
         </section>
       </div>
     </main>

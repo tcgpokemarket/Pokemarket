@@ -1,3 +1,6 @@
+"use client";
+
+import { useState } from "react";
 import { buildImageOverlayTag, type ImageVerificationResult } from "@/lib/image-verification";
 
 export function VerifiedImage({
@@ -9,8 +12,14 @@ export function VerifiedImage({
   image: ImageVerificationResult | null;
   className?: string;
 }) {
-  if (!image) {
-    return <div className={`flex h-full w-full items-center justify-center bg-white/5 ${className}`}>🃏</div>;
+  const [failed, setFailed] = useState(false);
+
+  if (!image || failed) {
+    return (
+      <div className={`flex h-full w-full items-center justify-center bg-white/5 ${className}`} aria-label={`${listing.card_name} image unavailable`}>
+        <span className="text-7xl" aria-hidden="true">🃏</span>
+      </div>
+    );
   }
 
   const label = buildImageOverlayTag(listing);
@@ -23,7 +32,7 @@ export function VerifiedImage({
         ? "border-green-400/30 bg-green-400/15 text-green-300"
         : image.confidence === "medium"
           ? "border-yellow-400/30 bg-yellow-400/15 text-yellow-300"
-          : "border-red-400/30 bg-red-400/15 text-red-300";
+          : "border-white/10 bg-black/60 text-white/80";
 
   const trustLabel = sellerVerified
     ? "Verified Seller"
@@ -33,11 +42,18 @@ export function VerifiedImage({
         ? "High confidence"
         : image.confidence === "medium"
           ? "Needs review"
-          : "Unverified";
+          : "Seller image";
 
   return (
     <div className={`relative h-full w-full ${className}`}>
-      <img src={image.imageUrl} alt={listing.card_name} className="h-full w-full object-cover" />
+      <img
+        src={image.imageUrl}
+        alt={`${listing.card_name} — ${listing.set_name}`}
+        className="h-full w-full object-cover"
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailed(true)}
+      />
       <div className="absolute left-2 right-2 top-2 flex items-start justify-between gap-2">
         <div className={`rounded-full border px-2 py-1 text-[11px] font-semibold backdrop-blur ${badgeClass}`}>
           {trustLabel}

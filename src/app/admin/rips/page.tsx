@@ -4,6 +4,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { isAdmin } from '@/lib/security'
 import AdminRipsClient from './AdminRipsClient'
 
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
+export const runtime = 'nodejs'
+
 export const metadata = {
   title: 'Admin — Rips',
 }
