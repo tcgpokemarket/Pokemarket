@@ -15,8 +15,7 @@ type ListingWithSeller = Listing & {
 };
 
 function getSellerProfile(listing: Listing): ListingSellerProfile | null {
-  const value = (listing as unknown as { profiles?: ListingSellerProfile | null }).profiles;
-  return value ?? null;
+  return (listing as unknown as { profiles?: ListingSellerProfile | null }).profiles ?? null;
 }
 
 function getImageStatus(listing: Listing) {
